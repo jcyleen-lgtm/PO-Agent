@@ -1,0 +1,55 @@
+name: PO Agent v3
+
+on:
+  # Weekly analysis — setiap Rabu jam 7 pagi WIB (00:00 UTC)
+  schedule:
+    - cron: "0 0 * * 3"
+
+  # Manual trigger dari GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Mode run: weekly / restock"
+        required: false
+        default: "weekly"
+      kirim_email:
+        description: "Kirim email? (true/false)"
+        required: false
+        default: "true"
+
+jobs:
+  run-po-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run PO Agent
+        env:
+          ANTHROPIC_API_KEY:       ${{ secrets.ANTHROPIC_API_KEY }}
+          EMAIL_SENDER:            ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD:          ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_RECIPIENT:         ${{ secrets.EMAIL_RECIPIENT }}
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+          GOOGLE_SHEETS_ID:        ${{ secrets.GOOGLE_SHEETS_ID }}
+          RUN_MODE:                ${{ github.event.inputs.mode || 'weekly' }}
+          KIRIM_EMAIL:             ${{ github.event.inputs.kirim_email || 'true' }}
+        run: python main.py
+
+      - name: Upload hasil sebagai artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: po-agent-output-${{ github.run_number }}
+          path: output/*.xlsx
+          retention-days: 30

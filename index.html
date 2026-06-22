@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PO Agent — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --navy:#0f2340;--navy2:#1a3558;--blue:#2563eb;--blue-lt:#dbeafe;
+  --teal:#0d9488;--red:#dc2626;--red-lt:#fee2e2;--amber:#d97706;
+  --amber-lt:#fef3c7;--green:#16a34a;--green-lt:#dcfce7;
+  --gray0:#f8fafc;--gray1:#f1f5f9;--gray2:#e2e8f0;--gray3:#94a3b8;
+  --gray4:#64748b;--gray5:#334155;--white:#ffffff;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+  --radius:10px;--shadow:0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--gray0);color:var(--gray5);min-height:100vh}
+
+/* Sidebar */
+.sidebar{position:fixed;top:0;left:0;width:220px;height:100vh;background:var(--navy);display:flex;flex-direction:column;padding:24px 0;z-index:100}
+.sidebar-logo{padding:0 20px 24px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sidebar-logo h1{font-size:15px;font-weight:700;color:#fff}
+.sidebar-logo span{font-size:11px;color:var(--gray3);font-family:var(--mono)}
+.nav{padding:16px 12px;flex:1}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;font-size:13px;font-weight:500;color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s;margin-bottom:2px;border:none;background:none;width:100%;text-align:left}
+.nav-item:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav-item.active{background:var(--blue);color:#fff}
+.nav-icon{font-size:15px;width:18px;text-align:center}
+.sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:var(--gray3)}
+
+/* Main */
+.main{margin-left:220px;padding:28px 32px;min-height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
+.topbar-title{font-size:20px;font-weight:700;color:var(--navy)}
+.topbar-sub{font-size:13px;color:var(--gray4);margin-top:2px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-primary:disabled{background:var(--gray2);color:var(--gray3);cursor:not-allowed}
+.btn-outline{background:#fff;color:var(--gray5);border:1px solid var(--gray2)}
+.btn-outline:hover{background:var(--gray1)}
+.btn-sm{padding:6px 12px;font-size:12px}
+
+/* Login */
+.login-overlay{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:999}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:360px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h2{font-size:22px;font-weight:700;color:var(--navy);margin-bottom:6px}
+.login-box p{font-size:13px;color:var(--gray4);margin-bottom:28px}
+.input{width:100%;padding:10px 14px;border:1px solid var(--gray2);border-radius:8px;font-size:14px;font-family:var(--font);outline:none;transition:border .15s;margin-bottom:12px}
+.input:focus{border-color:var(--blue)}
+.login-error{font-size:12px;color:var(--red);margin-bottom:12px;display:none}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px}
+.stat-card{background:#fff;border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);border-left:3px solid transparent}
+.stat-card.urgent{border-color:var(--red)}
+.stat-card.normal{border-color:var(--amber)}
+.stat-card.ok{border-color:var(--green)}
+.stat-card.total{border-color:var(--blue)}
+.stat-card.tier{border-color:var(--teal)}
+.stat-label{font-size:11px;font-weight:600;color:var(--gray3);text-transform:uppercase;letter-spacing:.5px}
+.stat-value{font-size:26px;font-weight:700;color:var(--navy);margin:4px 0 2px}
+.stat-sub{font-size:12px;color:var(--gray4)}
+
+/* Grid */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+
+/* Card */
+.card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--gray1);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:14px;font-weight:600;color:var(--navy)}
+.card-body{padding:20px}
+
+/* Upload */
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.upload-zone{border:2px dashed var(--gray2);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.upload-zone:hover{border-color:var(--blue);background:var(--blue-lt)}
+.upload-zone.uploaded{border-color:var(--green);background:var(--green-lt);border-style:solid}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload-icon{font-size:22px;margin-bottom:6px}
+.upload-label{font-size:12px;font-weight:600;color:var(--gray5)}
+.upload-sub{font-size:11px;color:var(--gray3);margin-top:2px}
+.upload-check{font-size:22px;margin-bottom:4px;display:none}
+.upload-filename{font-size:11px;color:var(--green);font-weight:600;font-family:var(--mono)}
+.upload-optional{font-size:10px;color:var(--amber);font-weight:600;margin-top:2px}
+
+/* Run */
+.run-area{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);border-radius:var(--radius);padding:24px;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.run-area-text h3{font-size:15px;font-weight:700;color:#fff}
+.run-area-text p{font-size:12px;color:rgba(255,255,255,.6);margin-top:4px}
+.btn-run{background:var(--teal);color:#fff;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:700;border:none;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:8px}
+.btn-run:hover{background:#0f766e;transform:translateY(-1px)}
+.btn-run:disabled{background:var(--gray3);cursor:not-allowed;transform:none}
+
+/* Progress */
+.progress-wrap{margin-bottom:20px;display:none}
+.progress-steps{display:flex;gap:0}
+.progress-step{flex:1;padding:12px 16px;background:var(--gray1);font-size:12px;font-weight:500;color:var(--gray3);display:flex;align-items:center;gap:8px;position:relative}
+.progress-step:not(:last-child)::after{content:'›';position:absolute;right:-8px;font-size:18px;color:var(--gray2);z-index:1}
+.progress-step.active{background:var(--blue-lt);color:var(--blue)}
+.progress-step.done{background:var(--green-lt);color:var(--green)}
+.progress-step:first-child{border-radius:8px 0 0 8px}
+.progress-step:last-child{border-radius:0 8px 8px 0}
+.step-dot{width:20px;height:20px;border-radius:50%;background:var(--gray2);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.progress-step.active .step-dot{background:var(--blue);color:#fff}
+.progress-step.done .step-dot{background:var(--green);color:#fff}
+
+/* Table */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--gray1);padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--gray4);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--gray1)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--gray0)}
+
+/* Badge */
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-urgent{background:var(--red-lt);color:var(--red)}
+.badge-normal{background:var(--amber-lt);color:var(--amber)}
+.badge-skip{background:var(--gray1);color:var(--gray4)}
+.badge-bs{background:#D1FAE5;color:#15803D}
+.badge-up{background:#DBEAFE;color:#1D4ED8}
+.badge-sm{background:#FEF3C7;color:#92400E}
+.badge-dw{background:#F3F4F6;color:#6B7280}
+.badge-sin{background:#FFE4E6;color:#9F1239}
+
+/* Tier filter */
+.tier-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.tier-btn{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;border:none;cursor:pointer;transition:all .15s}
+.tier-btn.active{box-shadow:0 0 0 2px var(--blue)}
+
+/* Trend indicator */
+.tren-up{color:#15803D;font-weight:600}
+.tren-down{color:var(--red);font-weight:600}
+.tren-stable{color:var(--gray4)}
+.tren-new{color:var(--blue)}
+
+/* History */
+.history-item{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--gray1)}
+.history-item:last-child{border-bottom:none}
+.history-icon{width:36px;height:36px;border-radius:8px;background:var(--blue-lt);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.history-info{flex:1}
+.history-title{font-size:13px;font-weight:600;color:var(--navy)}
+.history-sub{font-size:11px;color:var(--gray3);margin-top:2px}
+.history-value{font-size:13px;font-weight:700;color:var(--navy);text-align:right}
+.history-date{font-size:11px;color:var(--gray3);text-align:right}
+
+/* Log */
+.log-console{background:#0d1117;border-radius:8px;padding:16px;font-family:var(--mono);font-size:12px;color:#7ee787;max-height:200px;overflow-y:auto;display:none}
+.log-line{margin-bottom:4px}
+.log-line.err{color:#f85149}
+.log-line.warn{color:#d29922}
+.log-line.info{color:#58a6ff}
+
+/* Tabs */
+.tabs{display:flex;gap:0;margin-bottom:0;border-bottom:2px solid var(--gray1)}
+.tab{padding:10px 18px;font-size:13px;font-weight:500;color:var(--gray4);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-panel{display:none;padding:20px}
+.tab-panel.active{display:block}
+
+/* Empty */
+.empty{text-align:center;padding:40px 20px;color:var(--gray3)}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.empty-text{font-size:13px}
+
+/* Alert */
+.alert{padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px}
+.alert-info{background:var(--blue-lt);color:#1e40af}
+.alert-success{background:var(--green-lt);color:#15803d}
+.alert-error{background:var(--red-lt);color:#991b1b}
+
+/* Chart */
+.chart-area{height:160px;display:flex;align-items:flex-end;gap:4px;padding:0 4px}
+.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar{width:100%;border-radius:4px 4px 0 0;transition:height .4s ease;min-height:4px}
+.bar-label{font-size:10px;color:var(--gray3);text-align:center}
+.bar-val{font-size:10px;font-weight:600;color:var(--gray5)}
+
+/* Tier donut placeholder */
+.tier-pie{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:4px}
+.tier-row{display:flex;align-items:center;gap:8px;font-size:12px}
+.tier-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.tier-label{color:var(--gray5);flex:1}
+.tier-count{font-weight:600;color:var(--navy)}
+
+/* Page SPA */
+.page{display:none}
+.page.active{display:block}
+
+/* Spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+
+@media(max-width:900px){
+  .sidebar{display:none}
+  .main{margin-left:0;padding:20px}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .grid-2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div style="font-size:40px;margin-bottom:12px">📦</div>
+    <h2>PO Agent</h2>
+    <p>Masukkan password tim untuk melanjutkan</p>
+    <input class="input" type="password" id="passInput" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"/>
+    <div class="login-error" id="loginError">Password salah. Coba lagi.</div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Masuk</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <h1>📦 PO Agent</h1>
+    <span>v2.0 · dashboard</span>
+  </div>
+  <nav class="nav">
+    <button class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">🏠</span> Dashboard</button>
+    <button class="nav-item" onclick="showPage('run',this)"><span class="nav-icon">▶️</span> Jalankan Agent</button>
+    <button class="nav-item" onclick="showPage('performa',this)"><span class="nav-icon">📊</span> Performa Produk</button>
+    <button class="nav-item" onclick="showPage('history',this)"><span class="nav-icon">📋</span> History Run</button>
+    <button class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">⚙️</span> Pengaturan</button>
+  </nav>
+  <div class="sidebar-footer">
+    <div style="font-weight:600;color:#fff;margin-bottom:2px">Tim Purchasing</div>
+    <div>Terakhir run: <span id="lastRunTime">—</span></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- DASHBOARD -->
+<div class="page active" id="page-dashboard">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">Dashboard</div>
+      <div class="topbar-sub" id="dashDate">—</div>
+    </div>
+    <button class="btn btn-primary" onclick="showPage('run',document.querySelectorAll('.nav-item')[1])">▶ Jalankan Agent</button>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card urgent"><div class="stat-label">🚨 Urgent</div><div class="stat-value" id="statUrgent">—</div><div class="stat-sub">stok kritis</div></div>
+    <div class="stat-card normal"><div class="stat-label">📋 Normal</div><div class="stat-value" id="statNormal">—</div><div class="stat-sub">perlu dipesan</div></div>
+    <div class="stat-card ok"><div class="stat-label">✅ Stok Aman</div><div class="stat-value" id="statOk">—</div><div class="stat-sub">produk cukup</div></div>
+    <div class="stat-card total"><div class="stat-label">💰 Est. Nilai PO</div><div class="stat-value" id="statNilai">—</div><div class="stat-sub">estimasi order</div></div>
+    <div class="stat-card tier"><div class="stat-label">🏆 Best Seller</div><div class="stat-value" id="statBS">—</div><div class="stat-sub">produk top</div></div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:20px">
+    <!-- Rekomendasi PO -->
+    <div class="card" style="grid-column:span 2">
+      <div class="card-header">
+        <span class="card-title">Rekomendasi PO Terakhir</span>
+        <button class="btn btn-outline btn-sm" id="downloadBtn" onclick="downloadLastExcel()" style="display:none">⬇ Download Excel</button>
+      </div>
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('urgent-tab',this)">🚨 Urgent</button>
+        <button class="tab" onclick="switchTab('normal-tab',this)">📋 Normal</button>
+        <button class="tab" onclick="switchTab('skip-tab',this)">⏭ Dilewati</button>
+        <button class="tab" onclick="switchTab('insight-tab',this)">🎯 Insight Tier</button>
+      </div>
+      <div class="tab-panel active" id="urgent-tab">
+        <div class="empty" id="emptyUrgent"><div class="empty-icon">✅</div><div class="empty-text">Belum ada data. Jalankan agent dulu.</div></div>
+        <div class="table-wrap" id="tableUrgent" style="display:none">
+          <table><thead><tr><th>Produk</th><th>Tier</th><th>Tren</th><th>Qty</th><th>Est. Tiba</th><th>Alasan</th></tr></thead><tbody id="tbodyUrgent"></tbody></table>
+        </div>
+      </div>
+      <div class="tab-panel" id="normal-tab">
+        <div class="empty" id="emptyNormal"><div class="empty-icon">✅</div><div class="empty-text">Belum ada data. Jalankan agent dulu.</div></div>
+        <div class="table-wrap" id="tableNormal" style="display:none">
+          <table><thead><tr><th>Produk</th><th>Tier</th><th>Tren</th><th>Qty</th><th>Est. Tiba</th><th>Alasan</th></tr></thead><tbody id="tbodyNormal"></tbody></table>
+        </div>
+      </div>
+      <div class="tab-panel" id="skip-tab">
+        <div class="empty" id="emptySkip"><div class="empty-icon">⏭</div><div class="empty-text">Belum ada data.</div></div>
+        <div id="listSkip" style="display:none;padding:0 20px 16px"></div>
+      </div>
+      <div class="tab-panel" id="insight-tab">
+        <div class="empty" id="emptyInsight"><div class="empty-icon">🎯</div><div class="empty-text">Belum ada data. Jalankan agent dulu.</div></div>
+        <div id="insightContent" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analisis AI -->
+  <div class="card" id="analysisCard" style="display:none;margin-bottom:20px">
+    <div class="card-header"><span class="card-title">🔍 Analisis AI</span></div>
+    <div class="card-body">
+      <p id="analysisText" style="font-size:14px;line-height:1.6;color:var(--gray5)"></p>
+      <div style="margin-top:14px;padding:12px 14px;background:var(--green-lt);border-radius:8px;font-size:13px;color:#15803d">
+        💡 <strong>Saran:</strong> <span id="saranText"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- History chart -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">📊 History Nilai PO</span></div>
+      <div class="card-body">
+        <div class="chart-area" id="chartArea">
+          <div class="empty" style="width:100%"><div class="empty-icon">📊</div><div class="empty-text">Belum ada history</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- Tier distribution -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">🏷 Distribusi Tier Produk</span></div>
+      <div class="card-body" id="tierDistCard">
+        <div class="empty"><div class="empty-icon">🏷</div><div class="empty-text">Belum ada data tier</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RUN AGENT -->
+<div class="page" id="page-run">
+  <div class="topbar">
+    <div><div class="topbar-title">Jalankan Agent</div><div class="topbar-sub">Upload data terbaru dan jalankan analisis PO</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header"><span class="card-title">📁 Upload Data</span></div>
+    <div class="card-body">
+      <div class="alert alert-info">ℹ️ Upload file export Accurate. Format: SKU | Product | Quantity (untuk stok & penjualan).</div>
+      <div class="upload-grid">
+        <div class="upload-zone" id="zone-stok">
+          <input type="file" accept=".xlsx,.xls,.csv" onchange="handleUpload('stok',this)"/>
+          <div class="upload-icon">🏭</div>
+          <div class="upload-label">Stok Saat Ini</div>
+          <div class="upload-sub">stok.xlsx (export Accurate)</div>
+          <div class="upload-check" style="display:none">✅</div>
+          <div class="upload-filename"></div>
+        </div>
+        <div class="upload-zone" id="zone-penjualan">
+          <input type="file" accept=".xlsx,.xls,.csv" onchange="handleUpload('penjualan',this)"/>
+          <div class="upload-icon">📈</div>
+          <div class="upload-label">Data Penjualan</div>
+          <div class="upload-sub">penjualan.xlsx (multi-sheet per bulan)</div>
+          <div class="upload-check" style="display:none">✅</div>
+          <div class="upload-filename"></div>
+        </div>
+        <div class="upload-zone" id="zone-po_berjalan">
+          <input type="file" accept=".xlsx,.xls,.csv" onchange="handleUpload('po_berjalan',this)"/>
+          <div class="upload-icon">🔄</div>
+          <div class="upload-label">PO Berjalan</div>
+          <div class="upload-sub">po_berjalan.xlsx (export Accurate)</div>
+          <div class="upload-check" style="display:none">✅</div>
+          <div class="upload-filename"></div>
+        </div>
+        <div class="upload-zone" id="zone-tier_produk">
+          <input type="file" accept=".xlsx,.xls,.csv" onchange="handleUpload('tier_produk',this)"/>
+          <div class="upload-icon">🏷</div>
+          <div class="upload-label">Tier Produk</div>
+          <div class="upload-sub">tier_produk.xlsx (isi manual)</div>
+          <div class="upload-optional">Opsional — AI akan tentukan jika tidak diupload</div>
+          <div class="upload-check" style="display:none">✅</div>
+          <div class="upload-filename"></div>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+        <span id="uploadCount" style="font-size:13px;color:var(--gray4)">0 / 3 file wajib terupload</span>
+        <button class="btn btn-outline btn-sm" onclick="clearUploads()">Reset upload</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header"><span class="card-title">⚙️ Konfigurasi</span></div>
+    <div class="card-body">
+      <div style="display:flex;gap:20px;flex-wrap:wrap">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--gray4);display:block;margin-bottom:6px">PERIODE PROYEKSI</label>
+          <select id="periodeSelect" class="input" style="width:180px;margin:0">
+            <option value="14">14 hari</option>
+            <option value="30" selected>30 hari</option>
+            <option value="45">45 hari</option>
+            <option value="60">60 hari</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--gray4);display:block;margin-bottom:6px">KIRIM EMAIL</label>
+          <select id="emailSelect" class="input" style="width:180px;margin:0">
+            <option value="true">Ya, kirim email</option>
+            <option value="false">Tidak</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="run-area">
+    <div class="run-area-text">
+      <h3>Siap menjalankan analisis?</h3>
+      <p id="runDesc">Upload 3 file wajib dulu sebelum menjalankan agent</p>
+    </div>
+    <button class="btn-run" id="runBtn" onclick="triggerRun()" disabled>
+      <div class="spinner" id="runSpinner"></div>
+      <span id="runBtnText">▶ Jalankan Agent</span>
+    </button>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-steps">
+      <div class="progress-step" id="step1"><div class="step-dot">1</div> Upload data</div>
+      <div class="progress-step" id="step2"><div class="step-dot">2</div> Analisis kalkulasi</div>
+      <div class="progress-step" id="step3"><div class="step-dot">3</div> AI Agent</div>
+      <div class="progress-step" id="step4"><div class="step-dot">4</div> Export Excel</div>
+      <div class="progress-step" id="step5"><div class="step-dot">5</div> Kirim email</div>
+    </div>
+  </div>
+  <div class="log-console" id="logConsole"></div>
+  <div id="runResult" style="display:none;margin-top:20px"></div>
+</div>
+
+<!-- PERFORMA PRODUK -->
+<div class="page" id="page-performa">
+  <div class="topbar">
+    <div><div class="topbar-title">Performa Produk</div><div class="topbar-sub">Tren penjualan, tier, dan analisis produk</div></div>
+  </div>
+
+  <!-- Tier summary cards -->
+  <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
+    <div class="stat-card" style="border-color:#15803D"><div class="stat-label" style="color:#15803D">🏆 Best Seller</div><div class="stat-value" id="pBS">—</div><div class="stat-sub">top produk</div></div>
+    <div class="stat-card" style="border-color:#1D4ED8"><div class="stat-label" style="color:#1D4ED8">📈 Uprising</div><div class="stat-value" id="pUP">—</div><div class="stat-sub">tren naik</div></div>
+    <div class="stat-card" style="border-color:#92400E"><div class="stat-label" style="color:#92400E">🐢 Slow Moving</div><div class="stat-value" id="pSM">—</div><div class="stat-sub">perlu evaluasi</div></div>
+    <div class="stat-card" style="border-color:#6B7280"><div class="stat-label" style="color:#6B7280">💀 Deadweight</div><div class="stat-value" id="pDW">—</div><div class="stat-sub">tidak terjual</div></div>
+    <div class="stat-card" style="border-color:#9F1239"><div class="stat-label" style="color:#9F1239">⚠️ Sin</div><div class="stat-value" id="pSIN">—</div><div class="stat-sub">drop drastis</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Semua Produk</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="searchProduk" type="text" placeholder="Cari produk..." class="input" style="width:200px;margin:0;padding:6px 12px;font-size:12px" oninput="filterPerforma()"/>
+      </div>
+    </div>
+    <div class="card-body" style="padding:16px 20px 8px">
+      <div class="tier-filters">
+        <button class="tier-btn active" style="background:#f1f5f9;color:#334155" onclick="filterTier('all',this)">Semua</button>
+        <button class="tier-btn" style="background:#D1FAE5;color:#15803D" onclick="filterTier('1. Best Seller',this)">🏆 Best Seller</button>
+        <button class="tier-btn" style="background:#DBEAFE;color:#1D4ED8" onclick="filterTier('2. Uprising',this)">📈 Uprising</button>
+        <button class="tier-btn" style="background:#FEF3C7;color:#92400E" onclick="filterTier('3. Slow Moving',this)">🐢 Slow Moving</button>
+        <button class="tier-btn" style="background:#F3F4F6;color:#6B7280" onclick="filterTier('4. Deadweight',this)">💀 Deadweight</button>
+        <button class="tier-btn" style="background:#FFE4E6;color:#9F1239" onclick="filterTier('5. Sin',this)">⚠️ Sin</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Nama Produk</th>
+            <th>Tier</th>
+            <th>Tren</th>
+            <th>Qty Bulan Ini</th>
+            <th>Qty Bulan Lalu</th>
+            <th>% Perubahan</th>
+          </tr>
+        </thead>
+        <tbody id="performaBody">
+          <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--gray3)">Belum ada data. Jalankan agent dulu.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div class="page" id="page-history">
+  <div class="topbar">
+    <div><div class="topbar-title">History Run</div><div class="topbar-sub">Semua hasil analisis PO sebelumnya</div></div>
+    <button class="btn btn-outline btn-sm" onclick="clearHistory()">🗑 Hapus semua</button>
+  </div>
+  <div class="card">
+    <div class="card-body" id="historyList">
+      <div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Belum ada history.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="page" id="page-settings">
+  <div class="topbar">
+    <div><div class="topbar-title">Pengaturan</div><div class="topbar-sub">Konfigurasi GitHub Actions dan akses</div></div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">🔗 GitHub Actions</span></div>
+      <div class="card-body">
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:600;color:var(--gray4);display:block;margin-bottom:6px">GITHUB REPO URL</label>
+          <input class="input" id="ghRepoUrl" placeholder="https://github.com/username/PO-Agent" style="margin:0"/>
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:600;color:var(--gray4);display:block;margin-bottom:6px">GITHUB TOKEN</label>
+          <input class="input" type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxx" style="margin:0"/>
+          <div style="font-size:11px;color:var(--gray3);margin-top:4px">GitHub → Settings → Developer settings → Personal access tokens → workflow</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveSettings()">Simpan</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">🔐 Password Tim</span></div>
+      <div class="card-body">
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:600;color:var(--gray4);display:block;margin-bottom:6px">PASSWORD BARU</label>
+          <input class="input" type="password" id="newPass" placeholder="Masukkan password baru" style="margin:0"/>
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:600;color:var(--gray4);display:block;margin-bottom:6px">KONFIRMASI</label>
+          <input class="input" type="password" id="confirmPass" placeholder="Ulangi password baru" style="margin:0"/>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="changePassword()">Ganti Password</button>
+        <div id="passMsg" style="font-size:12px;margin-top:8px;display:none"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">📅 Jadwal Otomatis</span></div>
+    <div class="card-body">
+      <div class="alert alert-info">ℹ️ Jadwal diatur di <code style="font-family:var(--mono);background:var(--gray1);padding:1px 5px;border-radius:3px">.github/workflows/po-agent.yml</code>. Saat ini: <strong>Setiap Senin jam 8 pagi WIB</strong>.</div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────
+const DEFAULT_PASS = 'purchasing2024';
+let uploadedFiles = {};
+let lastResult    = null;
+let performaData  = [];
+let currentTierFilter = 'all';
+let history_data  = JSON.parse(localStorage.getItem('po_history') || '[]');
+let settings      = JSON.parse(localStorage.getItem('po_settings') || '{}');
+let password      = localStorage.getItem('po_password') || DEFAULT_PASS;
+
+// ── Login ──────────────────────────────────────────────────────────
+function doLogin() {
+  const val = document.getElementById('passInput').value;
+  if (val === password) {
+    document.getElementById('loginOverlay').style.display = 'none';
+    sessionStorage.setItem('po_logged','1');
+    initDashboard();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+
+// ── Navigation ─────────────────────────────────────────────────────
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'history') renderHistory();
+  if (name === 'settings') loadSettings();
+  if (name === 'performa') renderPerforma();
+}
+
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────
+function initDashboard() {
+  document.getElementById('dashDate').textContent =
+    new Date().toLocaleDateString('id-ID', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  if (history_data.length > 0) {
+    renderResult(history_data[0].result, false);
+    document.getElementById('lastRunTime').textContent =
+      new Date(history_data[0].timestamp).toLocaleDateString('id-ID',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    renderChart();
+  }
+}
+
+// ── Upload ─────────────────────────────────────────────────────────
+function handleUpload(key, input) {
+  const file = input.files[0];
+  if (!file) return;
+  uploadedFiles[key] = file;
+  const zone = document.getElementById('zone-' + key);
+  zone.classList.add('uploaded');
+  zone.querySelector('.upload-check').style.display = 'block';
+  zone.querySelector('.upload-filename').textContent = file.name;
+  updateUploadCount();
+}
+
+function updateUploadCount() {
+  const required = ['stok','penjualan','po_berjalan'];
+  const count = required.filter(k => uploadedFiles[k]).length;
+  document.getElementById('uploadCount').textContent = count + ' / 3 file wajib terupload';
+  const runBtn = document.getElementById('runBtn');
+  if (count === 3) {
+    runBtn.disabled = false;
+    document.getElementById('runDesc').textContent = '3 file wajib sudah terupload. Siap menjalankan analisis!';
+  }
+}
+
+function clearUploads() {
+  uploadedFiles = {};
+  ['stok','penjualan','po_berjalan','tier_produk'].forEach(k => {
+    const zone = document.getElementById('zone-' + k);
+    if (zone) {
+      zone.classList.remove('uploaded');
+      zone.querySelector('.upload-check').style.display = 'none';
+      zone.querySelector('.upload-filename').textContent = '';
+    }
+  });
+  document.getElementById('uploadCount').textContent = '0 / 3 file wajib terupload';
+  document.getElementById('runBtn').disabled = true;
+}
+
+// ── Trigger GitHub Actions ─────────────────────────────────────────
+async function triggerRun() {
+  const ghToken   = settings.ghToken || '';
+  const ghRepoUrl = settings.ghRepoUrl || '';
+  if (!ghToken || !ghRepoUrl) {
+    showRunResult('error','⚙️ GitHub Token dan Repo URL belum diset. Buka <b>Pengaturan</b> dulu.');
+    return;
+  }
+  const match = ghRepoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+  if (!match) { showRunResult('error','❌ Format repo URL tidak valid.'); return; }
+  const [, owner, repo] = match;
+  const periode    = document.getElementById('periodeSelect').value;
+  const kirimEmail = document.getElementById('emailSelect').value;
+
+  setRunLoading(true);
+  showProgress();
+  setStep(1,'active');
+  addLog('info','▶ Memulai trigger GitHub Actions...');
+
+  try {
+    setStep(1,'done'); setStep(2,'active');
+    addLog('info','📁 Mengupload file ke GitHub...');
+    await uploadFilesToGitHub(owner, repo, ghToken);
+    addLog('','   ✓ File berhasil diupload');
+
+    setStep(2,'done'); setStep(3,'active');
+    addLog('info','🤖 Mentrigger GitHub Actions workflow...');
+
+    const triggerRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/actions/workflows/po-agent.yml/dispatches`,
+      {
+        method:'POST',
+        headers:{'Authorization':`Bearer ${ghToken}`,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
+        body: JSON.stringify({ref:'main', inputs:{periode_hari:periode, kirim_email:kirimEmail}})
+      }
+    );
+
+    if (triggerRes.status === 204) {
+      setStep(3,'done'); setStep(4,'active'); setStep(5,'active');
+      addLog('','   ✓ GitHub Actions berhasil ditrigger!');
+      addLog('warn','⏳ Agent sedang berjalan (1-3 menit)...');
+      addLog('info','📧 Email akan dikirim otomatis setelah selesai.');
+
+      const entry = {id:Date.now(), timestamp:new Date().toISOString(), periode, status:'running', result:null};
+      history_data.unshift(entry);
+      saveHistory();
+
+      setTimeout(() => {
+        setStep(4,'done'); setStep(5,'done');
+        setRunLoading(false);
+        showRunResult('success',
+          `✅ Agent berhasil ditrigger!<br><br>
+          <a href="${ghRepoUrl}/actions" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">
+            🔗 Buka GitHub Actions
+          </a>`
+        );
+        document.getElementById('lastRunTime').textContent = 'Baru saja';
+      }, 2000);
+    } else {
+      throw new Error(`Status ${triggerRes.status}`);
+    }
+  } catch (e) {
+    setRunLoading(false);
+    addLog('err','❌ Error: ' + e.message);
+    showRunResult('error',`❌ Gagal trigger.<br><small>${e.message}</small>`);
+  }
+}
+
+async function uploadFilesToGitHub(owner, repo, token) {
+  const fileMap = {
+    'stok':        'data/stok.xlsx',
+    'penjualan':   'data/penjualan.xlsx',
+    'po_berjalan': 'data/po_berjalan.xlsx',
+    'tier_produk': 'data/tier_produk.xlsx',
+  };
+  for (const [key, path] of Object.entries(fileMap)) {
+    const file = uploadedFiles[key];
+    if (!file) continue;
+    const base64 = await fileToBase64(file);
+    let sha = null;
+    try {
+      const getRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+        {headers:{'Authorization':`Bearer ${token}`,'Accept':'application/vnd.github+json'}}
+      );
+      if (getRes.ok) sha = (await getRes.json()).sha;
+    } catch(_) {}
+    const body = {message:`update: ${path} via PO Agent dashboard`, content:base64};
+    if (sha) body.sha = sha;
+    const putRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+      {method:'PUT', headers:{'Authorization':`Bearer ${token}`,'Accept':'application/vnd.github+json','Content-Type':'application/json'}, body:JSON.stringify(body)}
+    );
+    if (!putRes.ok) throw new Error(`Gagal upload ${path}: ${await putRes.text()}`);
+    addLog('',`   ✓ ${path}`);
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+// ── Progress helpers ───────────────────────────────────────────────
+function showProgress() {
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('logConsole').style.display = 'block';
+  document.getElementById('logConsole').innerHTML = '';
+  document.getElementById('runResult').style.display = 'none';
+  [1,2,3,4,5].forEach(i => {
+    document.getElementById('step'+i).classList.remove('active','done');
+  });
+}
+function setStep(n, state) {
+  const el = document.getElementById('step'+n);
+  el.classList.remove('active','done');
+  if (state) el.classList.add(state);
+}
+function addLog(type, msg) {
+  const el = document.getElementById('logConsole');
+  const line = document.createElement('div');
+  line.className = 'log-line' + (type ? ' '+type : '');
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+function setRunLoading(loading) {
+  const btn = document.getElementById('runBtn');
+  document.getElementById('runSpinner').style.display = loading ? 'block' : 'none';
+  document.getElementById('runBtnText').textContent = loading ? 'Sedang berjalan...' : '▶ Jalankan Agent';
+  btn.disabled = loading;
+}
+function showRunResult(type, html) {
+  const el = document.getElementById('runResult');
+  el.style.display = 'block';
+  el.innerHTML = `<div class="alert alert-${type === 'success' ? 'success' : 'error'}">${html}</div>`;
+}
+
+// ── Render result ──────────────────────────────────────────────────
+function getTierBadge(tier) {
+  const map = {
+    '1. Best Seller': 'badge-bs',
+    '2. Uprising':    'badge-up',
+    '3. Slow Moving': 'badge-sm',
+    '4. Deadweight':  'badge-dw',
+    '5. Sin':         'badge-sin',
+  };
+  const cls = map[tier] || '';
+  return `<span class="badge ${cls}">${tier || '-'}</span>`;
+}
+
+function getTrenHtml(tren) {
+  if (!tren) return '-';
+  if (tren.includes('Naik'))   return `<span class="tren-up">${tren}</span>`;
+  if (tren.includes('Turun'))  return `<span class="tren-down">${tren}</span>`;
+  if (tren.includes('Baru'))   return `<span class="tren-new">${tren}</span>`;
+  return `<span class="tren-stable">${tren}</span>`;
+}
+
+function renderResult(result, save = true) {
+  if (!result) return;
+  lastResult = result;
+  const ring = result.ringkasan || {};
+
+  document.getElementById('statUrgent').textContent = ring.urgent ?? '—';
+  document.getElementById('statNormal').textContent = ring.normal ?? '—';
+  document.getElementById('statOk').textContent     = ring.stok_cukup ?? '—';
+  document.getElementById('statNilai').textContent  =
+    ring.total_nilai_po != null ? 'Rp '+(ring.total_nilai_po/1e6).toFixed(1)+'jt' : '—';
+
+  // Hitung Best Seller dari tier dist
+  const tierDist = result.tier_dist || {};
+  document.getElementById('statBS').textContent = tierDist['1. Best Seller'] || '—';
+
+  const reko    = result.rekomendasi_po || [];
+  const urgent  = reko.filter(r => r.prioritas === 'URGENT');
+  const normal  = reko.filter(r => r.prioritas === 'NORMAL');
+  const skipped = result.produk_dilewati || [];
+
+  renderPoTable('tbodyUrgent', urgent, 'emptyUrgent', 'tableUrgent');
+  renderPoTable('tbodyNormal', normal, 'emptyNormal', 'tableNormal');
+  renderSkipped(skipped);
+  renderInsight(result.insight_tier || {});
+
+  document.getElementById('analysisCard').style.display = 'block';
+  document.getElementById('analysisText').textContent = result.analisis_singkat || '';
+  document.getElementById('saranText').textContent    = result.saran_tindakan || '';
+  document.getElementById('downloadBtn').style.display = 'flex';
+
+  // Render tier distribution
+  renderTierDist(tierDist);
+
+  // Performa data
+  if (result.performa) {
+    performaData = result.performa;
+    renderPerforma();
+    renderPerfomaSummary();
+  }
+
+  if (save) {
+    const entry = {id:Date.now(), timestamp:new Date().toISOString(), result};
+    history_data.unshift(entry);
+    if (history_data.length > 20) history_data.pop();
+    saveHistory();
+    renderChart();
+  }
+}
+
+function renderPoTable(tbodyId, items, emptyId, tableId) {
+  const tbody = document.getElementById(tbodyId);
+  const empty = document.getElementById(emptyId);
+  const table = document.getElementById(tableId);
+  tbody.innerHTML = '';
+  if (!items.length) { empty.style.display = 'block'; table.style.display = 'none'; return; }
+  empty.style.display = 'none'; table.style.display = 'block';
+  items.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${item.nama_produk}</strong><br><span style="font-size:11px;color:var(--gray3);font-family:var(--mono)">${item.sku||''}</span></td>
+      <td>${getTierBadge(item.tier)}</td>
+      <td>${getTrenHtml(item.tren)}</td>
+      <td><strong>${(item.qty_rekomendasi||0).toLocaleString('id-ID')}</strong> pcs</td>
+      <td>${item.estimasi_tiba||'—'}</td>
+      <td style="color:var(--gray4);font-size:12px">${item.alasan||'—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderSkipped(items) {
+  const empty = document.getElementById('emptySkip');
+  const list  = document.getElementById('listSkip');
+  if (!items.length) { empty.style.display='block'; list.style.display='none'; return; }
+  empty.style.display = 'none'; list.style.display = 'block';
+  list.innerHTML = items.map(name =>
+    `<div style="padding:8px 0;border-bottom:1px solid var(--gray1);font-size:13px;display:flex;align-items:center;gap:8px">
+      <span class="badge badge-skip">⏭ SKIP</span> ${name}
+    </div>`
+  ).join('');
+}
+
+function renderInsight(insight) {
+  const empty   = document.getElementById('emptyInsight');
+  const content = document.getElementById('insightContent');
+  const map = {
+    best_seller_kritis:       {icon:'🔴', color:'#DC2626', label:'Best Seller Stok Kritis'},
+    uprising_perlu_perhatian: {icon:'🔵', color:'#2563EB', label:'Uprising — Pertimbangkan Order Lebih'},
+    slow_moving_warning:      {icon:'⚠️', color:'#D97706', label:'Slow Moving — Perlu Dievaluasi'},
+  };
+  const hasContent = Object.values(insight).some(v => v && v.length > 0);
+  if (!hasContent) { empty.style.display='block'; content.style.display='none'; return; }
+  empty.style.display = 'none'; content.style.display = 'block';
+  content.innerHTML = Object.entries(map).map(([key, {icon, color, label}]) => {
+    const items = insight[key] || [];
+    if (!items.length) return '';
+    return `<div style="padding:14px 20px;border-bottom:1px solid var(--gray1)">
+      <div style="font-weight:600;color:${color};margin-bottom:8px">${icon} ${label}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${items.map(p => `<span style="background:var(--gray1);padding:4px 10px;border-radius:20px;font-size:12px">${p}</span>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTierDist(tierDist) {
+  const el = document.getElementById('tierDistCard');
+  if (!tierDist || !Object.keys(tierDist).length) return;
+  const colors = {
+    '1. Best Seller': '#15803D', '2. Uprising': '#1D4ED8',
+    '3. Slow Moving': '#92400E', '4. Deadweight': '#6B7280', '5. Sin': '#9F1239',
+  };
+  const bgs = {
+    '1. Best Seller': '#D1FAE5', '2. Uprising': '#DBEAFE',
+    '3. Slow Moving': '#FEF3C7', '4. Deadweight': '#F3F4F6', '5. Sin': '#FFE4E6',
+  };
+  el.innerHTML = `<div class="tier-pie">
+    ${Object.entries(tierDist).map(([tier, count]) => `
+      <div class="tier-row">
+        <div class="tier-dot" style="background:${colors[tier]||'#888'}"></div>
+        <span class="tier-label">${tier}</span>
+        <span class="tier-count" style="color:${colors[tier]||'#333'}">${count}</span>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ── Performa Produk ────────────────────────────────────────────────
+function renderPerforma() {
+  const tbody = document.getElementById('performaBody');
+  const search = document.getElementById('searchProduk').value.toLowerCase();
+  let data = performaData;
+
+  if (currentTierFilter !== 'all') {
+    data = data.filter(r => r.tier === currentTierFilter);
+  }
+  if (search) {
+    data = data.filter(r =>
+      (r.nama_produk||'').toLowerCase().includes(search) ||
+      (r.sku||'').toLowerCase().includes(search)
+    );
+  }
+
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--gray3)">Tidak ada produk ditemukan.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(r => {
+    const pct = r.pct_change;
+    const pctStr = pct != null ? `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%` : '-';
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--gray4)">${r.sku||'-'}</td>
+      <td><strong>${r.nama_produk||'-'}</strong></td>
+      <td>${getTierBadge(r.tier)}</td>
+      <td>${getTrenHtml(r.tren)}</td>
+      <td>${(r.qty_bulan_ini||0).toLocaleString('id-ID')}</td>
+      <td>${(r.qty_bulan_lalu||0).toLocaleString('id-ID')}</td>
+      <td class="${pct > 0 ? 'tren-up' : pct < 0 ? 'tren-down' : 'tren-stable'}">${pctStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterTier(tier, btn) {
+  currentTierFilter = tier;
+  document.querySelectorAll('.tier-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPerforma();
+}
+
+function filterPerforma() { renderPerforma(); }
+
+function renderPerfomaSummary() {
+  const counts = {'1. Best Seller':0,'2. Uprising':0,'3. Slow Moving':0,'4. Deadweight':0,'5. Sin':0};
+  performaData.forEach(r => { if (counts[r.tier] !== undefined) counts[r.tier]++; });
+  document.getElementById('pBS').textContent  = counts['1. Best Seller'];
+  document.getElementById('pUP').textContent  = counts['2. Uprising'];
+  document.getElementById('pSM').textContent  = counts['3. Slow Moving'];
+  document.getElementById('pDW').textContent  = counts['4. Deadweight'];
+  document.getElementById('pSIN').textContent = counts['5. Sin'];
+}
+
+// ── Chart ──────────────────────────────────────────────────────────
+function renderChart() {
+  const area = document.getElementById('chartArea');
+  const last8 = history_data.slice(0,8).reverse();
+  if (!last8.length) return;
+  const maxVal = Math.max(...last8.map(h => h.result?.ringkasan?.total_nilai_po||0), 1);
+  area.innerHTML = last8.map(h => {
+    const val = h.result?.ringkasan?.total_nilai_po || 0;
+    const pct = Math.max((val/maxVal)*140, 4);
+    const date = new Date(h.timestamp).toLocaleDateString('id-ID',{day:'numeric',month:'short'});
+    const label = val >= 1e6 ? 'Rp '+(val/1e6).toFixed(1)+'jt' : (val ? 'Rp '+val.toLocaleString() : '—');
+    return `<div class="bar-wrap">
+      <div class="bar-val">${label}</div>
+      <div class="bar" style="height:${pct}px;background:var(--blue);opacity:.8"></div>
+      <div class="bar-label">${date}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── History ────────────────────────────────────────────────────────
+function renderHistory() {
+  const el = document.getElementById('historyList');
+  if (!history_data.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Belum ada history.</div></div>';
+    return;
+  }
+  el.innerHTML = history_data.map(h => {
+    const r = h.result;
+    const ring = r?.ringkasan || {};
+    const date = new Date(h.timestamp).toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="history-item">
+      <div class="history-icon">📦</div>
+      <div class="history-info">
+        <div class="history-title">Analisis PO — ${date}</div>
+        <div class="history-sub">
+          ${ring.urgent ? `<span class="badge badge-urgent" style="margin-right:4px">🚨 ${ring.urgent} urgent</span>` : ''}
+          ${ring.normal ? `<span class="badge badge-normal" style="margin-right:4px">📋 ${ring.normal} normal</span>` : ''}
+          ${h.status === 'running' ? '<span class="badge" style="background:#dbeafe;color:#1d4ed8">⏳ Running</span>' : ''}
+        </div>
+      </div>
+      <div>
+        <div class="history-value">${ring.total_nilai_po ? 'Rp '+(ring.total_nilai_po/1e6).toFixed(1)+'jt' : '—'}</div>
+        <div class="history-date">Est. nilai PO</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function clearHistory() {
+  if (!confirm('Hapus semua history?')) return;
+  history_data = [];
+  saveHistory();
+  renderHistory();
+}
+function saveHistory() { localStorage.setItem('po_history', JSON.stringify(history_data)); }
+
+// ── Settings ───────────────────────────────────────────────────────
+function saveSettings() {
+  settings.ghRepoUrl = document.getElementById('ghRepoUrl').value.trim();
+  settings.ghToken   = document.getElementById('ghToken').value.trim();
+  localStorage.setItem('po_settings', JSON.stringify(settings));
+  alert('✅ Pengaturan tersimpan!');
+}
+function loadSettings() {
+  if (settings.ghRepoUrl) document.getElementById('ghRepoUrl').value = settings.ghRepoUrl;
+  if (settings.ghToken)   document.getElementById('ghToken').value   = settings.ghToken;
+}
+function changePassword() {
+  const np = document.getElementById('newPass').value;
+  const cp = document.getElementById('confirmPass').value;
+  const msg = document.getElementById('passMsg');
+  if (!np) { showPassMsg('Password tidak boleh kosong','red'); return; }
+  if (np !== cp) { showPassMsg('Password tidak cocok','red'); return; }
+  password = np;
+  localStorage.setItem('po_password', np);
+  showPassMsg('✅ Password berhasil diganti!','green');
+}
+function showPassMsg(text, color) {
+  const el = document.getElementById('passMsg');
+  el.style.display = 'block';
+  el.style.color = color === 'red' ? 'var(--red)' : 'var(--green)';
+  el.textContent = text;
+}
+
+function downloadLastExcel() {
+  if (settings.ghRepoUrl) window.open(settings.ghRepoUrl + '/actions', '_blank');
+  else alert('Buka GitHub Actions lo untuk download file Excel hasil.');
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  if (sessionStorage.getItem('po_logged')) {
+    document.getElementById('loginOverlay').style.display = 'none';
+    initDashboard();
+  }
+});
+</script>
+</body>
+</html>
