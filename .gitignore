@@ -5,3 +5,4 @@ __pycache__/
 output/
 credentials.json*.xls
 uploads/
+.DS_Store
