@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PO Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #040810;
+  --bg-grad: radial-gradient(ellipse at 20% 0%, #0D2137 0%, #040810 60%);
+  --card: rgba(8,18,32,0.92);
+  --border: rgba(91,155,213,0.12);
+  --border-mid: rgba(91,155,213,0.35);
+  --sidebar-bg: rgba(4,8,20,0.96);
+  --brand: #3B82C4;
+  --text: #E8F0FA;
+  --sub: rgba(148,185,230,0.55);
+  --sub2: rgba(148,185,230,0.22);
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --error: #EF4444;
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
+  --r-sm: 10px; --r-md: 14px; --r-lg: 20px;
+  --sidebar-w: 72px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--font); background:var(--bg); color:var(--text); line-height:1.5; min-height:100vh; }
+.orbs { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
+.orbs::before { content:''; position:absolute; width:400px; height:400px; top:-150px; left:60px; border-radius:50%; background:radial-gradient(circle,rgba(37,99,235,0.14) 0%,transparent 65%); }
+.orbs::after { content:''; position:absolute; width:300px; height:300px; top:300px; right:-80px; border-radius:50%; background:radial-gradient(circle,rgba(59,130,196,0.08) 0%,transparent 65%); }
+
+/* Sidebar */
+.sidebar { position:fixed; top:0; bottom:0; left:0; width:var(--sidebar-w); background:var(--sidebar-bg); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); display:flex; flex-direction:column; align-items:center; z-index:1000; border-right:1px solid var(--border); padding:0 0 16px; box-shadow:4px 0 32px rgba(0,0,0,0.4),inset -1px 0 0 rgba(59,130,196,0.08); }
+.sidebar .glow-top { position:absolute; top:0; left:0; right:0; height:200px; background:radial-gradient(ellipse at 50% -20%,rgba(59,130,196,0.18) 0%,transparent 70%); pointer-events:none; }
+.sidebar .logo { width:42px; height:42px; border-radius:13px; background:linear-gradient(135deg,#0A1929,#1A3A5C,#3B82C4); display:flex; align-items:center; justify-content:center; margin:20px 0 24px; box-shadow:0 0 20px rgba(59,130,196,0.4),0 4px 16px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.1); border:1px solid rgba(59,130,196,0.3); font-size:15px; font-weight:900; color:#fff; letter-spacing:-0.5px; }
+.sidebar .divider { width:36px; height:1px; background:linear-gradient(90deg,transparent,rgba(59,130,196,0.3),transparent); margin-bottom:12px; }
+.sidebar nav { display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; width:100%; position:relative; z-index:1; }
+.nav-item { position:relative; width:100%; display:flex; justify-content:center; }
+.nav-item .indicator { position:absolute; left:0; top:50%; transform:translateY(-50%); width:3px; height:24px; background:linear-gradient(180deg,#60A5FA,#3B82C4); border-radius:0 3px 3px 0; box-shadow:0 0 12px rgba(96,165,250,0.9),0 0 24px rgba(59,130,196,0.5); display:none; }
+.nav-item.active .indicator { display:block; }
+.nav-btn { width:46px; height:46px; border-radius:var(--r-sm); background:none; border:1px solid transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .2s; }
+.nav-item.active .nav-btn { background:linear-gradient(135deg,rgba(59,130,196,0.2),rgba(96,165,250,0.1)); border:1px solid rgba(96,165,250,0.25); box-shadow:0 0 20px rgba(59,130,196,0.25),inset 0 1px 0 rgba(255,255,255,0.08); }
+.nav-btn svg { stroke:rgba(255,255,255,0.3); transition:stroke .2s; }
+.nav-item.active .nav-btn svg { stroke:#60A5FA; }
+.nav-btn:hover svg { stroke:rgba(255,255,255,0.6); }
+.sidebar-bottom { display:flex; flex-direction:column; align-items:center; gap:8px; z-index:1; }
+.sidebar-bottom .avatar { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#1A3A5C,#3B82C4); border:1.5px solid rgba(96,165,250,0.35); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; box-shadow:0 0 12px rgba(59,130,196,0.35); }
+
+/* Main */
+.main { margin-left:var(--sidebar-w); position:relative; z-index:1; min-height:100vh; padding:28px 36px 40px; }
+.page-header { margin-bottom:28px; }
+.page-header h1 { font-size:22px; font-weight:700; letter-spacing:-.3px; }
+.page-header h1 span { color:#60A5FA; }
+.page-header .sub { font-size:13px; color:var(--sub); margin-top:4px; }
+.section-label { font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--sub2); margin-bottom:12px; }
+
+/* Glass card */
+.glass { background:var(--card); border:1px solid var(--border); border-radius:var(--r-lg); padding:24px; position:relative; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.04); }
+.glass .accent-line { position:absolute; top:0; left:0; right:0; height:1.5px; border-radius:var(--r-lg) var(--r-lg) 0 0; }
+.glass .corner-glow { position:absolute; width:80px; height:80px; border-radius:50%; top:-20px; right:-20px; pointer-events:none; }
+
+/* KPI row */
+.kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+.kpi { padding:16px 18px; }
+.kpi .kpi-label { font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--sub2); margin-bottom:7px; }
+.kpi .kpi-value { font-size:28px; font-weight:900; letter-spacing:-1px; line-height:1; }
+.kpi .kpi-unit { font-size:11px; font-weight:400; color:var(--sub2); margin-left:3px; }
+
+/* Upload */
+.upload-zone { border:2px dashed rgba(59,130,196,0.25); border-radius:var(--r-lg); padding:48px; text-align:center; cursor:pointer; transition:all .2s; background:rgba(59,130,196,0.03); }
+.upload-zone:hover,.upload-zone.dragover { border-color:#60A5FA; background:rgba(59,130,196,0.08); box-shadow:0 0 40px rgba(59,130,196,0.1); }
+.upload-zone .icon { font-size:40px; margin-bottom:12px; display:block; }
+.upload-zone .label { font-size:15px; font-weight:600; margin-bottom:4px; }
+.upload-zone .hint { font-size:12px; color:var(--sub); }
+input[type="file"] { display:none; }
+
+/* ETL log */
+.etl-log { font-family:'JetBrains Mono','Fira Code',monospace; font-size:12px; background:rgba(4,8,16,0.8); border:1px solid rgba(59,130,196,0.08); color:rgba(148,185,230,0.65); padding:16px 18px; border-radius:var(--r-md); max-height:220px; overflow-y:auto; margin-bottom:16px; }
+.etl-log .step { margin-bottom:3px; line-height:1.6; }
+.etl-log .ok { color:#22C55E; }
+.etl-log .num { color:#F59E0B; font-weight:600; }
+.etl-log .err { color:#EF4444; }
+
+/* Progress */
+.progress { width:100%; height:4px; background:rgba(59,130,196,0.08); border-radius:2px; overflow:hidden; margin:12px 0; }
+.progress .fill { height:100%; background:linear-gradient(90deg,#3B82C4,#60A5FA); border-radius:2px; transition:width .4s; box-shadow:0 0 12px rgba(96,165,250,0.5); }
+
+/* Stats grid */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:20px; }
+.stat-card { background:rgba(59,130,196,0.06); border:1px solid rgba(59,130,196,0.12); border-radius:var(--r-md); padding:14px 16px; position:relative; overflow:hidden; }
+.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1.5px; background:linear-gradient(90deg,rgba(59,130,196,0.6),transparent); }
+.stat-card .sv { font-size:20px; font-weight:900; letter-spacing:-.5px; line-height:1; }
+.stat-card .sl { font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--sub2); margin-top:6px; }
+
+/* Table */
+.table-wrap { overflow-x:auto; margin-bottom:16px; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th { font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--sub2); text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); }
+td { padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.03); white-space:nowrap; color:rgba(148,185,230,0.75); }
+tr:hover td { background:rgba(59,130,196,0.04); }
+
+/* Buttons */
+.btn { display:inline-flex; align-items:center; gap:8px; padding:10px 22px; border:none; border-radius:var(--r-sm); font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; transition:all .2s; }
+.btn-brand { background:linear-gradient(135deg,#2563EB,#3B82C4); color:#fff; box-shadow:0 0 20px rgba(59,130,196,0.3),0 4px 12px rgba(0,0,0,0.3); }
+.btn-brand:hover { box-shadow:0 0 30px rgba(59,130,196,0.5),0 4px 16px rgba(0,0,0,0.4); transform:translateY(-1px); }
+.btn-brand:disabled { opacity:.4; cursor:not-allowed; transform:none; box-shadow:none; }
+.btn-ghost { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:rgba(148,185,230,0.6); }
+.btn-ghost:hover { border-color:rgba(255,255,255,0.15); color:var(--text); }
+.actions { display:flex; gap:10px; margin-top:4px; }
+
+/* Badges */
+.badge-success { display:inline-flex; align-items:center; gap:6px; background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); border-radius:20px; padding:8px 16px; font-size:13px; color:#4ADE80; font-weight:600; }
+.badge-success .dot { width:6px; height:6px; border-radius:50%; background:#22C55E; box-shadow:0 0 8px #22C55E; }
+.badge-error { display:inline-flex; align-items:center; gap:6px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:20px; padding:8px 16px; font-size:13px; color:#F87171; font-weight:600; }
+
+/* DB bar */
+.db-bar { display:flex; align-items:center; gap:8px; padding:10px 16px; background:rgba(34,197,94,0.04); border:1px solid rgba(34,197,94,0.12); border-radius:var(--r-md); margin-bottom:24px; font-size:12px; color:var(--sub); }
+.db-bar .dot { width:6px; height:6px; border-radius:50%; background:#22C55E; box-shadow:0 0 8px #22C55E; animation:blink 1.4s ease-in-out infinite; flex-shrink:0; }
+.db-bar strong { color:var(--text); font-weight:700; }
+.db-bar.error { background:rgba(239,68,68,0.04); border-color:rgba(239,68,68,0.12); }
+.db-bar.error .dot { background:#EF4444; box-shadow:0 0 8px #EF4444; }
+
+.hidden { display:none; }
+.preview-note { font-size:11px; color:var(--sub2); margin-bottom:16px; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+@keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+<div class="orbs"></div>
+
+<aside class="sidebar">
+  <div class="glow-top"></div>
+  <div class="logo">PO</div>
+  <div class="divider"></div>
+  <nav>
+    <div class="nav-item" data-page="dashboard" title="Dashboard"><div class="indicator"></div><button class="nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button></div>
+    <div class="nav-item active" data-page="etl" title="ETL / Data"><div class="indicator"></div><button class="nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button></div>
+    <div class="nav-item" data-page="margin" title="Margin"><div class="indicator"></div><button class="nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></button></div>
+    <div class="nav-item" data-page="settings" title="Pengaturan"><div class="indicator"></div><button class="nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div>
+  </nav>
+  <div class="sidebar-bottom"><div class="avatar">SA</div></div>
+</aside>
+
+<div class="main">
+  <div class="page-header">
+    <h1>Data <span>Management</span></h1>
+    <div class="sub">Upload, bersihkan, dan muat data penjualan dari Accurate</div>
+  </div>
+
+  <div class="db-bar" id="dbBar"><div class="dot"></div><span>Database connected — <strong id="dbSales">-</strong> sales · <strong id="dbProducts">-</strong> products · <strong id="dbDateRange">-</strong></span></div>
+
+  <div class="kpi-row" id="kpiRow">
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#3B82C4,transparent)"></div><div class="corner-glow" style="background:radial-gradient(circle,rgba(59,130,196,0.15) 0%,transparent 70%)"></div><div class="kpi-label">Total Sales</div><div class="kpi-value" id="kpiSales">—<span class="kpi-unit">rows</span></div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div><div class="corner-glow" style="background:radial-gradient(circle,rgba(34,197,94,0.15) 0%,transparent 70%)"></div><div class="kpi-label">Products</div><div class="kpi-value" id="kpiProducts">—<span class="kpi-unit">SKU</span></div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div><div class="corner-glow" style="background:radial-gradient(circle,rgba(245,158,11,0.15) 0%,transparent 70%)"></div><div class="kpi-label">Master COGS</div><div class="kpi-value" id="kpiCogs">—<span class="kpi-unit">items</span></div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#A855F7,transparent)"></div><div class="corner-glow" style="background:radial-gradient(circle,rgba(168,85,247,0.15) 0%,transparent 70%)"></div><div class="kpi-label">Margins</div><div class="kpi-value" id="kpiMargins">—<span class="kpi-unit">calc</span></div></div>
+  </div>
+
+  <div class="section-label">Import Data Mentah</div>
+  <div class="glass" id="stepUpload" style="margin-bottom:20px;">
+    <div class="accent-line" style="background:linear-gradient(90deg,#3B82C4,transparent)"></div>
+    <p style="font-size:13px;color:var(--sub);margin-bottom:16px;">File Excel (.xls / .xlsx) langsung dari Accurate — sistem akan membersihkan otomatis.</p>
+    <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <span class="icon">📄</span>
+      <p class="label">Klik atau drag file ke sini</p>
+      <p class="hint">Format: .xls atau .xlsx · Laporan penjualan Accurate</p>
+    </div>
+    <input type="file" id="fileInput" accept=".xls,.xlsx">
+  </div>
+
+  <div class="glass hidden" id="stepProcess" style="margin-bottom:20px;">
+    <div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div>
+    <div class="section-label" style="margin-bottom:8px;">Proses ETL</div>
+    <div class="etl-log" id="etlLog"></div>
+    <div class="progress"><div class="fill" id="progressFill" style="width:0%"></div></div>
+    <p id="processStatus" style="font-size:12px;color:var(--sub);">Memproses...</p>
+  </div>
+
+  <div class="hidden" id="stepPreview">
+    <div class="section-label">Preview Hasil Pembersihan</div>
+    <div class="stats-grid" id="statsGrid"></div>
+    <div class="glass" style="margin-bottom:20px;">
+      <div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div>
+      <div class="etl-log" id="etlSummary" style="margin-bottom:12px;"></div>
+      <div class="table-wrap"><table><thead id="previewHead"></thead><tbody id="previewBody"></tbody></table></div>
+      <p class="preview-note">Menampilkan 20 baris pertama dari data yang sudah dibersihkan</p>
+      <div class="actions">
+        <button class="btn btn-brand" id="btnConfirm" onclick="confirmLoad()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Muat ke Database</button>
+        <button class="btn btn-ghost" onclick="resetAll()">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass hidden" id="stepResult" style="margin-bottom:20px;">
+    <div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div>
+    <div id="resultContent"></div>
+    <div class="actions" style="margin-top:16px;">
+      <button class="btn btn-brand" onclick="resetAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Upload Data Lain</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentFileId=null;
+const fmt=n=>n!=null?Number(n).toLocaleString('id-ID'):'—';
+
+async function loadDbStats(){
+  try{
+    const r=await fetch('/api/db/stats');const d=await r.json();
+    document.getElementById('dbSales').textContent=fmt(d.sales);
+    document.getElementById('dbProducts').textContent=fmt(d.products);
+    document.getElementById('dbDateRange').textContent=d.date_range;
+    document.getElementById('kpiSales').innerHTML=fmt(d.sales)+'<span class="kpi-unit">rows</span>';
+    document.getElementById('kpiProducts').innerHTML=fmt(d.products)+'<span class="kpi-unit">SKU</span>';
+    document.getElementById('kpiCogs').innerHTML=fmt(d.cogs_entries)+'<span class="kpi-unit">items</span>';
+    document.getElementById('kpiMargins').innerHTML=fmt(d.margin_entries)+'<span class="kpi-unit">calc</span>';
+  }catch(e){const bar=document.getElementById('dbBar');bar.classList.add('error');bar.querySelector('span').innerHTML='Database tidak terhubung';}
+}
+loadDbStats();
+
+const dropZone=document.getElementById('dropZone'),fileInput=document.getElementById('fileInput');
+['dragenter','dragover'].forEach(e=>dropZone.addEventListener(e,ev=>{ev.preventDefault();dropZone.classList.add('dragover');}));
+['dragleave','drop'].forEach(e=>dropZone.addEventListener(e,ev=>{ev.preventDefault();dropZone.classList.remove('dragover');}));
+dropZone.addEventListener('drop',ev=>{if(ev.dataTransfer.files.length)handleFile(ev.dataTransfer.files[0]);});
+fileInput.addEventListener('change',ev=>{if(ev.target.files.length)handleFile(ev.target.files[0]);});
+
+async function handleFile(file){
+  if(!file.name.match(/\.xlsx?$/i)){alert('Format file harus .xls atau .xlsx');return;}
+  show('stepProcess');hide('stepPreview');hide('stepResult');
+  const log=document.getElementById('etlLog'),fill=document.getElementById('progressFill');
+  log.innerHTML='';
+  addLog(log,`📁 File: ${file.name} (${(file.size/1024).toFixed(0)} KB)`);
+  addLog(log,'⏳ Mengupload dan memproses...');
+  fill.style.width='30%';
+  const fd=new FormData();fd.append('file',file);
+  try{
+    const r=await fetch('/api/etl/upload',{method:'POST',body:fd});fill.style.width='80%';
+    if(!r.ok){const err=await r.json();const msgs=err.detail?.errors||[err.detail||'Error'];addLog(log,`<span class="err">✗</span> ${msgs.join(', ')}`);document.getElementById('processStatus').textContent='Gagal.';return;}
+    const data=await r.json();currentFileId=data.file_id;fill.style.width='100%';
+    const s=data.stats;
+    addLog(log,`<span class="ok">✓</span> File dibaca: <span class="num">${fmt(s.raw_rows)}</span> baris mentah`);
+    addLog(log,`<span class="ok">✓</span> Kolom kosong dihapus: <span class="num">${s.cols_dropped}</span>`);
+    addLog(log,`<span class="ok">✓</span> Header ditemukan di baris ke-<span class="num">${s.header_row}</span>`);
+    addLog(log,`<span class="ok">✓</span> Baris sampah dihapus: <span class="num">${fmt(s.junk_rows_removed)}</span>`);
+    addLog(log,`<span class="ok">✓</span> Produk terdeteksi: <span class="num">${fmt(s.product_headers)}</span>`);
+    addLog(log,`<span class="ok">✓</span> Subtotal dihapus: <span class="num">${fmt(s.subtotal_rows)}</span>`);
+    addLog(log,`<span class="ok">✓</span> Transaksi bersih: <span class="num">${fmt(s.clean_rows)}</span> baris`);
+    document.getElementById('processStatus').textContent='Selesai!';
+    setTimeout(()=>showPreview(data),400);
+  }catch(e){addLog(log,`<span class="err">✗</span> Network error: ${e.message}`);}
+}
+function addLog(c,msg){c.innerHTML+=`<div class="step">${msg}</div>`;c.scrollTop=c.scrollHeight;}
+
+function showPreview(data){
+  show('stepPreview');const s=data.stats;
+  document.getElementById('statsGrid').innerHTML=[
+    {v:fmt(s.clean_rows),l:'Baris bersih'},{v:fmt(s.unique_skus),l:'SKU unik'},{v:fmt(s.unique_products),l:'Produk unik'},
+    {v:s.date_min||'-',l:'Tanggal awal'},{v:s.date_max||'-',l:'Tanggal akhir'},{v:'Rp '+fmt(Math.round(s.total_revenue||0)),l:'Total revenue'},
+  ].map(x=>`<div class="stat-card"><div class="sv">${x.v}</div><div class="sl">${x.l}</div></div>`).join('');
+  document.getElementById('etlSummary').innerHTML=`<div class="step"><span class="ok">✓</span> Kolom: ${s.final_columns?.join(', ')}</div><div class="step"><span class="ok">✓</span> Baris: <span class="num">${fmt(s.raw_rows)}</span> → <span class="num">${fmt(s.clean_rows)}</span></div>`;
+  const thead=document.getElementById('previewHead'),tbody=document.getElementById('previewBody');
+  thead.innerHTML='<tr>'+data.columns.map(c=>`<th>${c}</th>`).join('')+'</tr>';
+  tbody.innerHTML=data.preview.map(row=>'<tr>'+data.columns.map(c=>{let v=row[c]??'';if(typeof v==='number')v=v.toLocaleString('id-ID');return`<td>${v}</td>`;}).join('')+'</tr>').join('');
+}
+
+async function confirmLoad(){
+  if(!currentFileId)return;const btn=document.getElementById('btnConfirm');btn.disabled=true;
+  btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" style="animation:spin .8s linear infinite"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Memuat...';
+  try{
+    const r=await fetch(`/api/etl/confirm/${currentFileId}`,{method:'POST'});const data=await r.json();show('stepResult');
+    if(r.ok){const db=data.database;document.getElementById('resultContent').innerHTML=`<div class="badge-success" style="margin-bottom:20px;"><div class="dot"></div>${data.message}</div><div class="stats-grid"><div class="stat-card"><div class="sv">${fmt(db.sales)}</div><div class="sl">Total sales</div></div><div class="stat-card"><div class="sv">${fmt(db.products)}</div><div class="sl">Products</div></div><div class="stat-card"><div class="sv">${fmt(db.unique_skus)}</div><div class="sl">SKU unik</div></div><div class="stat-card"><div class="sv">${db.date_range}</div><div class="sl">Rentang tanggal</div></div></div>`;loadDbStats();}
+    else{document.getElementById('resultContent').innerHTML=`<div class="badge-error">✗ ${data.detail||'Gagal'}</div>`;}
+  }catch(e){document.getElementById('resultContent').innerHTML=`<div class="badge-error">✗ ${e.message}</div>`;}
+  btn.disabled=false;btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Muat ke Database';
+}
+
+function show(id){document.getElementById(id).classList.remove('hidden');}
+function hide(id){document.getElementById(id).classList.add('hidden');}
+function resetAll(){hide('stepProcess');hide('stepPreview');hide('stepResult');currentFileId=null;fileInput.value='';}
+
+document.querySelectorAll('.nav-item').forEach(item=>{item.querySelector('.nav-btn').addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));item.classList.add('active');});});
+</script>
+</body>
+</html>
