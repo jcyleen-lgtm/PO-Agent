@@ -1,6 +1,7 @@
 """
 ETL Module — membersihkan data mentah Accurate menjadi format siap-load.
 Logic diambil dari ETL_Penjualan_ACCURATE.ipynb.
+Includes Master SKU lookup for products without numeric SKU prefix.
 """
 
 import pandas as pd
@@ -9,22 +10,45 @@ import re
 import os
 
 
-def clean_sales_data(filepath: str) -> dict:
+def load_master_sku(filepath: str = None) -> dict:
+    """Load master SKU mapping from Excel. Returns {description_lower: sku}."""
+    if filepath and os.path.exists(filepath):
+        df = pd.read_excel(filepath, engine="openpyxl")
+        df.columns = [c.strip() for c in df.columns]
+        sku_col = next((c for c in df.columns if 'sku' in c.lower()), None)
+        desc_col = next((c for c in df.columns if 'desc' in c.lower() or 'name' in c.lower() or 'product' in c.lower()), None)
+        if sku_col and desc_col:
+            mapping = {}
+            for _, row in df.iterrows():
+                if pd.notna(row[sku_col]) and pd.notna(row[desc_col]):
+                    mapping[str(row[desc_col]).strip().lower()] = str(row[sku_col]).strip()
+            return mapping
+    return {}
+
+
+def clean_sales_data(filepath: str, master_sku: dict = None) -> dict:
     """
     Membersihkan file Excel mentah dari Accurate.
-    
+
+    Args:
+        filepath: path ke file Excel mentah
+        master_sku: dict {description_lower: sku} untuk lookup
+
     Returns dict:
         - df: DataFrame bersih
         - stats: dict statistik proses ETL
         - errors: list error messages (jika ada)
     """
+    if master_sku is None:
+        master_sku = {}
+
     stats = {}
     errors = []
 
     # ── Step 1: Baca file ─────────────────────────────────────
     ext = os.path.splitext(filepath)[1].lower()
     engine = "xlrd" if ext == ".xls" else "openpyxl"
-    
+
     try:
         raw = pd.read_excel(filepath, engine=engine, header=None)
     except Exception as e:
@@ -111,7 +135,6 @@ def clean_sales_data(filepath: str) -> dict:
     )
 
     drop_mask = is_header | is_footer | df.index.isin(pre_header_idxs)
-    # Juga drop baris sebelum header pertama (metadata)
     drop_mask = drop_mask | (df.index <= header_idx)
 
     df = df[~drop_mask].reset_index(drop=True)
@@ -126,29 +149,36 @@ def clean_sales_data(filepath: str) -> dict:
     stats["subtotal_rows"] = int(is_subtotal.sum())
     stats["transaction_rows"] = int(is_transaction.sum())
 
-    # Forward fill nama produk
     df["product_raw"] = np.where(is_product_header, df[inv_col], np.nan)
     df["product_raw"] = df["product_raw"].ffill()
 
     # ── Step 6: Extract SKU dari nama produk ──────────────────
-    # Format: "299.067.002.001.01 - Sarung Pencuci AC Uk.80x80 CM"
     def extract_sku_name(raw_name):
         if pd.isna(raw_name):
             return "0", str(raw_name)
         s = str(raw_name).strip()
-        # Pattern: SKU (angka+titik) diikuti " - " lalu nama produk
+        # Pattern: numeric SKU (digits+dots) followed by separator then name
         match = re.match(r"^([\d.]+)\s*[-–]\s*(.+)$", s)
         if match:
             return match.group(1).strip(), match.group(2).strip()
-        # Fallback: coba split by " - "
-        if " - " in s:
-            parts = s.split(" - ", 1)
-            return parts[0].strip(), parts[1].strip()
+        # Not a numeric SKU pattern — try master lookup
+        lookup_key = s.lower()
+        if lookup_key in master_sku:
+            return master_sku[lookup_key], s
+        # Partial match: check if any master description is contained in s or vice versa
+        for desc_key, sku_val in master_sku.items():
+            if desc_key in lookup_key or lookup_key in desc_key:
+                return sku_val, s
         return "0", s
 
     sku_names = df["product_raw"].apply(extract_sku_name)
     df["SKU"] = sku_names.apply(lambda x: x[0])
     df["product_name"] = sku_names.apply(lambda x: x[1])
+
+    # Count how many matched via master
+    sku_zero = (df["SKU"] == "0").sum()
+    stats["sku_from_name"] = int((df["SKU"] != "0").sum())
+    stats["sku_unmatched"] = int(sku_zero)
 
     # ── Step 7: Hanya simpan baris transaksi ──────────────────
     before_rows = len(df)
@@ -159,7 +189,6 @@ def clean_sales_data(filepath: str) -> dict:
     final_cols = {"SKU": df["SKU"], "product_name": df["product_name"]}
     for col_pos, col_name in sorted(col_map.items()):
         if col_pos in df.columns and col_name not in ("invoice_date",):
-            # invoice_date sudah dipakai untuk forward fill, ambil dari kolom asli
             final_cols[col_name] = df[col_pos]
         elif col_name == "invoice_date":
             final_cols[col_name] = df[col_pos]
@@ -188,18 +217,13 @@ def clean_sales_data(filepath: str) -> dict:
     for dc in ["invoice_date", "date"]:
         if dc in df.columns:
             df[dc] = pd.to_datetime(df[dc], format="%d %b %Y", errors="coerce")
-            # Fallback: coba format lain
             mask = df[dc].isna()
             if mask.any():
-                df.loc[mask, dc] = pd.to_datetime(
-                    df.loc[mask, dc.replace("_", " ")].astype(str) if dc != "date" else df.loc[mask, "date"],
-                    errors="coerce"
-                )
+                df.loc[mask, dc] = pd.to_datetime(df.loc[mask, dc], errors="coerce")
 
     if "year" in df.columns:
         df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
 
-    # Bersihkan string columns
     for sc in ["product_name", "description", "unit", "week", "month", "quarter"]:
         if sc in df.columns:
             df[sc] = df[sc].astype(str).replace({"nan": np.nan, "None": np.nan})
@@ -213,15 +237,9 @@ def clean_sales_data(filepath: str) -> dict:
         rename_map["cogs"] = "COGS"
     df = df.rename(columns=rename_map)
 
-    # Hitung GPAO (%) jika ada
     if "GPAO" in df.columns and "amount" in df.columns:
-        df["GPAO (%)"] = np.where(
-            df["amount"] != 0,
-            df["GPAO"] / df["amount"],
-            0
-        )
+        df["GPAO (%)"] = np.where(df["amount"] != 0, df["GPAO"] / df["amount"], 0)
 
-    # Drop kolom yang gak perlu
     drop_cols = ["invoice_date", "description"]
     df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
 

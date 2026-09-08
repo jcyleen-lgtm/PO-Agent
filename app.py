@@ -13,18 +13,18 @@ from datetime import datetime
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine, text
 
-from etl import clean_sales_data
+from etl import clean_sales_data, load_master_sku
 
 # ── Config ────────────────────────────────────────────────────
 DB_URL = os.getenv("SUPABASE_DB_URL")
 UPLOAD_DIR = "uploads"
+MASTER_SKU_PATH = "MASTER_SKU.xlsx"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI(title="PO Agent", version="1.0")
@@ -36,7 +36,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Store processed data temporarily (in production: use Redis/cache)
+# Load master SKU mapping at startup
+master_sku = load_master_sku(MASTER_SKU_PATH)
+print(f"[startup] Master SKU loaded: {len(master_sku)} entries")
+
+# Store processed data temporarily
 processed_cache = {}
 
 
@@ -54,25 +58,34 @@ async def index():
         return f.read()
 
 
+@app.post("/api/master-sku/upload")
+async def upload_master_sku(file: UploadFile = File(...)):
+    """Upload/update Master SKU file."""
+    global master_sku
+    content = await file.read()
+    with open(MASTER_SKU_PATH, "wb") as f:
+        f.write(content)
+    master_sku = load_master_sku(MASTER_SKU_PATH)
+    return {"status": "success", "entries": len(master_sku)}
+
+
 @app.post("/api/etl/upload")
 async def etl_upload(file: UploadFile = File(...)):
     """Upload raw Accurate Excel, run ETL, return preview."""
-    
-    # Validate file type
+
     if not file.filename.endswith((".xls", ".xlsx")):
         raise HTTPException(400, "Format file harus .xls atau .xlsx")
 
-    # Save uploaded file
     file_id = str(uuid.uuid4())[:8]
     ext = os.path.splitext(file.filename)[1]
     save_path = os.path.join(UPLOAD_DIR, f"{file_id}{ext}")
-    
+
     content = await file.read()
     with open(save_path, "wb") as f:
         f.write(content)
 
-    # Run ETL
-    result = clean_sales_data(save_path)
+    # Run ETL with master SKU lookup
+    result = clean_sales_data(save_path, master_sku=master_sku)
 
     if result["errors"]:
         os.remove(save_path)
@@ -80,7 +93,6 @@ async def etl_upload(file: UploadFile = File(...)):
 
     df = result["df"]
 
-    # Cache cleaned data for confirm step
     processed_cache[file_id] = {
         "df": df,
         "filepath": save_path,
@@ -88,9 +100,7 @@ async def etl_upload(file: UploadFile = File(...)):
         "created_at": datetime.now().isoformat(),
     }
 
-    # Build preview (first 20 rows)
     preview_rows = df.head(20).copy()
-    # Convert datetime columns to string for JSON
     for col in preview_rows.columns:
         if preview_rows[col].dtype == "datetime64[ns]":
             preview_rows[col] = preview_rows[col].dt.strftime("%Y-%m-%d")
@@ -148,11 +158,10 @@ async def etl_confirm(file_id: str):
         })
 
         sales["sku"] = sales["sku"].astype(str)
-        
+
         if "invoice_date" in sales.columns:
             sales["invoice_date"] = pd.to_datetime(sales["invoice_date"]).dt.date
 
-        # Add missing columns
         for col in ["cogs_accurate", "unit"]:
             if col not in sales.columns:
                 sales[col] = None
@@ -166,7 +175,6 @@ async def etl_confirm(file_id: str):
                 return float(val)
             sales["gpao_pct_acc"] = sales["gpao_pct_acc"].apply(parse_gpao_pct)
 
-        # Select columns
         keep_cols = [
             "sku", "invoice_date", "quantity", "unit", "amount",
             "cogs_accurate", "gpao_accurate", "gpao_pct_acc",
@@ -183,7 +191,6 @@ async def etl_confirm(file_id: str):
         total = 0
 
         with engine.begin() as conn:
-            # Truncate existing data
             conn.execute(text("TRUNCATE TABLE sales RESTART IDENTITY"))
 
             for i in range(0, len(sales), BATCH_SIZE):
@@ -205,7 +212,7 @@ async def etl_confirm(file_id: str):
         # ── Validate ─────────────────────────────────────────
         with engine.connect() as conn:
             result = conn.execute(text("""
-                SELECT 
+                SELECT
                     (SELECT COUNT(*) FROM products) as products,
                     (SELECT COUNT(*) FROM sales) as sales,
                     (SELECT MIN(invoice_date) FROM sales) as date_min,
@@ -214,7 +221,6 @@ async def etl_confirm(file_id: str):
             """))
             row = result.fetchone()
 
-        # Cleanup
         if os.path.exists(cached["filepath"]):
             os.remove(cached["filepath"])
         del processed_cache[file_id]
@@ -240,7 +246,7 @@ async def db_stats():
     engine = get_engine()
     with engine.connect() as conn:
         result = conn.execute(text("""
-            SELECT 
+            SELECT
                 (SELECT COUNT(*) FROM products) as products,
                 (SELECT COUNT(*) FROM sales) as sales,
                 (SELECT MIN(invoice_date) FROM sales) as date_min,
