@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PO Agent — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#040810;--card:rgba(8,18,32,0.92);--border:rgba(91,155,213,0.12);--sidebar-bg:rgba(4,8,20,0.96);--brand:#3B82C4;--text:#E8F0FA;--sub:rgba(148,185,230,0.55);--sub2:rgba(148,185,230,0.22);--success:#22C55E;--warning:#F59E0B;--error:#EF4444;--font:'Inter',system-ui,sans-serif;--r-sm:10px;--r-md:14px;--r-lg:20px;--sidebar-w:72px}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+.orbs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}.orbs::before{content:'';position:absolute;width:400px;height:400px;top:-150px;left:60px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,0.14) 0%,transparent 65%)}.orbs::after{content:'';position:absolute;width:300px;height:300px;top:300px;right:-80px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,196,0.08) 0%,transparent 65%)}
+.sidebar{position:fixed;top:0;bottom:0;left:0;width:var(--sidebar-w);background:var(--sidebar-bg);backdrop-filter:blur(20px);display:flex;flex-direction:column;align-items:center;z-index:1000;border-right:1px solid var(--border);padding:0 0 16px;box-shadow:4px 0 32px rgba(0,0,0,0.4)}
+.sidebar .glow-top{position:absolute;top:0;left:0;right:0;height:200px;background:radial-gradient(ellipse at 50% -20%,rgba(59,130,196,0.18) 0%,transparent 70%);pointer-events:none}
+.sidebar .logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#0A1929,#1A3A5C,#3B82C4);display:flex;align-items:center;justify-content:center;margin:20px 0 24px;box-shadow:0 0 20px rgba(59,130,196,0.4);border:1px solid rgba(59,130,196,0.3);font-size:15px;font-weight:900;color:#fff}
+.sidebar .divider{width:36px;height:1px;background:linear-gradient(90deg,transparent,rgba(59,130,196,0.3),transparent);margin-bottom:12px}
+.sidebar nav{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;width:100%;position:relative;z-index:1}
+.nav-item{position:relative;width:100%;display:flex;justify-content:center}.nav-item .indicator{position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:24px;background:linear-gradient(180deg,#60A5FA,#3B82C4);border-radius:0 3px 3px 0;box-shadow:0 0 12px rgba(96,165,250,0.9);display:none}
+.nav-item.active .indicator{display:block}.nav-btn{width:46px;height:46px;border-radius:var(--r-sm);background:none;border:1px solid transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s}
+.nav-item.active .nav-btn{background:linear-gradient(135deg,rgba(59,130,196,0.2),rgba(96,165,250,0.1));border:1px solid rgba(96,165,250,0.25);box-shadow:0 0 20px rgba(59,130,196,0.25)}
+.nav-btn svg{stroke:rgba(255,255,255,0.3);transition:stroke .2s}.nav-item.active .nav-btn svg{stroke:#60A5FA}.nav-btn:hover svg{stroke:rgba(255,255,255,0.6)}
+.sidebar-bottom{display:flex;flex-direction:column;align-items:center;gap:8px;z-index:1}.sidebar-bottom .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#1A3A5C,#3B82C4);border:1.5px solid rgba(96,165,250,0.35);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+.main{margin-left:var(--sidebar-w);position:relative;z-index:1;min-height:100vh;padding:28px 36px 40px}
+.page-header{margin-bottom:28px;display:flex;justify-content:space-between;align-items:center}
+.page-header h1{font-size:22px;font-weight:700;letter-spacing:-.3px}.page-header h1 span{color:#60A5FA}
+.page-header .sub{font-size:13px;color:var(--sub);margin-top:4px}
+.section-label{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--sub2);margin-bottom:12px}
+.glass{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px;position:relative;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.04)}
+.glass .accent-line{position:absolute;top:0;left:0;right:0;height:1.5px;border-radius:var(--r-lg) var(--r-lg) 0 0}
+.glass .corner-glow{position:absolute;width:80px;height:80px;border-radius:50%;top:-20px;right:-20px;pointer-events:none}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.kpi{padding:16px 18px}.kpi .kpi-label{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--sub2);margin-bottom:7px}
+.kpi .kpi-value{font-size:28px;font-weight:900;letter-spacing:-1px;line-height:1}.kpi .kpi-unit{font-size:11px;font-weight:400;color:var(--sub2);margin-left:3px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-brand{background:linear-gradient(135deg,#2563EB,#3B82C4);color:#fff;box-shadow:0 0 20px rgba(59,130,196,0.3),0 4px 12px rgba(0,0,0,0.3)}
+.btn-brand:hover{box-shadow:0 0 30px rgba(59,130,196,0.5);transform:translateY(-1px)}.btn-brand:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-ghost{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:rgba(148,185,230,0.6)}.btn-ghost:hover{border-color:rgba(255,255,255,0.15);color:var(--text)}
+.chart-row{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:24px}
+.chart-box{min-height:280px}
+.chart-box canvas{width:100%!important;height:260px!important}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sub2);text-align:left;padding:8px 12px;border-bottom:1px solid var(--border)}
+td{padding:7px 12px;border-bottom:1px solid rgba(255,255,255,0.03);white-space:nowrap;color:rgba(148,185,230,0.75)}
+tr:hover td{background:rgba(59,130,196,0.04)}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:10px;font-weight:700;letter-spacing:.04em}
+.badge-good{background:rgba(34,197,94,0.12);color:#4ADE80}.badge-mod{background:rgba(245,158,11,0.12);color:#FBBF24}.badge-poor{background:rgba(239,68,68,0.12);color:#F87171}
+.badge-up{color:#4ADE80}.badge-down{color:#F87171}.badge-stable{color:#94A3B8}
+.trend-arrow{font-size:14px;font-weight:700}
+.empty-state{text-align:center;padding:48px;color:var(--sub)}
+.empty-state .icon{font-size:40px;margin-bottom:12px;display:block;opacity:.5}
+.empty-state p{font-size:14px;margin-bottom:16px}
+.table-wrap{overflow-x:auto}
+.db-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:rgba(34,197,94,0.04);border:1px solid rgba(34,197,94,0.12);border-radius:var(--r-md);margin-bottom:24px;font-size:12px;color:var(--sub)}
+.db-bar .dot{width:6px;height:6px;border-radius:50%;background:#22C55E;box-shadow:0 0 8px #22C55E;animation:blink 1.4s ease-in-out infinite;flex-shrink:0}
+.db-bar strong{color:var(--text);font-weight:700}
+.hidden{display:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.loading-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(96,165,250,0.3);border-top-color:#60A5FA;border-radius:50%;animation:spin .8s linear infinite}
+select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--text);padding:6px 12px;border-radius:var(--r-sm);font-family:var(--font);font-size:12px}
+</style>
+</head>
+<body>
+<div class="orbs"></div>
+
+<aside class="sidebar">
+  <div class="glow-top"></div>
+  <div class="logo">PO</div>
+  <div class="divider"></div>
+  <nav>
+    <div class="nav-item active"><div class="indicator"></div><a href="/" class="nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a></div>
+    <div class="nav-item"><div class="indicator"></div><a href="/etl" class="nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></a></div>
+    <div class="nav-item"><div class="indicator"></div><a href="#" class="nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></a></div>
+    <div class="nav-item"><div class="indicator"></div><a href="#" class="nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></a></div>
+  </nav>
+  <div class="sidebar-bottom"><div class="avatar">SA</div></div>
+</aside>
+
+<div class="main">
+  <div class="page-header">
+    <div>
+      <h1>Dashboard <span>Overview</span></h1>
+      <div class="sub" id="dateRange">Loading...</div>
+    </div>
+    <button class="btn btn-brand" id="btnForecast" onclick="runForecast()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Jalankan Forecast
+    </button>
+  </div>
+
+  <div class="db-bar" id="dbBar"><div class="dot"></div><span id="dbInfo">Loading...</span></div>
+
+  <!-- KPI Row -->
+  <div class="kpi-row">
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#3B82C4,transparent)"></div><div class="corner-glow" style="background:radial-gradient(circle,rgba(59,130,196,0.15) 0%,transparent 70%)"></div><div class="kpi-label">Total Transaksi</div><div class="kpi-value" id="kpiTxn">—</div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div><div class="corner-glow" style="background:radial-gradient(circle,rgba(34,197,94,0.15) 0%,transparent 70%)"></div><div class="kpi-label">Total Revenue</div><div class="kpi-value" id="kpiRevenue">—</div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#A855F7,transparent)"></div><div class="corner-glow" style="background:radial-gradient(circle,rgba(168,85,247,0.15) 0%,transparent 70%)"></div><div class="kpi-label">SKU Forecasted</div><div class="kpi-value" id="kpiForecast">—</div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div><div class="corner-glow" style="background:radial-gradient(circle,rgba(245,158,11,0.15) 0%,transparent 70%)"></div><div class="kpi-label">Avg MAPE</div><div class="kpi-value" id="kpiMape">—<span class="kpi-unit">%</span></div></div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="chart-row">
+    <div class="glass chart-box" id="trendChartBox">
+      <div class="accent-line" style="background:linear-gradient(90deg,#3B82C4,transparent)"></div>
+      <div class="section-label">Revenue Trend (6 bulan terakhir)</div>
+      <canvas id="trendChart"></canvas>
+    </div>
+    <div class="glass chart-box" id="forecastQualityBox">
+      <div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div>
+      <div class="section-label">Kualitas Forecast</div>
+      <canvas id="qualityChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Forecast detail section -->
+  <div class="section-label">Forecast per SKU — Holt's Double Exponential Smoothing</div>
+
+  <!-- SKU detail chart -->
+  <div class="glass" style="margin-bottom:20px;" id="skuDetailBox">
+    <div class="accent-line" style="background:linear-gradient(90deg,#A855F7,transparent)"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:0;">Actual vs Forecast</div>
+      <select id="skuSelect" onchange="loadSkuChart()"><option value="">Pilih SKU...</option></select>
+    </div>
+    <div id="skuInfo" style="font-size:12px;color:var(--sub);margin-bottom:12px;"></div>
+    <canvas id="skuChart" height="200"></canvas>
+  </div>
+
+  <!-- Forecast table -->
+  <div class="glass" id="forecastTableBox">
+    <div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="section-label" style="margin-bottom:0;">Semua SKU Forecast</div>
+      <select id="sortSelect" onchange="loadForecastTable()">
+        <option value="volume">Sort: Volume</option>
+        <option value="mape">Sort: MAPE</option>
+        <option value="trend">Sort: Trend</option>
+      </select>
+    </div>
+    <div id="forecastTableWrap" class="table-wrap">
+      <div class="empty-state" id="emptyForecast">
+        <span class="icon">📊</span>
+        <p>Belum ada data forecast. Klik "Jalankan Forecast" untuk memulai.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const fmt = n => n != null ? Number(n).toLocaleString('id-ID') : '—';
+const fmtRp = n => 'Rp ' + fmt(Math.round(n || 0));
+let forecastData = null;
+let trendChartObj = null, qualityChartObj = null, skuChartObj = null;
+
+// ── Load dashboard ───────────────────────────────
+async function loadDashboard() {
+  try {
+    const [statsR, summaryR] = await Promise.all([
+      fetch('/api/db/stats'), fetch('/api/dashboard/summary')
+    ]);
+    const stats = await statsR.json();
+    const summary = await summaryR.json();
+
+    // DB bar
+    document.getElementById('dbInfo').innerHTML =
+      `Database connected — <strong>${fmt(stats.sales)}</strong> sales · <strong>${fmt(stats.products)}</strong> products · <strong>${stats.date_range}</strong>`;
+    document.getElementById('dateRange').textContent = summary.sales.date_range;
+
+    // KPIs
+    document.getElementById('kpiTxn').innerHTML = fmt(summary.sales.total_transactions);
+    document.getElementById('kpiRevenue').innerHTML = fmtRp(summary.sales.total_revenue);
+    document.getElementById('kpiForecast').innerHTML = fmt(summary.forecast.total_forecasted);
+    document.getElementById('kpiMape').innerHTML = summary.forecast.avg_mape + '<span class="kpi-unit">%</span>';
+
+    // Revenue trend chart
+    if (summary.monthly_trend.length > 0) {
+      renderTrendChart(summary.monthly_trend);
+    }
+
+    // Top products populate SKU select
+    if (summary.top_products.length > 0) {
+      const sel = document.getElementById('skuSelect');
+      summary.top_products.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.sku;
+        opt.textContent = `${p.sku} — ${p.name}`;
+        sel.appendChild(opt);
+      });
+    }
+
+    // Load forecast table if available
+    if (stats.forecast_entries > 0) {
+      loadForecastTable();
+    }
+  } catch(e) {
+    document.getElementById('dbInfo').innerHTML = 'Database tidak terhubung';
+  }
+}
+
+// ── Revenue trend chart ──────────────────────────
+function renderTrendChart(data) {
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if (trendChartObj) trendChartObj.destroy();
+  trendChartObj = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.month),
+      datasets: [{
+        label: 'Revenue',
+        data: data.map(d => d.revenue),
+        borderColor: '#60A5FA',
+        backgroundColor: 'rgba(96,165,250,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        pointBackgroundColor: '#60A5FA',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: 'rgba(148,185,230,0.4)', font: { size: 10 } } },
+        y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: 'rgba(148,185,230,0.4)', font: { size: 10 },
+          callback: v => 'Rp ' + (v/1000000).toFixed(0) + 'M'
+        } }
+      }
+    }
+  });
+}
+
+// ── Run forecast ─────────────────────────────────
+async function runForecast() {
+  const btn = document.getElementById('btnForecast');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner"></span> Menghitung forecast...';
+
+  try {
+    const r = await fetch('/api/forecast/run', { method: 'POST' });
+    const data = await r.json();
+
+    if (r.ok) {
+      document.getElementById('kpiForecast').innerHTML = fmt(data.summary.total_skus_forecasted);
+      document.getElementById('kpiMape').innerHTML = data.summary.avg_mape + '<span class="kpi-unit">%</span>';
+      renderQualityChart(data.summary);
+      loadForecastTable();
+      loadAllSkuOptions();
+    } else {
+      alert('Error: ' + (data.detail || 'Unknown'));
+    }
+  } catch(e) {
+    alert('Network error: ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Jalankan Forecast';
+}
+
+// ── Quality donut chart ──────────────────────────
+function renderQualityChart(summary) {
+  const ctx = document.getElementById('qualityChart').getContext('2d');
+  if (qualityChartObj) qualityChartObj.destroy();
+  qualityChartObj = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Good (<25%)', 'Moderate (25-50%)', 'Poor (>50%)'],
+      datasets: [{
+        data: [summary.good_forecast_count, summary.moderate_forecast_count, summary.poor_forecast_count],
+        backgroundColor: ['rgba(34,197,94,0.7)', 'rgba(245,158,11,0.7)', 'rgba(239,68,68,0.7)'],
+        borderColor: ['#22C55E', '#F59E0B', '#EF4444'],
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: 'rgba(148,185,230,0.6)', font: { size: 10 }, padding: 12 } }
+      }
+    }
+  });
+}
+
+// ── Load forecast table ──────────────────────────
+async function loadForecastTable() {
+  const sort = document.getElementById('sortSelect').value;
+  try {
+    const r = await fetch(`/api/forecast/results?limit=50&sort=${sort}`);
+    const data = await r.json();
+    forecastData = data;
+
+    if (!data.results || data.results.length === 0) return;
+    document.getElementById('emptyForecast')?.remove();
+
+    // Render quality chart if summary available
+    if (data.summary) renderQualityChart(data.summary);
+
+    const wrap = document.getElementById('forecastTableWrap');
+    let html = '<table><thead><tr><th>SKU</th><th>Produk</th><th>α</th><th>β</th><th>MAPE</th><th>Trend</th><th>Avg/Week</th><th>Forecast</th><th>Status</th></tr></thead><tbody>';
+
+    data.results.forEach(r => {
+      const mapeClass = r.mape < 25 ? 'badge-good' : r.mape < 50 ? 'badge-mod' : 'badge-poor';
+      const mapeLabel = r.mape < 25 ? 'Good' : r.mape < 50 ? 'Moderate' : 'Poor';
+      const trendArrow = r.trend_direction === 'up' ? '↑' : r.trend_direction === 'down' ? '↓' : '→';
+      const trendClass = r.trend_direction === 'up' ? 'badge-up' : r.trend_direction === 'down' ? 'badge-down' : 'badge-stable';
+      const nextFc = r.forecast_data.quantities[0] || 0;
+
+      html += `<tr style="cursor:pointer" onclick="selectSku('${r.sku}')">
+        <td style="color:#60A5FA;font-weight:600">${r.sku}</td>
+        <td>${r.product_name.substring(0,35)}</td>
+        <td>${r.alpha}</td><td>${r.beta}</td>
+        <td><span class="badge ${mapeClass}">${r.mape}%</span></td>
+        <td><span class="trend-arrow ${trendClass}">${trendArrow}</span> <span style="font-size:11px">${r.trend}</span></td>
+        <td>${r.avg_weekly_demand}</td>
+        <td style="font-weight:700">${fmt(Math.round(nextFc))}</td>
+        <td><span class="badge ${mapeClass}">${mapeLabel}</span></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+
+    // Populate SKU select with all results
+    const sel = document.getElementById('skuSelect');
+    sel.innerHTML = '<option value="">Pilih SKU...</option>';
+    data.results.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.sku;
+      opt.textContent = `${r.sku} — ${r.product_name.substring(0,30)}`;
+      sel.appendChild(opt);
+    });
+
+  } catch(e) { console.error(e); }
+}
+
+// ── Select SKU from table row ────────────────────
+function selectSku(sku) {
+  document.getElementById('skuSelect').value = sku;
+  loadSkuChart();
+  document.getElementById('skuDetailBox').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── Load SKU detail chart ────────────────────────
+async function loadSkuChart() {
+  const sku = document.getElementById('skuSelect').value;
+  if (!sku) return;
+
+  try {
+    const r = await fetch(`/api/forecast/sku/${sku}`);
+    const data = await r.json();
+
+    document.getElementById('skuInfo').innerHTML =
+      `<strong>${data.product_name}</strong> · α=${data.alpha} β=${data.beta} · MAPE: ${data.mape}% · Trend: ${data.trend} (${data.trend_direction}) · Avg/minggu: ${data.avg_weekly_demand}`;
+
+    const ctx = document.getElementById('skuChart').getContext('2d');
+    if (skuChartObj) skuChartObj.destroy();
+
+    const actualMonths = data.actual_data.months;
+    const forecastMonths = data.forecast_data.months;
+    const allMonths = [...actualMonths, ...forecastMonths];
+
+    const actualQty = data.actual_data.quantities;
+    const fittedQty = data.fitted_data.quantities;
+    const forecastQty = data.forecast_data.quantities;
+
+    // Extend actual/fitted with nulls for forecast period
+    const actualFull = [...actualQty, ...forecastMonths.map(() => null)];
+    const fittedFull = [...fittedQty, ...forecastMonths.map(() => null)];
+    // Forecast line starts from last actual
+    const forecastFull = [...actualMonths.map(() => null)];
+    forecastFull[forecastFull.length - 1] = actualQty[actualQty.length - 1];
+    forecastFull.push(...forecastQty);
+
+    skuChartObj = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: allMonths,
+        datasets: [
+          {
+            label: 'Actual',
+            data: actualFull,
+            borderColor: '#60A5FA',
+            backgroundColor: 'rgba(96,165,250,0.1)',
+            fill: true, tension: 0.3, pointRadius: 3,
+          },
+          {
+            label: 'Fitted (Holt DES)',
+            data: fittedFull,
+            borderColor: '#A855F7',
+            borderDash: [4, 4],
+            tension: 0.3, pointRadius: 2,
+          },
+          {
+            label: 'Forecast',
+            data: forecastFull,
+            borderColor: '#22C55E',
+            backgroundColor: 'rgba(34,197,94,0.08)',
+            fill: true, borderDash: [6, 3],
+            tension: 0.3, pointRadius: 4,
+            pointBackgroundColor: '#22C55E',
+          },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: 'rgba(148,185,230,0.6)', font: { size: 10 } } }
+        },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: 'rgba(148,185,230,0.4)', font: { size: 10 } } },
+          y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: 'rgba(148,185,230,0.4)', font: { size: 10 } },
+            beginAtZero: true }
+        }
+      }
+    });
+  } catch(e) { console.error(e); }
+}
+
+async function loadAllSkuOptions() {
+  try {
+    const r = await fetch('/api/forecast/results?limit=200');
+    const data = await r.json();
+    const sel = document.getElementById('skuSelect');
+    sel.innerHTML = '<option value="">Pilih SKU...</option>';
+    data.results.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.sku;
+      opt.textContent = `${r.sku} — ${r.product_name.substring(0,30)}`;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
+loadDashboard();
+</script>
+</body>
+</html>
