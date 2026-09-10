@@ -41,10 +41,14 @@ def holts_des(series: list, alpha: float, beta: float, forecast_periods: int = 4
         level = alpha * series[t] + (1 - alpha) * (level + trend)
         trend = beta * (level - prev_level) + (1 - beta) * trend
 
-    # Forecast future periods
+    # Forecast future periods (with dampening)
+    avg_actual = sum(series) / len(series) if series else 1
+    max_forecast = max(series) * 2 if series else avg_actual * 3
     forecasts = []
     for m in range(1, forecast_periods + 1):
-        forecasts.append(level + m * trend)
+        fc = level + m * trend
+        fc = max(0, min(fc, max_forecast))  # clamp: no negative, no explosion
+        forecasts.append(fc)
 
     # Calculate MAPE (skip first period)
     errors = []
@@ -74,7 +78,7 @@ def grid_search_holts(series: list, forecast_periods: int = 4) -> dict:
     best_mape = float('inf')
 
     for a in range(1, 10):  # 0.1 to 0.9
-        for b in range(1, 10):
+        for b in range(1, 4):  # 0.1 to 0.3 — cap beta to prevent trend explosion
             alpha = a / 10
             beta = b / 10
             result = holts_des(series, alpha, beta, forecast_periods)
