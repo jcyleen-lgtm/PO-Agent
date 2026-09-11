@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os, io, uuid, csv, json, math
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -281,75 +281,101 @@ async def db_stats():
 
 
 @app.get("/api/overview")
-async def overview_summary():
+async def overview_summary(
+    start: str = None, end: str = None,
+    preset: str = "l4w"
+):
     engine = get_engine()
     with engine.connect() as conn:
-        weeks = conn.execute(text("""
-            SELECT DISTINCT DATE_TRUNC('week', invoice_date)::date as wk
-            FROM sales WHERE invoice_date IS NOT NULL ORDER BY wk DESC LIMIT 4
-        """)).fetchall()
-        recent_4 = [w[0] for w in weeks] if weeks else []
-        if recent_4:
-            l4w = conn.execute(text("""
-                SELECT COUNT(DISTINCT sku), SUM(amount), SUM(quantity)
-                FROM sales WHERE invoice_date >= :s
-            """), {"s": min(recent_4)}).fetchone()
+        mx = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).fetchone()
+        max_date = mx[0] if mx and mx[0] else None
+        if not max_date:
+            return {"error":"No sales data","kpis":{},"comparison":{},"trend":[],"top_products":[],"period":{}}
+
+        if start and end:
+            dt_end = date.fromisoformat(end)
+            dt_start = date.fromisoformat(start)
         else:
-            l4w = (0, 0, 0)
+            dt_end = max_date
+            preset_days = {"l7d":7,"l4w":28,"l8w":56,"l12w":84}
+            if preset == "this_month":
+                dt_start = dt_end.replace(day=1)
+            elif preset == "last_month":
+                first_this = dt_end.replace(day=1)
+                dt_start = (first_this - timedelta(days=1)).replace(day=1)
+                dt_end = first_this - timedelta(days=1)
+            else:
+                days = preset_days.get(preset, 28)
+                dt_start = dt_end - timedelta(days=days - 1)
 
-        under = (0,)
-        try:
-            under = conn.execute(text("""
-                WITH l4w AS (
-                    SELECT sku, SUM(quantity) as q FROM sales
-                    WHERE invoice_date >= (SELECT MAX(invoice_date)-INTERVAL '28 days' FROM sales)
-                    GROUP BY sku
-                ), stk AS (
-                    SELECT sku, quantity FROM stock_snapshots
-                    WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM stock_snapshots)
-                ), po AS (
-                    SELECT sku, SUM(qty_ordered-qty_received) as q FROM purchase_orders
-                    WHERE status IN ('pending','partial') GROUP BY sku
-                )
-                SELECT COUNT(*) FROM l4w
-                LEFT JOIN stk ON l4w.sku=stk.sku LEFT JOIN po ON l4w.sku=po.sku
-                WHERE l4w.q > 0 AND (COALESCE(stk.quantity,0)+COALESCE(po.q,0))/(l4w.q::numeric/4) < 8
-            """)).fetchone()
-        except Exception:
-            under = (0,)
+        period_days = (dt_end - dt_start).days + 1
+        period_weeks = max(period_days / 7, 1)
+        prev_end = dt_start - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=period_days - 1)
 
+        # KPIs
+        kpi = conn.execute(text("""
+            SELECT COALESCE(SUM(quantity),0), COALESCE(SUM(amount),0), COUNT(DISTINCT sku)
+            FROM sales WHERE invoice_date >= :s AND invoice_date <= :e
+        """), {"s": dt_start, "e": dt_end}).fetchone()
+        total_sales = int(kpi[0]); revenue = float(kpi[1]); active = int(kpi[2])
+        avg_weekly = round(total_sales / period_weeks)
+
+        # Trending up
+        mid = dt_start + timedelta(days=period_days // 2)
         trending = (0,)
-        if len(recent_4) >= 2:
-            try:
-                trending = conn.execute(text("""
-                    WITH w1 AS (SELECT sku,SUM(quantity) q FROM sales WHERE DATE_TRUNC('week',invoice_date)::date=:a GROUP BY sku),
-                         w2 AS (SELECT sku,SUM(quantity) q FROM sales WHERE DATE_TRUNC('week',invoice_date)::date=:b GROUP BY sku)
-                    SELECT COUNT(*) FROM w1 JOIN w2 ON w1.sku=w2.sku WHERE w2.q>0 AND w1.q>w2.q
-                """), {"a": recent_4[0], "b": recent_4[1]}).fetchone()
-            except Exception:
-                trending = (0,)
+        try:
+            trending = conn.execute(text("""
+                WITH fh AS (SELECT sku,SUM(quantity) q FROM sales WHERE invoice_date>=:s AND invoice_date<:m GROUP BY sku),
+                     sh AS (SELECT sku,SUM(quantity) q FROM sales WHERE invoice_date>=:m AND invoice_date<=:e GROUP BY sku)
+                SELECT COUNT(*) FROM sh JOIN fh ON sh.sku=fh.sku WHERE fh.q>0 AND sh.q>fh.q
+            """), {"s": dt_start, "m": mid, "e": dt_end}).fetchone()
+        except Exception:
+            trending = (0,)
 
-        monthly = conn.execute(text("""
-            SELECT DATE_TRUNC('month',invoice_date)::date as m, SUM(quantity) q, SUM(amount) r, COUNT(DISTINCT sku) s
-            FROM sales WHERE invoice_date >= (SELECT MAX(invoice_date)-INTERVAL '6 months' FROM sales)
-            GROUP BY m ORDER BY m
-        """)).fetchall()
+        # Previous period KPIs
+        prev = conn.execute(text("""
+            SELECT COALESCE(SUM(quantity),0), COALESCE(SUM(amount),0), COUNT(DISTINCT sku)
+            FROM sales WHERE invoice_date >= :s AND invoice_date <= :e
+        """), {"s": prev_start, "e": prev_end}).fetchone()
+        p_sales = int(prev[0]); p_rev = float(prev[1]); p_active = int(prev[2])
+        p_avg = round(p_sales / period_weeks) if period_weeks else 0
 
+        def pchg(c, p):
+            return round((c - p) / p * 100, 1) if p else None
+
+        # Trend chart (auto-aggregate)
+        if period_days <= 14:
+            agg = "day"
+            tq = text("SELECT invoice_date::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
+        elif period_days <= 90:
+            agg = "week"
+            tq = text("SELECT DATE_TRUNC('week',invoice_date)::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
+        else:
+            agg = "month"
+            tq = text("SELECT DATE_TRUNC('month',invoice_date)::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
+        trend = conn.execute(tq, {"s": dt_start, "e": dt_end}).fetchall()
+
+        # Top 10 with growth
         top10 = conn.execute(text("""
             SELECT s.sku,p.name,SUM(s.quantity) q,SUM(s.amount) r
             FROM sales s JOIN products p ON s.sku=p.sku
-            WHERE s.invoice_date >= (SELECT MAX(invoice_date)-INTERVAL '28 days' FROM sales)
+            WHERE s.invoice_date>=:s AND s.invoice_date<=:e
             GROUP BY s.sku,p.name ORDER BY q DESC LIMIT 10
-        """)).fetchall()
+        """), {"s": dt_start, "e": dt_end}).fetchall()
+        top_g = []
+        for r in top10:
+            pq = conn.execute(text("SELECT COALESCE(SUM(quantity),0) FROM sales WHERE sku=:k AND invoice_date>=:s AND invoice_date<=:e"),
+                              {"k": r[0], "s": prev_start, "e": prev_end}).fetchone()
+            top_g.append({"sku":r[0],"name":r[1],"qty":int(r[2]),"revenue":float(r[3]),"growth":pchg(int(r[2]),int(pq[0]))})
 
     return {
-        "kpis": {
-            "active_skus_l4w": l4w[0] or 0, "revenue_l4w": float(l4w[1] or 0),
-            "qty_l4w": int(l4w[2] or 0), "understocked": under[0] if under else 0,
-            "trending_up": trending[0] if trending else 0,
-        },
-        "monthly_trend": [{"month":str(r[0]),"quantity":int(r[1]),"revenue":float(r[2]),"active_skus":int(r[3])} for r in monthly],
-        "top_products": [{"sku":r[0],"name":r[1],"qty":int(r[2]),"revenue":float(r[3])} for r in top10],
+        "period": {"start":str(dt_start),"end":str(dt_end),"days":period_days,"aggregation":agg},
+        "prev_period": {"start":str(prev_start),"end":str(prev_end)},
+        "kpis": {"total_sales":total_sales,"revenue":revenue,"avg_weekly_sales":avg_weekly,"active_products":active,"trending_up":trending[0] if trending else 0},
+        "comparison": {"total_sales":pchg(total_sales,p_sales),"revenue":pchg(revenue,p_rev),"avg_weekly_sales":pchg(avg_weekly,p_avg),"active_products":pchg(active,p_active)},
+        "trend": [{"date":str(r[0]),"quantity":int(r[1]),"revenue":float(r[2])} for r in trend],
+        "top_products": top_g,
     }
 
 

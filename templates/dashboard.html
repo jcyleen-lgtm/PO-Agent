@@ -7,14 +7,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
+/* ═══ ORIGINAL DESIGN SYSTEM — DO NOT CHANGE ═══ */
 :root{--bg:#040810;--card:rgba(8,18,32,0.92);--border:rgba(91,155,213,0.12);--sidebar-bg:rgba(4,8,20,0.96);--brand:#3B82C4;--text:#E8F0FA;--sub:rgba(148,185,230,0.55);--sub2:rgba(148,185,230,0.22);--green:#22C55E;--yellow:#F59E0B;--red:#EF4444;--purple:#A855F7;--font:'Inter',system-ui,sans-serif;--r-sm:10px;--r-md:14px;--r-lg:20px;--sidebar-w:72px}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
 .orbs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
 .orbs::before{content:'';position:absolute;width:400px;height:400px;top:-150px;left:60px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,0.14) 0%,transparent 65%)}
 .orbs::after{content:'';position:absolute;width:300px;height:300px;top:300px;right:-80px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,196,0.08) 0%,transparent 65%)}
-
-/* Sidebar */
 .sidebar{position:fixed;top:0;bottom:0;left:0;width:var(--sidebar-w);background:var(--sidebar-bg);backdrop-filter:blur(20px);display:flex;flex-direction:column;align-items:center;z-index:1000;border-right:1px solid var(--border);padding:0 0 16px;box-shadow:4px 0 32px rgba(0,0,0,0.4)}
 .sidebar .glow-top{position:absolute;top:0;left:0;right:0;height:200px;background:radial-gradient(ellipse at 50% -20%,rgba(59,130,196,0.18) 0%,transparent 70%);pointer-events:none}
 .sidebar .logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#0A1929,#1A3A5C,#3B82C4);display:flex;align-items:center;justify-content:center;margin:20px 0 24px;box-shadow:0 0 20px rgba(59,130,196,0.4);border:1px solid rgba(59,130,196,0.3);font-size:15px;font-weight:900;color:#fff;position:relative;z-index:1}
@@ -30,586 +29,247 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 .sidebar-bottom .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#1A3A5C,#3B82C4);border:1.5px solid rgba(96,165,250,0.35);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
 .tooltip{position:absolute;left:calc(100% + 12px);top:50%;transform:translateY(-50%);background:#1a2744;border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:500;color:var(--text);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s}
 .nav-item:hover .tooltip{opacity:1}
-
-/* Main */
 .main{margin-left:var(--sidebar-w);position:relative;z-index:1;min-height:100vh;padding:28px 36px 40px}
-.page-header{margin-bottom:24px}
-.page-header h1{font-size:22px;font-weight:700;letter-spacing:-.3px}.page-header h1 span{color:#60A5FA}
-.page-header .sub{font-size:13px;color:var(--sub);margin-top:4px}
-
-/* Shared components */
 .glass{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px;position:relative;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.04)}
 .glass .accent-line{position:absolute;top:0;left:0;right:0;height:1.5px;border-radius:var(--r-lg) var(--r-lg) 0 0}
-.section-label{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--sub2);margin-bottom:12px}
-.db-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:rgba(34,197,94,0.04);border:1px solid rgba(34,197,94,0.12);border-radius:var(--r-md);margin-bottom:24px;font-size:12px;color:var(--sub)}
+.section-label{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--sub2);margin-bottom:12px}
+.db-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:rgba(34,197,94,0.04);border:1px solid rgba(34,197,94,0.12);border-radius:var(--r-md);margin-bottom:20px;font-size:13px;color:var(--sub)}
 .db-bar .dot{width:6px;height:6px;border-radius:50%;background:#22C55E;box-shadow:0 0 8px #22C55E;animation:blink 1.4s ease-in-out infinite;flex-shrink:0}
 .db-bar strong{color:var(--text);font-weight:700}
-.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
-.kpi{padding:16px 18px}.kpi .kpi-label{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--sub2);margin-bottom:7px}
-.kpi .kpi-value{font-size:28px;font-weight:900;letter-spacing:-1px;line-height:1}.kpi .kpi-unit{font-size:11px;font-weight:400;color:var(--sub2);margin-left:3px}
-
-/* Table */
 .tbl-wrap{overflow-x:auto;margin-top:8px}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--sub2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--sub2);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}
 th:hover{color:var(--text)}
-th .sort-arrow{margin-left:3px;opacity:.3}
-th.sorted .sort-arrow{opacity:1;color:#60A5FA}
-td{padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.03);white-space:nowrap;color:rgba(148,185,230,0.75)}
+td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03);white-space:nowrap;color:rgba(148,185,230,0.75)}
 tr:hover td{background:rgba(59,130,196,0.04)}
 .badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:10px;font-weight:700;letter-spacing:.04em}
-.badge-green{background:rgba(34,197,94,0.12);color:#4ADE80}
-.badge-yellow{background:rgba(245,158,11,0.12);color:#FBBF24}
-.badge-red{background:rgba(239,68,68,0.12);color:#F87171}
-.badge-blue{background:rgba(96,165,250,0.12);color:#60A5FA}
-.badge-gray{background:rgba(148,163,184,0.1);color:#94A3B8}
+.badge-green{background:rgba(34,197,94,0.12);color:#4ADE80}.badge-yellow{background:rgba(245,158,11,0.12);color:#FBBF24}.badge-red{background:rgba(239,68,68,0.12);color:#F87171}.badge-blue{background:rgba(96,165,250,0.12);color:#60A5FA}.badge-gray{background:rgba(148,163,184,0.1);color:#94A3B8}
 .trend-up{color:#4ADE80}.trend-down{color:#F87171}.trend-stable{color:#94A3B8}
 .num-pos{color:#4ADE80}.num-neg{color:#F87171}
 .text-dim{color:var(--sub2)}
-
-/* Search & filter bar */
 .filter-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-.search-box{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:var(--r-sm);padding:7px 12px;color:var(--text);font-family:var(--font);font-size:12px;width:260px;outline:none;transition:border-color .2s}
-.search-box:focus{border-color:rgba(96,165,250,0.4)}
-.search-box::placeholder{color:var(--sub2)}
-select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--text);padding:7px 12px;border-radius:var(--r-sm);font-family:var(--font);font-size:12px;cursor:pointer}
+.search-box{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:var(--r-sm);padding:8px 14px;color:var(--text);font-family:var(--font);font-size:13px;width:260px;outline:none;transition:border-color .2s}
+.search-box:focus{border-color:rgba(96,165,250,0.4)}.search-box::placeholder{color:var(--sub2)}
+select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--text);padding:8px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;cursor:pointer}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
 .btn-brand{background:linear-gradient(135deg,#2563EB,#3B82C4);color:#fff;box-shadow:0 0 20px rgba(59,130,196,0.3),0 4px 12px rgba(0,0,0,0.3)}
-.btn-brand:hover{box-shadow:0 0 30px rgba(59,130,196,0.5);transform:translateY(-1px)}
-.btn-brand:disabled{opacity:.4;cursor:not-allowed;transform:none}
-.btn-ghost{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:rgba(148,185,230,0.6)}.btn-ghost:hover{border-color:rgba(255,255,255,0.15);color:var(--text)}
-.chart-row{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:24px}
-.chart-box{min-height:280px}
-.chart-box canvas{width:100%!important;height:260px!important}
-
-/* Tab content */
+.btn-brand:hover{box-shadow:0 0 30px rgba(59,130,196,0.5);transform:translateY(-1px)}.btn-brand:disabled{opacity:.4;cursor:not-allowed;transform:none}
 .tab-content{display:none}.tab-content.active{display:block}
-
-/* Sparkline */
 .sparkline{display:inline-block;vertical-align:middle}
-
-/* Pagination */
 .paging{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--sub)}
 .paging button{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--sub);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-family:var(--font)}
-.paging button:hover{border-color:rgba(96,165,250,0.3);color:var(--text)}
-.paging button:disabled{opacity:.3;cursor:not-allowed}
+.paging button:hover{border-color:rgba(96,165,250,0.3);color:var(--text)}.paging button:disabled{opacity:.3;cursor:not-allowed}
 .paging .current{color:#60A5FA;font-weight:700}
-
-/* Empty state */
 .empty-state{text-align:center;padding:48px;color:var(--sub)}.empty-state .icon{font-size:40px;margin-bottom:12px;display:block;opacity:.5}.empty-state p{font-size:14px;margin-bottom:16px}
-
-.hidden{display:none}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 .loading-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(96,165,250,0.3);border-top-color:#60A5FA;border-radius:50%;animation:spin .8s linear infinite}
 .loader-full{display:flex;align-items:center;justify-content:center;padding:60px;gap:12px;color:var(--sub);font-size:13px}
+
+/* ═══ NEW: Date pills + KPI comparison + chart headers ═══ */
+.pill-bar{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--r-sm);padding:3px}
+.pill{padding:7px 16px;border-radius:8px;border:none;background:none;color:var(--sub);font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.pill:hover{color:var(--text)}.pill.active{background:linear-gradient(135deg,#2563EB,#3B82C4);color:#fff;font-weight:600;box-shadow:0 0 14px rgba(59,130,196,0.5)}
+.date-filter-wrap{position:relative}
+.date-dropdown{display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;z-index:100;box-shadow:0 12px 32px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.04)}
+.date-dropdown.show{display:block}
+.date-dropdown .dd-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#60A5FA;margin-bottom:14px}
+.date-dropdown .dd-row{display:flex;gap:10px;align-items:center}
+.date-dropdown input[type=date]{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:var(--r-sm);padding:8px 12px;color:var(--text);font-family:var(--font);font-size:13px;outline:none;width:155px}
+.date-dropdown input[type=date]:focus{border-color:rgba(96,165,250,0.4);box-shadow:0 0 8px rgba(59,130,196,0.2)}
+.date-dropdown .dd-arrow{color:var(--sub2);font-size:14px}
+.date-dropdown .dd-apply{margin-top:14px;width:100%}
+.month-grid{display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;z-index:100;min-width:270px;box-shadow:0 12px 32px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.04)}
+.month-grid.show{display:block}
+.month-grid .mg-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.month-grid .mg-year{font-size:13px;font-weight:700;color:#60A5FA;letter-spacing:.05em}
+.month-grid .mg-nav{display:flex;gap:4px}
+.month-grid .mg-nav button{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;color:var(--sub);font-size:14px;padding:3px 10px;cursor:pointer;font-family:var(--font);transition:all .15s}
+.month-grid .mg-nav button:hover{border-color:rgba(96,165,250,0.3);color:var(--text)}
+.month-grid .mg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.month-grid .mg-btn{padding:9px 4px;border-radius:var(--r-sm);border:1px solid var(--border);background:none;color:var(--sub);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;text-align:center}
+.month-grid .mg-btn:hover{border-color:rgba(96,165,250,0.3);color:var(--text);box-shadow:0 0 8px rgba(59,130,196,0.12)}
+.month-grid .mg-btn.disabled{opacity:.2;pointer-events:none}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpi{padding:20px 22px}
+.kpi .kpi-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--sub2);margin-bottom:8px}
+.kpi .kpi-value{font-size:32px;font-weight:900;letter-spacing:-1px;line-height:1}
+.kpi-cmp{font-size:12px;margin-top:8px;font-weight:600}.kpi-cmp.up{color:#4ADE80}.kpi-cmp.down{color:#F87171}.kpi-cmp.flat{color:var(--sub2)}
+.insight-row{margin-bottom:20px}
+.insight-card{display:flex;align-items:center;gap:16px;padding:18px 22px}
+.ins-icon{width:44px;height:44px;border-radius:12px;background:rgba(34,197,94,0.08);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ins-val{font-size:30px;font-weight:900;color:#4ADE80}.ins-label{font-size:13px;color:var(--sub);margin-top:2px}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.chart-box{min-height:310px;padding:22px}
+.ch-title{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--sub2);margin-bottom:4px}
+.ch-val{font-size:22px;font-weight:900;color:var(--text);margin-bottom:2px}
+.ch-cmp{font-size:12px;font-weight:600;margin-bottom:14px}.ch-cmp.up{color:#4ADE80}.ch-cmp.down{color:#F87171}.ch-cmp.flat{color:var(--sub2)}
+.chart-box canvas{width:100%!important;height:220px!important}
+.period-info{font-size:12px;color:var(--sub);margin-bottom:18px}
+.period-info strong{color:var(--text)}
 </style>
 </head>
 <body>
 <div class="orbs"></div>
-
 <aside class="sidebar">
   <div class="glow-top"></div>
   <div class="logo">PO</div>
   <div class="divider"></div>
   <nav>
-    <div class="nav-item active" data-tab="overview"><div class="indicator"></div>
-      <button class="nav-btn" onclick="switchTab('overview')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
-      <span class="tooltip">Overview</span></div>
-    <div class="nav-item" data-tab="weekly"><div class="indicator"></div>
-      <button class="nav-btn" onclick="switchTab('weekly')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button>
-      <span class="tooltip">Weekly Analysis</span></div>
-    <div class="nav-item" data-tab="coverage"><div class="indicator"></div>
-      <button class="nav-btn" onclick="switchTab('coverage')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></button>
-      <span class="tooltip">Coverage</span></div>
-    <div class="nav-item" data-tab="forecast"><div class="indicator"></div>
-      <button class="nav-btn" onclick="switchTab('forecast')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></button>
-      <span class="tooltip">Forecasting</span></div>
-    <div class="nav-item"><div class="indicator"></div>
-      <a href="/etl" class="nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></a>
-      <span class="tooltip">ETL Upload</span></div>
+    <div class="nav-item active" data-tab="overview"><div class="indicator"></div><button class="nav-btn" onclick="switchTab('overview')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button><span class="tooltip">Overview</span></div>
+    <div class="nav-item" data-tab="weekly"><div class="indicator"></div><button class="nav-btn" onclick="switchTab('weekly')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button><span class="tooltip">Weekly Analysis</span></div>
+    <div class="nav-item" data-tab="coverage"><div class="indicator"></div><button class="nav-btn" onclick="switchTab('coverage')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></button><span class="tooltip">Coverage</span></div>
+    <div class="nav-item" data-tab="forecast"><div class="indicator"></div><button class="nav-btn" onclick="switchTab('forecast')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></button><span class="tooltip">Forecasting</span></div>
+    <div class="nav-item"><div class="indicator"></div><a href="/etl" class="nav-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></a><span class="tooltip">ETL Upload</span></div>
   </nav>
   <div class="sidebar-bottom"><div class="avatar">SA</div></div>
 </aside>
 
 <div class="main">
-  <!-- ═══════════ TAB 1: OVERVIEW ═══════════ -->
-  <div id="tab-overview" class="tab-content active">
-    <div class="page-header">
-      <h1>Dashboard <span>Overview</span></h1>
-      <div class="sub" id="lastUpdate">Loading...</div>
+<!-- ═══════════ TAB 1: OVERVIEW ═══════════ -->
+<div id="tab-overview" class="tab-content active">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 style="font-size:32px;font-weight:800;letter-spacing:-.5px">Business <span style="color:#60A5FA">Overview</span></h1>
+      <div style="font-size:13px;color:var(--sub);margin-top:6px">Data updated: <strong id="lastUpdate" style="color:var(--text)">—</strong></div>
     </div>
-    <div class="db-bar"><div class="dot"></div><span id="dbInfo">Loading...</span></div>
-    <div class="kpi-row">
-      <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#3B82C4,transparent)"></div><div class="kpi-label">SKU Aktif (L4W)</div><div class="kpi-value" id="kpiActive">—</div></div>
-      <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div><div class="kpi-label">Revenue L4W</div><div class="kpi-value" id="kpiRevenue">—</div></div>
-      <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#EF4444,transparent)"></div><div class="kpi-label">Understocked</div><div class="kpi-value" id="kpiUnder">—</div></div>
-      <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div><div class="kpi-label">Trending Up</div><div class="kpi-value" id="kpiTrending">—</div></div>
-    </div>
-    <div class="chart-row">
-      <div class="glass chart-box"><div class="accent-line" style="background:linear-gradient(90deg,#3B82C4,transparent)"></div><div class="section-label">Revenue Trend (6 bulan)</div><canvas id="trendChart"></canvas></div>
-      <div class="glass chart-box"><div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div><div class="section-label">Top 10 — L4W Qty</div><canvas id="topChart"></canvas></div>
-    </div>
-    <div class="glass"><div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div><div class="section-label">Top 10 Produk (Last 4 Weeks)</div><div class="tbl-wrap"><table id="topTable"></table></div></div>
-  </div>
-
-  <!-- ═══════════ TAB 2: WEEKLY ANALYSIS ═══════════ -->
-  <div id="tab-weekly" class="tab-content">
-    <div class="page-header"><h1>Weekly <span>Analysis</span></h1><div class="sub">Per-product sales analysis by week</div></div>
-    <div class="filter-bar">
-      <input class="search-box" id="weeklySearch" placeholder="Cari SKU atau nama produk..." oninput="filterWeekly()">
-      <select id="weeklyTrend" onchange="filterWeekly()"><option value="">Semua Trend</option><option value="up">↑ Naik</option><option value="stable">→ Stabil</option><option value="down">↓ Turun</option></select>
-    </div>
-    <div class="glass"><div class="accent-line" style="background:linear-gradient(90deg,#3B82C4,transparent)"></div><div class="tbl-wrap" id="weeklyTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Memuat data weekly...</div></div><div class="paging" id="weeklyPaging"></div></div>
-  </div>
-
-  <!-- ═══════════ TAB 3: COVERAGE ═══════════ -->
-  <div id="tab-coverage" class="tab-content">
-    <div class="page-header"><h1>Coverage <span>& Pre-Order</span></h1><div class="sub" id="coverageSub">Stock coverage analysis per product</div></div>
-    <div class="filter-bar">
-      <input class="search-box" id="coverageSearch" placeholder="Cari SKU atau nama produk..." oninput="filterCoverage()">
-      <select id="coverageStatus" onchange="filterCoverage()"><option value="">Semua Status</option><option value="understocked">Understocked</option><option value="healthy">Healthy</option><option value="overstocked">Overstocked</option></select>
-    </div>
-    <div class="glass"><div class="accent-line" style="background:linear-gradient(90deg,#EF4444,transparent)"></div><div class="tbl-wrap" id="coverageTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Memuat data coverage...</div></div><div class="paging" id="coveragePaging"></div></div>
-  </div>
-
-  <!-- ═══════════ TAB 4: FORECASTING ═══════════ -->
-  <div id="tab-forecast" class="tab-content">
-    <div class="page-header">
-      <div><h1>Demand <span>Forecasting</span></h1><div class="sub">Holt's DES — 2 bulan kedepan (lead time ~8 minggu)</div></div>
-      <button class="btn btn-brand" id="btnForecast" onclick="runForecast()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        Jalankan Forecast
-      </button>
-    </div>
-    <div class="kpi-row" id="forecastKpis" style="display:none">
-      <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#A855F7,transparent)"></div><div class="kpi-label">SKU Forecasted</div><div class="kpi-value" id="fcKpiTotal">—</div></div>
-      <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div><div class="kpi-label">Good (MAPE &lt;25%)</div><div class="kpi-value" id="fcKpiGood">—</div></div>
-      <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div><div class="kpi-label">Avg MAPE</div><div class="kpi-value" id="fcKpiMape">—<span class="kpi-unit">%</span></div></div>
-      <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#EF4444,transparent)"></div><div class="kpi-label">Skipped</div><div class="kpi-value" id="fcKpiSkip">—</div></div>
-    </div>
-    <div class="glass" style="margin-bottom:20px" id="skuDetailBox">
-      <div class="accent-line" style="background:linear-gradient(90deg,#A855F7,transparent)"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div class="section-label" style="margin-bottom:0">Actual vs Forecast</div>
-        <select id="skuSelect" onchange="loadSkuChart()"><option value="">Pilih SKU...</option></select>
+    <div class="date-filter-wrap">
+      <div class="pill-bar">
+        <button class="pill" data-p="l7d">7 Days</button>
+        <button class="pill active" data-p="l4w">4 Weeks</button>
+        <button class="pill" data-p="l8w">8 Weeks</button>
+        <button class="pill" data-p="custom">Custom</button>
+        <button class="pill" id="pillMonth" onclick="toggleMonthGrid()">By Month</button>
       </div>
-      <div id="skuInfo" style="font-size:12px;color:var(--sub);margin-bottom:12px"></div>
-      <div style="height:280px"><canvas id="skuChart"></canvas></div>
-    </div>
-    <div class="glass" id="forecastTableBox">
-      <div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div>
-      <div class="filter-bar">
-        <input class="search-box" id="fcSearch" placeholder="Cari SKU..." oninput="filterForecast()">
-        <select id="fcSort" onchange="loadForecastTable()"><option value="volume">Sort: Volume</option><option value="mape">Sort: MAPE</option><option value="trend">Sort: Trend</option></select>
+      <div class="date-dropdown" id="customRange">
+        <div class="dd-title">Custom Date Range</div>
+        <div class="dd-row"><input type="date" id="dateStart"><span class="dd-arrow">→</span><input type="date" id="dateEnd"></div>
+        <button class="btn btn-brand dd-apply" onclick="applyCustom()">Apply Range</button>
       </div>
-      <div class="tbl-wrap" id="fcTableWrap"><div class="empty-state"><span class="icon">📊</span><p>Klik "Jalankan Forecast" untuk memulai</p></div></div>
+      <div class="month-grid" id="monthGrid">
+        <div class="mg-head"><span class="mg-year" id="mgYear">2026</span><div class="mg-nav"><button onclick="mgShiftYear(-1)">‹</button><button onclick="mgShiftYear(1)">›</button></div></div>
+        <div class="mg-grid" id="mgButtons"></div>
+      </div>
     </div>
   </div>
+  <div class="db-bar"><div class="dot"></div><span id="dbInfo">Loading...</span></div>
+  <div class="period-info" id="periodInfo"></div>
+  <div class="kpi-row">
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#3B82C4,transparent)"></div><div class="kpi-label">Total Sales</div><div class="kpi-value" id="kpiSales">—</div><div class="kpi-cmp" id="cmpSales"></div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div><div class="kpi-label">Revenue</div><div class="kpi-value" id="kpiRevenue">—</div><div class="kpi-cmp" id="cmpRevenue"></div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div><div class="kpi-label">Avg Weekly Sales</div><div class="kpi-value" id="kpiAvgWeekly">—</div><div class="kpi-cmp" id="cmpAvgWeekly"></div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#A855F7,transparent)"></div><div class="kpi-label">Active Products</div><div class="kpi-value" id="kpiActive">—</div><div class="kpi-cmp" id="cmpActive"></div></div>
+  </div>
+  <div class="insight-row"><div class="glass insight-card"><div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div><div class="ins-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="2.5" stroke-linecap="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div><div><div class="ins-val" id="kpiTrending">—</div><div class="ins-label">products trending up</div></div></div></div>
+  <div class="chart-row">
+    <div class="glass chart-box"><div class="accent-line" style="background:linear-gradient(90deg,#3B82C4,transparent)"></div><div class="ch-title">Revenue Trend</div><div class="ch-val" id="chRevVal">—</div><div class="ch-cmp" id="chRevCmp"></div><canvas id="revChart"></canvas></div>
+    <div class="glass chart-box"><div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div><div class="ch-title">Sales Trend</div><div class="ch-val" id="chSalesVal">—</div><div class="ch-cmp" id="chSalesCmp"></div><canvas id="salesChart"></canvas></div>
+  </div>
+  <div class="glass"><div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div><div class="section-label" id="topLabel">Top 10 Products</div><div class="tbl-wrap"><table id="topTable"></table></div></div>
+</div>
+
+<!-- ═══════════ TAB 2: WEEKLY ANALYSIS ═══════════ -->
+<div id="tab-weekly" class="tab-content">
+  <div style="margin-bottom:20px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.5px">Weekly <span style="color:#60A5FA">Analysis</span></h1><p style="font-size:13px;color:var(--sub);margin-top:4px">Per-product sales analysis by week</p></div>
+  <div class="filter-bar"><input class="search-box" id="weeklySearch" placeholder="Search SKU or product..." oninput="filterWeekly()"><select id="weeklyTrend" onchange="filterWeekly()"><option value="">All Trends</option><option value="up">↑ Rising</option><option value="stable">→ Stable</option><option value="down">↓ Falling</option></select></div>
+  <div class="glass"><div class="accent-line" style="background:linear-gradient(90deg,#3B82C4,transparent)"></div><div class="tbl-wrap" id="weeklyTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading weekly data...</div></div><div class="paging" id="weeklyPaging"></div></div>
+</div>
+
+<!-- ═══════════ TAB 3: COVERAGE ═══════════ -->
+<div id="tab-coverage" class="tab-content">
+  <div style="margin-bottom:20px"><h1 style="font-size:28px;font-weight:800;letter-spacing:-.5px">Coverage <span style="color:#60A5FA">& Pre-Order</span></h1><p style="font-size:13px;color:var(--sub);margin-top:4px" id="coverageSub">Stock coverage analysis per product</p></div>
+  <div class="filter-bar"><input class="search-box" id="coverageSearch" placeholder="Search SKU or product..." oninput="filterCoverage()"><select id="coverageStatus" onchange="filterCoverage()"><option value="">All Status</option><option value="understocked">Understocked</option><option value="healthy">Healthy</option><option value="overstocked">Overstocked</option></select></div>
+  <div class="glass"><div class="accent-line" style="background:linear-gradient(90deg,#EF4444,transparent)"></div><div class="tbl-wrap" id="coverageTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading coverage data...</div></div><div class="paging" id="coveragePaging"></div></div>
+</div>
+
+<!-- ═══════════ TAB 4: FORECASTING ═══════════ -->
+<div id="tab-forecast" class="tab-content">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px"><div><h1 style="font-size:28px;font-weight:800;letter-spacing:-.5px">Demand <span style="color:#60A5FA">Forecasting</span></h1><p style="font-size:13px;color:var(--sub);margin-top:4px">Holt's DES — 2 month horizon (lead time ~8 weeks)</p></div><button class="btn btn-brand" id="btnForecast" onclick="runForecast()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Run Forecast</button></div>
+  <div class="kpi-row" id="forecastKpis" style="display:none">
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#A855F7,transparent)"></div><div class="kpi-label">SKU Forecasted</div><div class="kpi-value" id="fcKpiTotal">—</div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#22C55E,transparent)"></div><div class="kpi-label">Good (MAPE &lt;25%)</div><div class="kpi-value" id="fcKpiGood">—</div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div><div class="kpi-label">Avg MAPE</div><div class="kpi-value" id="fcKpiMape">—<span style="font-size:14px;font-weight:400;color:var(--sub2)">%</span></div></div>
+    <div class="glass kpi"><div class="accent-line" style="background:linear-gradient(90deg,#EF4444,transparent)"></div><div class="kpi-label">Skipped</div><div class="kpi-value" id="fcKpiSkip">—</div></div>
+  </div>
+  <div class="glass" style="margin-bottom:16px" id="skuDetailBox"><div class="accent-line" style="background:linear-gradient(90deg,#A855F7,transparent)"></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><span class="section-label" style="margin-bottom:0">Actual vs Forecast</span><select id="skuSelect" onchange="loadSkuChart()"><option value="">Select SKU...</option></select></div><div id="skuInfo" style="font-size:12px;color:var(--sub);margin-bottom:12px"></div><div style="height:280px"><canvas id="skuChart"></canvas></div></div>
+  <div class="glass" id="forecastTableBox"><div class="accent-line" style="background:linear-gradient(90deg,#F59E0B,transparent)"></div><div class="filter-bar"><input class="search-box" id="fcSearch" placeholder="Search SKU..." oninput="filterForecast()"><select id="fcSort" onchange="loadForecastTable()"><option value="volume">Sort: Volume</option><option value="mape">Sort: MAPE</option><option value="trend">Sort: Trend</option></select></div><div class="tbl-wrap" id="fcTableWrap"><div class="empty-state"><span class="icon">📊</span><p>Click "Run Forecast" to start</p></div></div></div>
+</div>
 </div>
 
 <script>
-/* ═══════════ UTILITIES ═══════════ */
-const fmt = n => n != null ? Number(n).toLocaleString('id-ID') : '—';
-const fmtRp = n => 'Rp ' + fmt(Math.round(n || 0));
-const fmtPct = n => (n > 0 ? '+' : '') + n.toFixed(1) + '%';
-let trendChartObj = null, topChartObj = null, skuChartObj = null;
-let weeklyData = [], coverageData = [], forecastTableData = [];
-let weeklyPage = 0, coveragePage = 0;
-const PAGE_SIZE = 50;
+const fmt=n=>n!=null?Number(n).toLocaleString('id-ID'):'—';
+const fmtRp=n=>{const v=Math.round(n||0);return v>=1e9?'Rp '+(v/1e9).toFixed(1)+'B':v>=1e6?'Rp '+(v/1e6).toFixed(1)+'M':'Rp '+fmt(v)};
+const fmtPct=n=>(n>0?'+':'')+n.toFixed(1)+'%';
+let skuChartObj=null,revChartObj=null,salesChartObj=null;
+let weeklyData=[],coverageData=[],forecastTableData=[];
+let weeklyPage=0,coveragePage=0;const PAGE_SIZE=50;
 
-function switchTab(tab) {
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
-  document.querySelector(`.nav-item[data-tab="${tab}"]`).classList.add('active');
-  // Lazy load
-  if (tab === 'weekly' && !weeklyData.length) loadWeekly();
-  if (tab === 'coverage' && !coverageData.length) loadCoverage();
-  if (tab === 'forecast') loadForecastTable();
-}
+function switchTab(tab){document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.getElementById('tab-'+tab).classList.add('active');const ni=document.querySelector(`.nav-item[data-tab="${tab}"]`);if(ni)ni.classList.add('active');if(tab==='weekly'&&!weeklyData.length)loadWeekly();if(tab==='coverage'&&!coverageData.length)loadCoverage();if(tab==='forecast')loadForecastTable()}
+function sparklineSvg(d,w=80,h=20){if(!d||!d.length)return'';const mx=Math.max(...d,1);const pts=d.map((v,i)=>`${(i/(d.length-1))*w},${h-(v/mx)*h}`).join(' ');return`<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="#60A5FA" stroke-width="1.5"/></svg>`}
+function trendBadge(t){return t==='up'?'<span class="trend-up" style="font-weight:700">↑</span>':t==='down'?'<span class="trend-down" style="font-weight:700">↓</span>':'<span class="trend-stable">→</span>'}
+function statusBadge(s){return s==='understocked'?'<span class="badge badge-red">Understocked</span>':s==='healthy'?'<span class="badge badge-green">Healthy</span>':s==='overstocked'?'<span class="badge badge-yellow">Overstocked</span>':'<span class="badge badge-gray">No Sales</span>'}
+function renderPaging(id,pg,total,fn){const pages=Math.ceil(total/PAGE_SIZE);if(pages<=1){document.getElementById(id).innerHTML=`<span>${total} products</span>`;return}document.getElementById(id).innerHTML=`<button onclick="${fn}(${pg-1})" ${pg===0?'disabled':''}>‹</button><span class="current">${pg+1}</span> / ${pages}<button onclick="${fn}(${pg+1})" ${pg>=pages-1?'disabled':''}>›</button><span style="margin-left:8px">${total} products</span>`}
 
-function sparklineSvg(data, w=80, h=20) {
-  if (!data || !data.length) return '';
-  const max = Math.max(...data, 1);
-  const pts = data.map((v, i) => `${(i/(data.length-1))*w},${h - (v/max)*h}`).join(' ');
-  return `<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="#60A5FA" stroke-width="1.5"/></svg>`;
-}
+/* ═══ DATE FILTER ═══ */
+let currentPreset='l4w',mgYear=new Date().getFullYear();
+document.querySelectorAll('.pill[data-p]').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));btn.classList.add('active');currentPreset=btn.dataset.p;document.getElementById('monthGrid').classList.remove('show');if(currentPreset==='custom'){document.getElementById('customRange').classList.add('show')}else{document.getElementById('customRange').classList.remove('show');loadOverview()}})});
+function toggleMonthGrid(){const g=document.getElementById('monthGrid'),c=document.getElementById('customRange');c.classList.remove('show');g.classList.toggle('show');renderMonthGrid()}
+function mgShiftYear(d){mgYear+=d;renderMonthGrid()}
+function renderMonthGrid(){document.getElementById('mgYear').textContent=mgYear;const ms=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const now=new Date();let h='';ms.forEach((m,i)=>{const future=mgYear>now.getFullYear()||(mgYear===now.getFullYear()&&i>now.getMonth());h+=`<button class="mg-btn${future?' disabled':''}" onclick="selectMonth(${mgYear},${i+1})">${m}</button>`});document.getElementById('mgButtons').innerHTML=h}
+function selectMonth(y,m){const s=`${y}-${String(m).padStart(2,'0')}-01`;const last=new Date(y,m,0).getDate();const e=`${y}-${String(m).padStart(2,'0')}-${last}`;document.getElementById('dateStart').value=s;document.getElementById('dateEnd').value=e;document.getElementById('monthGrid').classList.remove('show');document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));currentPreset='custom';loadOverview()}
+function applyCustom(){const s=document.getElementById('dateStart').value,e=document.getElementById('dateEnd').value;if(s&&e)loadOverview()}
 
-function trendBadge(t) {
-  if (t === 'up') return '<span class="trend-up" style="font-weight:700">↑</span>';
-  if (t === 'down') return '<span class="trend-down" style="font-weight:700">↓</span>';
-  return '<span class="trend-stable">→</span>';
-}
+/* ═══ TAB 1: OVERVIEW ═══ */
+async function loadOverview(){try{let url;if(currentPreset==='custom'||document.getElementById('dateStart').value){const s=document.getElementById('dateStart').value,e=document.getElementById('dateEnd').value;url=(s&&e)?`/api/overview?start=${s}&end=${e}`:'/api/overview?preset=l4w'}else{url='/api/overview?preset='+currentPreset}
+const[statsR,overR]=await Promise.all([fetch('/api/db/stats'),fetch(url)]);const stats=await statsR.json(),ov=await overR.json();
+document.getElementById('lastUpdate').textContent=stats.last_update||'—';
+document.getElementById('dbInfo').innerHTML=`Database connected — <strong>${fmt(stats.sales)}</strong> sales · <strong>${fmt(stats.products)}</strong> products · <strong>${stats.date_range}</strong>`;
+const p=ov.period||{},pp=ov.prev_period||{};
+document.getElementById('periodInfo').innerHTML=p.start?`Period: <strong>${p.start}</strong> — <strong>${p.end}</strong> (${p.days} days) · vs ${pp.start} — ${pp.end}`:'';
+const k=ov.kpis||{},cmp=ov.comparison||{};
+document.getElementById('kpiSales').textContent=fmt(k.total_sales||0);
+document.getElementById('kpiRevenue').textContent=fmtRp(k.revenue||0);
+document.getElementById('kpiAvgWeekly').textContent=fmt(k.avg_weekly_sales||0);
+document.getElementById('kpiActive').textContent=fmt(k.active_products||0);
+document.getElementById('kpiTrending').textContent=fmt(k.trending_up||0);
+setCmp('cmpSales',cmp.total_sales);setCmp('cmpRevenue',cmp.revenue);setCmp('cmpAvgWeekly',cmp.avg_weekly_sales);setCmp('cmpActive',cmp.active_products);
+document.getElementById('chRevVal').textContent=fmtRp(k.revenue||0);setChCmp('chRevCmp',cmp.revenue);
+document.getElementById('chSalesVal').textContent=fmt(k.total_sales||0)+' units';setChCmp('chSalesCmp',cmp.total_sales);
+const trend=ov.trend||[];if(trend.length){renderRevChart(trend,p.aggregation);renderSalesChart(trend,p.aggregation)}
+const top=ov.top_products||[];if(top.length)renderTopTable(top)
+}catch(e){document.getElementById('dbInfo').innerHTML='Database tidak terhubung — '+e.message}}
 
-function statusBadge(s) {
-  if (s === 'understocked') return '<span class="badge badge-red">Understocked</span>';
-  if (s === 'healthy') return '<span class="badge badge-green">Healthy</span>';
-  if (s === 'overstocked') return '<span class="badge badge-yellow">Overstocked</span>';
-  return '<span class="badge badge-gray">No Sales</span>';
-}
+function setCmp(id,val){const el=document.getElementById(id);if(!el)return;if(val==null){el.textContent='';return}const cls=val>0?'up':val<0?'down':'flat';el.className='kpi-cmp '+cls;el.textContent=`${val>0?'↑':val<0?'↓':'→'} ${Math.abs(val)}% vs prev period`}
+function setChCmp(id,val){const el=document.getElementById(id);if(!el)return;if(val==null){el.innerHTML='';return}const cls=val>0?'up':val<0?'down':'flat';el.className='ch-cmp '+cls;el.textContent=`${val>0?'↑':val<0?'↓':'→'} ${Math.abs(val)}% vs previous period`}
 
-function renderPaging(containerId, page, total, onPage) {
-  const pages = Math.ceil(total / PAGE_SIZE);
-  if (pages <= 1) { document.getElementById(containerId).innerHTML = `<span>${total} produk</span>`; return; }
-  let h = `<button onclick="${onPage}(${page-1})" ${page===0?'disabled':''}>‹</button>`;
-  h += `<span class="current">${page+1}</span> / <span>${pages}</span>`;
-  h += `<button onclick="${onPage}(${page+1})" ${page>=pages-1?'disabled':''}>›</button>`;
-  h += `<span style="margin-left:8px">${total} produk</span>`;
-  document.getElementById(containerId).innerHTML = h;
-}
+const CT={grid:'rgba(255,255,255,0.04)',tick:'rgba(148,185,230,0.45)',font:{size:10,family:'Inter'}};
+function renderRevChart(data,agg){const ctx=document.getElementById('revChart').getContext('2d');if(revChartObj)revChartObj.destroy();const labels=data.map(d=>agg==='day'?d.date.substring(5):d.date.substring(0,7));revChartObj=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Revenue',data:data.map(d=>d.revenue),borderColor:'#60A5FA',backgroundColor:'rgba(96,165,250,0.08)',fill:true,tension:.35,pointRadius:4,pointBackgroundColor:'#60A5FA',borderWidth:2.5,pointHoverRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(8,18,32,0.95)',titleColor:'#E8F0FA',bodyColor:'rgba(148,185,230,0.7)',borderColor:'rgba(91,155,213,0.2)',borderWidth:1,padding:10,callbacks:{label:c=>'Rp '+(c.parsed.y/1e6).toFixed(1)+'M'}}},scales:{x:{grid:{color:CT.grid},ticks:{color:CT.tick,font:CT.font,maxRotation:0}},y:{grid:{color:CT.grid},min:0,ticks:{color:CT.tick,font:CT.font,callback:v=>'Rp'+(v/1e6).toFixed(0)+'M'}}}}})}
+function renderSalesChart(data,agg){const ctx=document.getElementById('salesChart').getContext('2d');if(salesChartObj)salesChartObj.destroy();const labels=data.map(d=>agg==='day'?d.date.substring(5):d.date.substring(0,7));salesChartObj=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Sales',data:data.map(d=>d.quantity),borderColor:'#4ADE80',backgroundColor:'rgba(74,222,128,0.06)',fill:true,tension:.35,pointRadius:4,pointBackgroundColor:'#4ADE80',borderWidth:2.5,pointHoverRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(8,18,32,0.95)',titleColor:'#E8F0FA',bodyColor:'rgba(148,185,230,0.7)',borderColor:'rgba(91,155,213,0.2)',borderWidth:1,padding:10}},scales:{x:{grid:{color:CT.grid},ticks:{color:CT.tick,font:CT.font,maxRotation:0}},y:{grid:{color:CT.grid},min:0,ticks:{color:CT.tick,font:CT.font,callback:v=>fmt(v)}}}}})}
+function renderTopTable(data){let h='<thead><tr><th>SKU</th><th>Product</th><th style="text-align:right">Sales</th><th style="text-align:right">Revenue</th><th style="text-align:right">Growth</th></tr></thead><tbody>';data.forEach(r=>{const g=r.growth>0?'num-pos':r.growth<0?'num-neg':'';const gt=r.growth!==null?`${r.growth>0?'+':''}${r.growth}%`:'<span class="badge badge-blue">New</span>';h+=`<tr><td class="text-dim" style="font-size:12px">${r.sku}</td><td style="color:var(--text);font-weight:600">${(r.name||'').substring(0,45)}</td><td style="text-align:right;font-weight:700;color:var(--text)">${fmt(r.qty)}</td><td style="text-align:right">${fmtRp(r.revenue)}</td><td style="text-align:right" class="${g}">${gt}</td></tr>`});h+='</tbody>';document.getElementById('topTable').innerHTML=h}
 
-/* ═══════════ TAB 1: OVERVIEW ═══════════ */
-async function loadOverview() {
-  try {
-    const [statsR, overR] = await Promise.all([fetch('/api/db/stats'), fetch('/api/overview')]);
-    const stats = await statsR.json();
-    const ov = await overR.json();
+/* ═══ TAB 2: WEEKLY ═══ */
+async function loadWeekly(){try{const r=await fetch('/api/weekly-analysis');const d=await r.json();weeklyData=d.results||[];window._wl=d.week_labels;weeklyPage=0;filterWeekly()}catch(e){document.getElementById('weeklyTableWrap').innerHTML='<div class="empty-state"><p>Failed: '+e.message+'</p></div>'}}
+function filterWeekly(){const q=(document.getElementById('weeklySearch').value||'').toLowerCase(),t=document.getElementById('weeklyTrend').value;let f=weeklyData;if(q)f=f.filter(r=>r.sku.toLowerCase().includes(q)||r.product_name.toLowerCase().includes(q));if(t)f=f.filter(r=>r.trend===t);weeklyPage=0;renderWeeklyTable(f)}
+function weeklyGoPage(p){weeklyPage=p;filterWeekly()}
+function renderWeeklyTable(data){const wl=window._wl||{};const s=weeklyPage*PAGE_SIZE,pg=data.slice(s,s+PAGE_SIZE);let h=`<table><thead><tr><th>Trend</th><th>SKU</th><th>Product</th><th>${wl.w2||'W-2'}</th><th>${wl.w1||'W-1'}</th><th>Change</th><th>Growth%</th><th>Avg L4W</th><th>Avg Life</th><th>L4W vs Life</th><th>%</th><th>L4W</th><th>Lifetime</th><th>Spark</th></tr></thead><tbody>`;pg.forEach(r=>{h+=`<tr><td>${trendBadge(r.trend)}</td><td class="text-dim" style="font-size:12px">${r.sku}</td><td style="color:var(--text);font-weight:500">${r.product_name.substring(0,30)}</td><td>${fmt(r.w2)}</td><td style="font-weight:600">${fmt(r.w1)}</td><td class="${r.change>0?'num-pos':r.change<0?'num-neg':''}">${r.change>0?'+':''}${fmt(r.change)}</td><td class="${r.growth>0?'num-pos':r.growth<0?'num-neg':''}">${fmtPct(r.growth)}</td><td style="font-weight:600">${r.avg_l4w}</td><td>${r.avg_lt}</td><td class="${r.l4w_vs_lt>0?'num-pos':r.l4w_vs_lt<0?'num-neg':''}">${r.l4w_vs_lt>0?'+':''}${r.l4w_vs_lt}</td><td class="${r.l4w_vs_lt_pct>100?'num-pos':r.l4w_vs_lt_pct<100?'num-neg':''}">${r.l4w_vs_lt_pct.toFixed(0)}%</td><td style="font-weight:600">${fmt(r.l4w)}</td><td class="text-dim">${fmt(r.lifetime)}</td><td>${sparklineSvg(r.sparkline)}</td></tr>`});h+='</tbody></table>';document.getElementById('weeklyTableWrap').innerHTML=h;renderPaging('weeklyPaging',weeklyPage,data.length,'weeklyGoPage')}
 
-    document.getElementById('lastUpdate').textContent = 'Terakhir diperbarui: ' + (stats.last_update || '-');
-    document.getElementById('dbInfo').innerHTML =
-      `Database connected — <strong>${fmt(stats.sales)}</strong> sales · <strong>${fmt(stats.products)}</strong> products · <strong>${stats.date_range}</strong>`;
+/* ═══ TAB 3: COVERAGE ═══ */
+async function loadCoverage(){try{const r=await fetch('/api/coverage');const d=await r.json();coverageData=d.results||[];if(d.stock_date)document.getElementById('coverageSub').textContent='Stock snapshot: '+d.stock_date+(d.has_stock?'':' (no stock data)');else document.getElementById('coverageSub').textContent='No stock data — upload via ETL page';coveragePage=0;filterCoverage()}catch(e){document.getElementById('coverageTableWrap').innerHTML='<div class="empty-state"><p>Failed: '+e.message+'</p></div>'}}
+function filterCoverage(){const q=(document.getElementById('coverageSearch').value||'').toLowerCase(),s=document.getElementById('coverageStatus').value;let f=coverageData;if(q)f=f.filter(r=>r.sku.toLowerCase().includes(q)||r.product_name.toLowerCase().includes(q));if(s)f=f.filter(r=>r.status===s);coveragePage=0;renderCoverageTable(f)}
+function coverageGoPage(p){coveragePage=p;filterCoverage()}
+function renderCoverageTable(data){const s=coveragePage*PAGE_SIZE,pg=data.slice(s,s+PAGE_SIZE);let h=`<table><thead><tr><th>SKU</th><th>Product</th><th>L4W</th><th>Avg L4W</th><th>Stock</th><th>PO</th><th>Coverage</th><th>Status</th><th>OOS</th></tr></thead><tbody>`;pg.forEach(r=>{h+=`<tr><td class="text-dim" style="font-size:12px">${r.sku}</td><td style="color:var(--text);font-weight:500">${r.product_name.substring(0,30)}</td><td>${fmt(r.l4w)}</td><td style="font-weight:600">${r.avg_l4w}</td><td>${fmt(r.current_stock)}</td><td>${fmt(r.ongoing_po)}</td><td style="font-weight:700">${r.coverage!=null?r.coverage.toFixed(1):'—'}</td><td>${statusBadge(r.status)}</td><td class="${r.weeks_oos>0?'num-neg':''}">${r.weeks_oos>0?r.weeks_oos+'w':'—'}</td></tr>`});h+='</tbody></table>';document.getElementById('coverageTableWrap').innerHTML=h;renderPaging('coveragePaging',coveragePage,data.length,'coverageGoPage')}
 
-    const k = ov.kpis || {};
-    document.getElementById('kpiActive').textContent = fmt(k.active_skus_l4w || 0);
-    document.getElementById('kpiRevenue').innerHTML = fmtRp(k.revenue_l4w || 0);
-    document.getElementById('kpiUnder').textContent = fmt(k.understocked || 0);
-    document.getElementById('kpiTrending').textContent = fmt(k.trending_up || 0);
+/* ═══ TAB 4: FORECAST ═══ */
+async function runForecast(){const btn=document.getElementById('btnForecast');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span> Computing...';try{const r=await fetch('/api/forecast/run',{method:'POST'});if(r.ok)loadForecastTable();else{const d=await r.json();alert('Error: '+(d.detail||'Unknown'))}}catch(e){alert('Network error: '+e.message)}btn.disabled=false;btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Run Forecast'}
+async function loadForecastTable(){const sort=document.getElementById('fcSort')?.value||'volume';try{const r=await fetch(`/api/forecast/results?limit=200&sort=${sort}`);const d=await r.json();forecastTableData=d.results||[];if(d.summary&&d.summary.total_skus_forecasted>0){document.getElementById('forecastKpis').style.display='grid';document.getElementById('fcKpiTotal').textContent=fmt(d.summary.total_skus_forecasted);document.getElementById('fcKpiGood').textContent=fmt(d.summary.good_forecast_count);document.getElementById('fcKpiMape').innerHTML=d.summary.avg_mape+'<span style="font-size:14px;font-weight:400;color:var(--sub2)">%</span>';document.getElementById('fcKpiSkip').textContent=fmt(d.summary.total_skus_skipped)}if(!forecastTableData.length)return;renderFcTable(forecastTableData);loadSkuOpts(forecastTableData)}catch(e){}}
+function filterForecast(){const q=(document.getElementById('fcSearch').value||'').toLowerCase();let f=forecastTableData;if(q)f=f.filter(r=>r.sku.toLowerCase().includes(q)||r.product_name.toLowerCase().includes(q));renderFcTable(f)}
+function renderFcTable(data){let h=`<table><thead><tr><th>Trend</th><th>SKU</th><th>Product</th><th>MAPE</th><th>α</th><th>β</th><th>Avg/wk</th><th>M+1</th><th>M+2</th><th>Status</th></tr></thead><tbody>`;data.forEach(r=>{const mc=r.mape<25?'badge-green':r.mape<50?'badge-yellow':'badge-red';const ml=r.mape<25?'Good':r.mape<50?'Moderate':'Poor';const fc=r.forecast_data?.quantities||[];const td=r.trend_direction==='up'?'trend-up':r.trend_direction==='down'?'trend-down':'trend-stable';const ta=r.trend_direction==='up'?'↑':r.trend_direction==='down'?'↓':'→';h+=`<tr style="cursor:pointer" onclick="selectFcSku('${r.sku}')"><td><span class="${td}" style="font-weight:700">${ta}</span></td><td class="text-dim" style="font-size:12px">${r.sku}</td><td style="color:var(--text);font-weight:500">${r.product_name.substring(0,30)}</td><td><span class="badge ${mc}">${r.mape}%</span></td><td>${r.alpha}</td><td>${r.beta}</td><td>${r.avg_weekly_demand}</td><td style="font-weight:700">${fmt(Math.round(fc[0]||0))}</td><td style="font-weight:700">${fmt(Math.round(fc[1]||0))}</td><td><span class="badge ${mc}">${ml}</span></td></tr>`});h+='</tbody></table>';document.getElementById('fcTableWrap').innerHTML=h}
+function selectFcSku(sku){document.getElementById('skuSelect').value=sku;loadSkuChart();document.getElementById('skuDetailBox').scrollIntoView({behavior:'smooth'})}
+async function loadSkuChart(){const sku=document.getElementById('skuSelect').value;if(!sku)return;try{const r=await fetch(`/api/forecast/sku/${sku}`);const d=await r.json();document.getElementById('skuInfo').innerHTML=`<strong style="color:var(--text)">${d.product_name}</strong> · α=${d.alpha} β=${d.beta} · MAPE: ${d.mape}% · Trend: ${d.trend} (${d.trend_direction})`;const ctx=document.getElementById('skuChart').getContext('2d');if(skuChartObj)skuChartObj.destroy();const am=d.actual_data.months,fm=d.forecast_data.months,all=[...am,...fm];const aq=d.actual_data.quantities,fq=d.fitted_data.quantities,fcq=d.forecast_data.quantities;const af=[...aq,...fm.map(()=>null)],ff=[...fq,...fm.map(()=>null)],fc2=[...am.map(()=>null)];fc2[fc2.length-1]=aq[aq.length-1];fc2.push(...fcq);const yMax=Math.max(...[...aq,...fcq].filter(v=>v!=null))*1.3;skuChartObj=new Chart(ctx,{type:'line',data:{labels:all,datasets:[{label:'Actual',data:af,borderColor:'#60A5FA',backgroundColor:'rgba(96,165,250,0.06)',fill:true,tension:.3,pointRadius:3,borderWidth:2},{label:'Fitted',data:ff,borderColor:'#A855F7',borderDash:[4,4],tension:.3,pointRadius:2,borderWidth:1.5},{label:'Forecast',data:fc2,borderColor:'#4ADE80',backgroundColor:'rgba(74,222,128,0.06)',fill:true,borderDash:[6,3],tension:.3,pointRadius:4,pointBackgroundColor:'#4ADE80',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:CT.tick,font:{size:10}}}},scales:{x:{grid:{color:CT.grid},ticks:{color:CT.tick,font:CT.font}},y:{grid:{color:CT.grid},max:yMax,min:0,ticks:{color:CT.tick,font:CT.font}}}}})}catch(e){console.error(e)}}
+function loadSkuOpts(data){const sel=document.getElementById('skuSelect');sel.innerHTML='<option value="">Select SKU...</option>';(data||[]).forEach(r=>{const o=document.createElement('option');o.value=r.sku;o.textContent=`${r.sku} — ${r.product_name.substring(0,30)}`;sel.appendChild(o)})}
 
-    if (ov.monthly_trend.length) renderTrendChart(ov.monthly_trend);
-    if (ov.top_products.length) {
-      renderTopChart(ov.top_products);
-      renderTopTable(ov.top_products);
-    }
-  } catch(e) {
-    document.getElementById('dbInfo').innerHTML = 'Database tidak terhubung — ' + e.message;
-  }
-}
-
-function renderTrendChart(data) {
-  const ctx = document.getElementById('trendChart').getContext('2d');
-  if (trendChartObj) trendChartObj.destroy();
-  const maxRev = Math.max(...data.map(d => d.revenue));
-  trendChartObj = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: data.map(d => d.month.substring(0, 7)),
-      datasets: [{
-        label: 'Revenue', data: data.map(d => d.revenue),
-        borderColor: '#60A5FA', backgroundColor: 'rgba(96,165,250,0.1)',
-        fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#60A5FA',
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: 'rgba(148,185,230,0.4)', font: { size: 10 } } },
-        y: { grid: { color: 'rgba(255,255,255,0.03)' },
-          max: maxRev * 1.15,
-          ticks: { color: 'rgba(148,185,230,0.4)', font: { size: 10 }, callback: v => 'Rp ' + (v/1e6).toFixed(0) + 'M' }
-        }
-      }
-    }
-  });
-}
-
-function renderTopChart(data) {
-  const ctx = document.getElementById('topChart').getContext('2d');
-  if (topChartObj) topChartObj.destroy();
-  topChartObj = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: data.map(d => d.sku.length > 12 ? d.sku.substring(0,12) : d.sku),
-      datasets: [{
-        data: data.map(d => d.qty),
-        backgroundColor: 'rgba(96,165,250,0.4)', borderColor: '#60A5FA', borderWidth: 1, borderRadius: 4,
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: 'rgba(148,185,230,0.4)', font: { size: 9 } } },
-        y: { grid: { display: false }, ticks: { color: 'rgba(148,185,230,0.5)', font: { size: 9 } } }
-      }
-    }
-  });
-}
-
-function renderTopTable(data) {
-  let h = '<thead><tr><th>SKU</th><th>Produk</th><th>Qty L4W</th><th>Revenue L4W</th></tr></thead><tbody>';
-  data.forEach(r => {
-    h += `<tr><td style="color:#60A5FA;font-weight:600">${r.sku}</td><td>${r.name.substring(0,40)}</td><td style="font-weight:700">${fmt(r.qty)}</td><td>${fmtRp(r.revenue)}</td></tr>`;
-  });
-  h += '</tbody>';
-  document.getElementById('topTable').innerHTML = h;
-}
-
-/* ═══════════ TAB 2: WEEKLY ANALYSIS ═══════════ */
-async function loadWeekly() {
-  try {
-    const r = await fetch('/api/weekly-analysis');
-    const d = await r.json();
-    weeklyData = d.results || [];
-    window._weeklyLabels = d.week_labels;
-    weeklyPage = 0;
-    filterWeekly();
-  } catch(e) {
-    document.getElementById('weeklyTableWrap').innerHTML = '<div class="empty-state"><p>Gagal memuat: ' + e.message + '</p></div>';
-  }
-}
-
-function filterWeekly() {
-  const q = (document.getElementById('weeklySearch').value || '').toLowerCase();
-  const t = document.getElementById('weeklyTrend').value;
-  let filtered = weeklyData;
-  if (q) filtered = filtered.filter(r => r.sku.toLowerCase().includes(q) || r.product_name.toLowerCase().includes(q));
-  if (t) filtered = filtered.filter(r => r.trend === t);
-  weeklyPage = 0;
-  renderWeeklyTable(filtered);
-}
-
-function weeklyGoPage(p) { weeklyPage = p; filterWeekly(); }
-
-function renderWeeklyTable(data) {
-  const wl = window._weeklyLabels || {};
-  const start = weeklyPage * PAGE_SIZE;
-  const page = data.slice(start, start + PAGE_SIZE);
-
-  let h = `<table><thead><tr>
-    <th>Trend</th><th>SKU</th><th>Produk</th>
-    <th>${wl.w2 || 'W-2'}</th><th>${wl.w1 || 'W-1'}</th>
-    <th>Change</th><th>Growth%</th>
-    <th>Avg L4W</th><th>Avg Life</th><th>L4W vs Life</th><th>%</th>
-    <th>L4W Sales</th><th>Lifetime</th><th>Spark</th>
-  </tr></thead><tbody>`;
-
-  page.forEach(r => {
-    const chgClass = r.change > 0 ? 'num-pos' : (r.change < 0 ? 'num-neg' : '');
-    const gClass = r.growth > 0 ? 'num-pos' : (r.growth < 0 ? 'num-neg' : '');
-    const diffClass = r.l4w_vs_lt > 0 ? 'num-pos' : (r.l4w_vs_lt < 0 ? 'num-neg' : '');
-    const pctClass = r.l4w_vs_lt_pct > 100 ? 'num-pos' : (r.l4w_vs_lt_pct < 100 ? 'num-neg' : '');
-
-    h += `<tr>
-      <td>${trendBadge(r.trend)}</td>
-      <td style="color:#60A5FA;font-weight:600">${r.sku}</td>
-      <td>${r.product_name.substring(0,30)}</td>
-      <td>${fmt(r.w2)}</td><td style="font-weight:600">${fmt(r.w1)}</td>
-      <td class="${chgClass}">${r.change > 0 ? '+' : ''}${fmt(r.change)}</td>
-      <td class="${gClass}">${fmtPct(r.growth)}</td>
-      <td style="font-weight:600">${r.avg_l4w}</td>
-      <td>${r.avg_lt}</td>
-      <td class="${diffClass}">${r.l4w_vs_lt > 0 ? '+' : ''}${r.l4w_vs_lt}</td>
-      <td class="${pctClass}">${r.l4w_vs_lt_pct.toFixed(0)}%</td>
-      <td style="font-weight:600">${fmt(r.l4w)}</td>
-      <td class="text-dim">${fmt(r.lifetime)}</td>
-      <td>${sparklineSvg(r.sparkline)}</td>
-    </tr>`;
-  });
-  h += '</tbody></table>';
-  document.getElementById('weeklyTableWrap').innerHTML = h;
-  renderPaging('weeklyPaging', weeklyPage, data.length, 'weeklyGoPage');
-}
-
-/* ═══════════ TAB 3: COVERAGE ═══════════ */
-async function loadCoverage() {
-  try {
-    const r = await fetch('/api/coverage');
-    const d = await r.json();
-    coverageData = d.results || [];
-    if (d.stock_date) {
-      document.getElementById('coverageSub').textContent = 'Stock snapshot: ' + d.stock_date + (d.has_stock ? '' : ' (no stock data — upload via ETL)');
-    } else {
-      document.getElementById('coverageSub').textContent = 'Belum ada data stock — upload file stok via ETL page';
-    }
-    coveragePage = 0;
-    filterCoverage();
-  } catch(e) {
-    document.getElementById('coverageTableWrap').innerHTML = '<div class="empty-state"><p>Gagal memuat: ' + e.message + '</p></div>';
-  }
-}
-
-function filterCoverage() {
-  const q = (document.getElementById('coverageSearch').value || '').toLowerCase();
-  const s = document.getElementById('coverageStatus').value;
-  let filtered = coverageData;
-  if (q) filtered = filtered.filter(r => r.sku.toLowerCase().includes(q) || r.product_name.toLowerCase().includes(q));
-  if (s) filtered = filtered.filter(r => r.status === s);
-  coveragePage = 0;
-  renderCoverageTable(filtered);
-}
-
-function coverageGoPage(p) { coveragePage = p; filterCoverage(); }
-
-function renderCoverageTable(data) {
-  const start = coveragePage * PAGE_SIZE;
-  const page = data.slice(start, start + PAGE_SIZE);
-
-  let h = `<table><thead><tr>
-    <th>SKU</th><th>Produk</th><th>L4W Sales</th><th>Avg L4W</th>
-    <th>Stock</th><th>PO</th><th>Coverage (wk)</th><th>Status</th><th>Weeks OOS</th>
-  </tr></thead><tbody>`;
-
-  page.forEach(r => {
-    const covDisplay = r.coverage != null ? r.coverage.toFixed(1) : '—';
-    const oosClass = r.weeks_oos > 0 ? 'num-neg' : '';
-    h += `<tr>
-      <td style="color:#60A5FA;font-weight:600">${r.sku}</td>
-      <td>${r.product_name.substring(0,30)}</td>
-      <td>${fmt(r.l4w)}</td><td style="font-weight:600">${r.avg_l4w}</td>
-      <td>${fmt(r.current_stock)}</td><td>${fmt(r.ongoing_po)}</td>
-      <td style="font-weight:700">${covDisplay}</td>
-      <td>${statusBadge(r.status)}</td>
-      <td class="${oosClass}">${r.weeks_oos > 0 ? r.weeks_oos + 'w' : '—'}</td>
-    </tr>`;
-  });
-  h += '</tbody></table>';
-  document.getElementById('coverageTableWrap').innerHTML = h;
-  renderPaging('coveragePaging', coveragePage, data.length, 'coverageGoPage');
-}
-
-/* ═══════════ TAB 4: FORECASTING ═══════════ */
-async function runForecast() {
-  const btn = document.getElementById('btnForecast');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading-spinner"></span> Menghitung...';
-  try {
-    const r = await fetch('/api/forecast/run', { method: 'POST' });
-    const d = await r.json();
-    if (r.ok) {
-      loadForecastTable();
-    } else {
-      alert('Error: ' + (d.detail || 'Unknown'));
-    }
-  } catch(e) { alert('Network error: ' + e.message); }
-  btn.disabled = false;
-  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Jalankan Forecast';
-}
-
-async function loadForecastTable() {
-  const sort = document.getElementById('fcSort')?.value || 'volume';
-  try {
-    const r = await fetch(`/api/forecast/results?limit=200&sort=${sort}`);
-    const d = await r.json();
-    forecastTableData = d.results || [];
-
-    if (d.summary && d.summary.total_skus_forecasted > 0) {
-      document.getElementById('forecastKpis').style.display = 'grid';
-      document.getElementById('fcKpiTotal').textContent = fmt(d.summary.total_skus_forecasted);
-      document.getElementById('fcKpiGood').textContent = fmt(d.summary.good_forecast_count);
-      document.getElementById('fcKpiMape').innerHTML = d.summary.avg_mape + '<span class="kpi-unit">%</span>';
-      document.getElementById('fcKpiSkip').textContent = fmt(d.summary.total_skus_skipped);
-    }
-
-    if (!forecastTableData.length) return;
-    renderFcTable(forecastTableData);
-    loadAllSkuOptions(forecastTableData);
-  } catch(e) {}
-}
-
-function filterForecast() {
-  const q = (document.getElementById('fcSearch').value || '').toLowerCase();
-  let filtered = forecastTableData;
-  if (q) filtered = filtered.filter(r => r.sku.toLowerCase().includes(q) || r.product_name.toLowerCase().includes(q));
-  renderFcTable(filtered);
-}
-
-function renderFcTable(data) {
-  let h = `<table><thead><tr><th>Trend</th><th>SKU</th><th>Produk</th><th>MAPE</th><th>α</th><th>β</th><th>Avg/wk</th><th>Forecast M+1</th><th>Forecast M+2</th><th>Status</th></tr></thead><tbody>`;
-  data.forEach(r => {
-    const mCls = r.mape < 25 ? 'badge-green' : r.mape < 50 ? 'badge-yellow' : 'badge-red';
-    const mLbl = r.mape < 25 ? 'Good' : r.mape < 50 ? 'Moderate' : 'Poor';
-    const fc = r.forecast_data?.quantities || [];
-    const tDir = r.trend_direction === 'up' ? 'trend-up' : r.trend_direction === 'down' ? 'trend-down' : 'trend-stable';
-    const tArrow = r.trend_direction === 'up' ? '↑' : r.trend_direction === 'down' ? '↓' : '→';
-    h += `<tr style="cursor:pointer" onclick="selectFcSku('${r.sku}')">
-      <td><span class="${tDir}" style="font-weight:700">${tArrow}</span></td>
-      <td style="color:#60A5FA;font-weight:600">${r.sku}</td>
-      <td>${r.product_name.substring(0,30)}</td>
-      <td><span class="badge ${mCls}">${r.mape}%</span></td>
-      <td>${r.alpha}</td><td>${r.beta}</td>
-      <td>${r.avg_weekly_demand}</td>
-      <td style="font-weight:700">${fmt(Math.round(fc[0] || 0))}</td>
-      <td style="font-weight:700">${fmt(Math.round(fc[1] || 0))}</td>
-      <td><span class="badge ${mCls}">${mLbl}</span></td>
-    </tr>`;
-  });
-  h += '</tbody></table>';
-  document.getElementById('fcTableWrap').innerHTML = h;
-}
-
-function selectFcSku(sku) {
-  document.getElementById('skuSelect').value = sku;
-  loadSkuChart();
-  document.getElementById('skuDetailBox').scrollIntoView({ behavior: 'smooth' });
-}
-
-async function loadSkuChart() {
-  const sku = document.getElementById('skuSelect').value;
-  if (!sku) return;
-  try {
-    const r = await fetch(`/api/forecast/sku/${sku}`);
-    const data = await r.json();
-    document.getElementById('skuInfo').innerHTML =
-      `<strong>${data.product_name}</strong> · α=${data.alpha} β=${data.beta} · MAPE: ${data.mape}% · Trend: ${data.trend} (${data.trend_direction}) · Avg/minggu: ${data.avg_weekly_demand}`;
-
-    const ctx = document.getElementById('skuChart').getContext('2d');
-    if (skuChartObj) skuChartObj.destroy();
-
-    const am = data.actual_data.months;
-    const fm = data.forecast_data.months;
-    const all = [...am, ...fm];
-    const aq = data.actual_data.quantities;
-    const fq = data.fitted_data.quantities;
-    const fcq = data.forecast_data.quantities;
-
-    const actualFull = [...aq, ...fm.map(() => null)];
-    const fittedFull = [...fq, ...fm.map(() => null)];
-    const fcFull = [...am.map(() => null)];
-    fcFull[fcFull.length - 1] = aq[aq.length - 1];
-    fcFull.push(...fcq);
-
-    // Calculate sensible y-axis max
-    const allVals = [...aq, ...fcq].filter(v => v != null);
-    const yMax = Math.max(...allVals) * 1.3;
-
-    skuChartObj = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: all,
-        datasets: [
-          { label: 'Actual', data: actualFull, borderColor: '#60A5FA', backgroundColor: 'rgba(96,165,250,0.1)', fill: true, tension: 0.3, pointRadius: 3 },
-          { label: 'Fitted (Holt DES)', data: fittedFull, borderColor: '#A855F7', borderDash: [4,4], tension: 0.3, pointRadius: 2 },
-          { label: 'Forecast', data: fcFull, borderColor: '#22C55E', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, borderDash: [6,3], tension: 0.3, pointRadius: 4, pointBackgroundColor: '#22C55E' },
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: 'rgba(148,185,230,0.6)', font: { size: 10 } } } },
-        scales: {
-          x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: 'rgba(148,185,230,0.4)', font: { size: 10 } } },
-          y: { grid: { color: 'rgba(255,255,255,0.03)' }, max: yMax, min: 0,
-            ticks: { color: 'rgba(148,185,230,0.4)', font: { size: 10 } } }
-        }
-      }
-    });
-  } catch(e) { console.error(e); }
-}
-
-function loadAllSkuOptions(data) {
-  const sel = document.getElementById('skuSelect');
-  sel.innerHTML = '<option value="">Pilih SKU...</option>';
-  (data || []).forEach(r => {
-    const opt = document.createElement('option');
-    opt.value = r.sku;
-    opt.textContent = `${r.sku} — ${r.product_name.substring(0,30)}`;
-    sel.appendChild(opt);
-  });
-}
-
-/* ═══════════ INIT ═══════════ */
-loadOverview();
+/* ═══ INIT ═══ */
+renderMonthGrid();loadOverview();
 </script>
 </body>
 </html>
