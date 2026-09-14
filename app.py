@@ -1,12 +1,13 @@
 """
-PO Agent — Web Server v2
-FastAPI backend: ETL, Weekly Analysis, Coverage, Forecasting, Dashboard.
+PO Agent — Web Server v3
+FastAPI backend: ETL, Weekly Analysis, Coverage, Forecasting, Replenishment.
+Forecast runs automatically after ETL (no manual trigger).
 """
 
 from dotenv import load_dotenv
 load_dotenv()
 
-import os, io, uuid, csv, json, math
+import os, io, uuid, csv, json, math, traceback
 from datetime import datetime, date, timedelta
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
@@ -19,14 +20,14 @@ from sqlalchemy import create_engine, text
 import psycopg2
 
 from etl import clean_sales_data, load_master_sku
-from forecast import run_forecast, save_forecast_to_db
+from forecast import run_forecast, save_forecast_to_db, calculate_replenishment
 
 DB_URL = os.getenv("SUPABASE_DB_URL")
 UPLOAD_DIR = "uploads"
 MASTER_SKU_PATH = "MASTER_SKU.xlsx"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-app = FastAPI(title="PO Agent", version="2.0")
+app = FastAPI(title="PO Agent", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 master_sku = {}
@@ -50,6 +51,21 @@ def get_raw_conn():
     return psycopg2.connect(DB_URL)
 
 
+def _run_auto_forecast(engine):
+    """Internal: run forecast + save to DB + cache. Called after ETL and on-demand."""
+    try:
+        result = run_forecast(engine, forecast_periods=12)
+        if "error" not in result:
+            saved = save_forecast_to_db(engine, result)
+            forecast_cache["latest"] = result
+            print(f"[auto-forecast] {result['summary']['total_skus_forecasted']} SKUs forecasted, saved={saved}")
+        else:
+            print(f"[auto-forecast] skipped: {result['error']}")
+    except Exception as e:
+        print(f"[auto-forecast] error: {e}")
+        traceback.print_exc()
+
+
 # ── Page Routes ───────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
@@ -57,10 +73,7 @@ async def dashboard_page():
     with open("templates/dashboard.html", "r", encoding="utf-8") as f:
         return f.read()
 
-@app.get("/etl", response_class=HTMLResponse)
-async def etl_page():
-    with open("templates/index.html", "r", encoding="utf-8") as f:
-        return f.read()
+## ETL is now a tab inside dashboard.html — no separate page needed
 
 
 # ── ETL API ───────────────────────────────────────────────────
@@ -193,11 +206,16 @@ async def etl_confirm(file_id: str):
         if os.path.exists(cached["filepath"]):
             os.remove(cached["filepath"])
         del processed_cache[file_id]
+
+        # ── AUTO-FORECAST after ETL ──
+        _run_auto_forecast(engine)
+
         return {
             "status": "success",
             "message": f"{total:,} baris berhasil dimuat ke database",
             "database": {"products": row[0], "sales": row[1],
                          "date_range": f"{row[2]} s/d {row[3]}", "unique_skus": row[4]},
+            "forecast_status": "auto-run complete" if "latest" in forecast_cache else "skipped",
         }
     except Exception as e:
         raise HTTPException(500, f"Gagal memuat data: {str(e)}")
@@ -283,14 +301,15 @@ async def db_stats():
 @app.get("/api/overview")
 async def overview_summary(
     start: str = None, end: str = None,
-    preset: str = "l4w"
+    preset: str = "l4w",
+    top_sort: str = "revenue"
 ):
     engine = get_engine()
     with engine.connect() as conn:
         mx = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).fetchone()
         max_date = mx[0] if mx and mx[0] else None
         if not max_date:
-            return {"error":"No sales data","kpis":{},"comparison":{},"trend":[],"top_products":[],"period":{}}
+            return {"error":"No sales data","kpis":{},"comparison":{},"trend":[],"top_products":[],"period":{},"forecast_summary":None}
 
         if start and end:
             dt_end = date.fromisoformat(end)
@@ -344,7 +363,7 @@ async def overview_summary(
         def pchg(c, p):
             return round((c - p) / p * 100, 1) if p else None
 
-        # Trend chart (auto-aggregate)
+        # Trend chart
         if period_days <= 14:
             agg = "day"
             tq = text("SELECT invoice_date::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
@@ -356,18 +375,55 @@ async def overview_summary(
             tq = text("SELECT DATE_TRUNC('month',invoice_date)::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
         trend = conn.execute(tq, {"s": dt_start, "e": dt_end}).fetchall()
 
-        # Top 10 with growth
-        top10 = conn.execute(text("""
+        # Top products
+        order_col = "r" if top_sort == "revenue" else "q"
+        top_all = conn.execute(text(f"""
             SELECT s.sku,p.name,SUM(s.quantity) q,SUM(s.amount) r
             FROM sales s JOIN products p ON s.sku=p.sku
             WHERE s.invoice_date>=:s AND s.invoice_date<=:e
-            GROUP BY s.sku,p.name ORDER BY q DESC LIMIT 10
+            GROUP BY s.sku,p.name ORDER BY {order_col} DESC LIMIT 50
         """), {"s": dt_start, "e": dt_end}).fetchall()
         top_g = []
-        for r in top10:
+        for r in top_all:
             pq = conn.execute(text("SELECT COALESCE(SUM(quantity),0) FROM sales WHERE sku=:k AND invoice_date>=:s AND invoice_date<=:e"),
                               {"k": r[0], "s": prev_start, "e": prev_end}).fetchone()
-            top_g.append({"sku":r[0],"name":r[1],"qty":int(r[2]),"revenue":float(r[3]),"growth":pchg(int(r[2]),int(pq[0]))})
+            prev_qty = int(pq[0])
+            curr_qty = int(r[2])
+            first_seen = conn.execute(text("SELECT MIN(invoice_date) FROM sales WHERE sku=:k"), {"k": r[0]}).fetchone()
+            is_new = first_seen[0] is not None and first_seen[0] >= dt_start
+            if prev_qty > 0:
+                growth = round((curr_qty - prev_qty) / prev_qty * 100, 1)
+            elif is_new:
+                growth = None
+            else:
+                growth = None
+            top_g.append({"sku":r[0],"name":r[1],"qty":curr_qty,"revenue":float(r[3]),
+                          "growth":growth,"is_new":is_new,"prev_qty":prev_qty})
+        if top_sort == "growth":
+            has_g = [x for x in top_g if x["growth"] is not None]
+            no_g = [x for x in top_g if x["growth"] is None]
+            has_g.sort(key=lambda x: x["growth"], reverse=True)
+            top_g = has_g + no_g
+        top_g = top_g[:10]
+
+    # Forecast summary (from cache)
+    fc_summary = None
+    if "latest" in forecast_cache:
+        fc = forecast_cache["latest"]
+        fc_results = fc.get("results", [])
+        if fc_results:
+            # Aggregate demand next 8 weeks
+            total_demand_8w = sum(sum(r["forecast_data"]["quantities"][:8]) for r in fc_results)
+            trending_up = len([r for r in fc_results if r["trend_direction"] == "up"])
+            trending_down = len([r for r in fc_results if r["trend_direction"] == "down"])
+            fc_summary = {
+                "total_forecasted": len(fc_results),
+                "avg_mape": fc["summary"].get("avg_mape", 0),
+                "forecast_demand_8w": round(total_demand_8w),
+                "trending_up": trending_up,
+                "trending_down": trending_down,
+                "calculated_at": fc["summary"].get("calculated_at"),
+            }
 
     return {
         "period": {"start":str(dt_start),"end":str(dt_end),"days":period_days,"aggregation":agg},
@@ -376,7 +432,59 @@ async def overview_summary(
         "comparison": {"total_sales":pchg(total_sales,p_sales),"revenue":pchg(revenue,p_rev),"avg_weekly_sales":pchg(avg_weekly,p_avg),"active_products":pchg(active,p_active)},
         "trend": [{"date":str(r[0]),"quantity":int(r[1]),"revenue":float(r[2])} for r in trend],
         "top_products": top_g,
+        "forecast_summary": fc_summary,
     }
+
+
+@app.get("/api/best-sellers-at-risk")
+async def best_sellers_at_risk():
+    """Top sellers with low stock coverage — decision support."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        mx = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).fetchone()
+        if not mx or not mx[0]:
+            return {"results": []}
+        max_date = mx[0]
+        l4w_start = max_date - timedelta(days=27)
+
+        sales = conn.execute(text("""
+            SELECT s.sku, p.name, SUM(s.quantity) qty, SUM(s.amount) rev
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date >= :s GROUP BY s.sku, p.name
+        """), {"s": l4w_start}).fetchall()
+
+        try:
+            stk = {r[0]: int(r[1]) for r in conn.execute(text("""
+                SELECT sku, quantity FROM stock_snapshots
+                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM stock_snapshots)
+            """)).fetchall()}
+        except Exception:
+            stk = {}
+        try:
+            po = {r[0]: int(r[1]) for r in conn.execute(text("""
+                SELECT sku, SUM(qty_ordered-qty_received) FROM purchase_orders
+                WHERE status IN ('pending','partial') GROUP BY sku
+            """)).fetchall()}
+        except Exception:
+            po = {}
+
+        results = []
+        for r in sales:
+            sku, name, qty, rev = r[0], r[1], int(r[2]), float(r[3])
+            if qty <= 0:
+                continue
+            avg_w = round(qty / 4, 1)
+            cs = stk.get(sku, 0)
+            op = po.get(sku, 0)
+            cov = round((cs + op) / avg_w, 1) if avg_w > 0 else None
+            st = "understocked" if cov is not None and cov < 8 else ("healthy" if cov is not None and cov <= 20 else "overstocked" if cov is not None else "no_data")
+            if cov is not None and cov < 12:
+                results.append({"sku": sku, "name": name, "l4w_qty": qty, "revenue": rev,
+                                "avg_weekly": avg_w, "current_stock": cs, "ongoing_po": op,
+                                "coverage": cov, "status": st})
+
+        results.sort(key=lambda x: x["revenue"], reverse=True)
+        return {"results": results[:10]}
 
 
 @app.get("/api/weekly-analysis")
@@ -491,16 +599,9 @@ async def coverage_analysis():
         cov = round((cs + op) / avg, 1) if avg > 0 else None
         st = "understocked" if cov is not None and cov < 8 else ("healthy" if cov is not None and cov <= 20 else ("overstocked" if cov is not None else "no_sales"))
 
-        oos = 0
-        for w in reversed(all_weeks):
-            if wmap.get(w, 0) == 0:
-                oos += 1
-            else:
-                break
-
         results.append({"sku":sku,"product_name":name,"l4w":l4w,"avg_l4w":avg,
                         "current_stock":cs,"ongoing_po":op,"coverage":cov,
-                        "status":st,"weeks_oos":oos})
+                        "status":st,"weeks_oos":None})
 
     results.sort(key=lambda x: x["coverage"] if x["coverage"] is not None else 9999)
     return {
@@ -510,12 +611,162 @@ async def coverage_analysis():
     }
 
 
+# ── Inventory (merged Coverage + Replenishment) ──────────────
+
+@app.get("/api/inventory")
+async def inventory_analysis(sort: str = "priority"):
+    """
+    Merged Coverage + Replenishment in one endpoint.
+    Coverage = Avg L4W basis. Replenishment = Holt's DES basis.
+    """
+    engine = get_engine()
+
+    with engine.connect() as conn:
+        # Weekly sales per SKU
+        wdf = pd.read_sql(text("""
+            SELECT s.sku, p.name as product_name,
+                   DATE_TRUNC('week', s.invoice_date)::date as week_start,
+                   SUM(s.quantity) as qty, SUM(s.amount) as rev
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date IS NOT NULL
+            GROUP BY s.sku, p.name, DATE_TRUNC('week', s.invoice_date)::date
+        """), conn)
+
+        # Stock
+        try:
+            stk = {r[0]: int(r[1]) for r in conn.execute(text("""
+                SELECT sku, quantity FROM stock_snapshots
+                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM stock_snapshots)
+            """)).fetchall()}
+        except Exception:
+            stk = {}
+        try:
+            snap_date = conn.execute(text("SELECT MAX(snapshot_date) FROM stock_snapshots")).fetchone()
+            snap_date = str(snap_date[0]) if snap_date and snap_date[0] else None
+        except Exception:
+            snap_date = None
+
+        # Ongoing PO
+        try:
+            po_map = {r[0]: int(r[1]) for r in conn.execute(text("""
+                SELECT sku, SUM(qty_ordered-qty_received) FROM purchase_orders
+                WHERE status IN ('pending','partial') GROUP BY sku
+            """)).fetchall()}
+        except Exception:
+            po_map = {}
+
+    if wdf.empty:
+        return {"results": [], "summary": {}, "stock_date": None}
+
+    all_weeks = sorted(wdf["week_start"].unique())
+    r4 = all_weeks[-4:] if len(all_weeks) >= 4 else all_weeks
+
+    # Ensure forecast is available
+    if "latest" not in forecast_cache:
+        try:
+            fc_data = run_forecast(engine, forecast_periods=12)
+            if "error" not in fc_data:
+                forecast_cache["latest"] = fc_data
+        except Exception:
+            pass
+    fc_map = {}
+    if "latest" in forecast_cache:
+        for r in forecast_cache["latest"].get("results", []):
+            fc_map[r["sku"]] = r
+
+    results = []
+    for sku in wdf["sku"].unique():
+        sd = wdf[wdf["sku"] == sku]
+        name = sd.iloc[0]["product_name"]
+        wmap = dict(zip(sd["week_start"], sd["qty"]))
+        rmap = dict(zip(sd["week_start"], sd["rev"]))
+
+        # L4W metrics
+        l4w_qty = sum(int(wmap.get(w, 0)) for w in r4)
+        l4w_rev = sum(float(rmap.get(w, 0)) for w in r4)
+        avg_l4w = round(l4w_qty / max(len(r4), 1), 1)
+
+        # Stock
+        cs = stk.get(sku, 0)
+        op = po_map.get(sku, 0)
+        available = cs + op
+
+        # Coverage (L4W-based)
+        coverage = round(available / avg_l4w, 1) if avg_l4w > 0 else None
+
+        # Forecast/replenishment (DES-based)
+        fc = fc_map.get(sku)
+        fc_avg = 0; lt6 = 0; lt8 = 0; ss = 0; reco = 0; stockout = None; mape = None; trend_dir = "stable"
+        if fc:
+            fcq = fc["forecast_data"]["quantities"]
+            fc_avg = round(sum(fcq[:8]) / min(len(fcq), 8), 1) if fcq else 0
+            lt6 = sum(fcq[:6]) if len(fcq) >= 6 else sum(fcq)
+            lt8 = sum(fcq[:8]) if len(fcq) >= 8 else sum(fcq)
+            ss = round(lt8 * 0.10, 1)
+            reco = max(0, round(lt8 + ss - available))
+            mape = fc["mape"]
+            trend_dir = fc["trend_direction"]
+            cum = 0
+            for wi, wf in enumerate(fcq):
+                cum += wf
+                if cum >= available:
+                    stockout = wi + 1
+                    break
+
+        # Status
+        if stockout is not None and stockout <= 6:
+            status = "critical"
+        elif reco > 0:
+            status = "understock"
+        elif coverage is not None and coverage > 20:
+            status = "overstock"
+        elif coverage is not None:
+            status = "healthy"
+        else:
+            status = "no_data"
+
+        results.append({
+            "sku": sku, "product_name": name,
+            "l4w_qty": l4w_qty, "l4w_revenue": round(l4w_rev),
+            "avg_l4w": avg_l4w,
+            "current_stock": cs, "ongoing_po": op, "available": available,
+            "coverage": coverage,
+            "fc_avg_weekly": fc_avg,
+            "lt_demand_8w": round(lt8, 1), "safety_stock": ss,
+            "reco_po": reco, "stockout_week": stockout,
+            "mape": mape, "trend_direction": trend_dir,
+            "status": status,
+        })
+
+    # Sort
+    status_order = {"critical": 0, "understock": 1, "healthy": 2, "overstock": 3, "no_data": 4}
+    if sort == "priority":
+        results.sort(key=lambda x: (status_order.get(x["status"], 9), -(x["l4w_revenue"])))
+    elif sort == "revenue":
+        results.sort(key=lambda x: -x["l4w_revenue"])
+    elif sort == "coverage":
+        results.sort(key=lambda x: x["coverage"] if x["coverage"] is not None else 9999)
+    elif sort == "stockout":
+        results.sort(key=lambda x: (x["stockout_week"] if x["stockout_week"] else 999, -(x["l4w_revenue"])))
+
+    sm = {
+        "total": len(results),
+        "critical": len([r for r in results if r["status"] == "critical"]),
+        "understock": len([r for r in results if r["status"] == "understock"]),
+        "healthy": len([r for r in results if r["status"] == "healthy"]),
+        "overstock": len([r for r in results if r["status"] == "overstock"]),
+    }
+
+    return {"results": results, "summary": sm, "stock_date": snap_date, "has_stock": len(stk) > 0}
+
+
 # ── Forecast API ──────────────────────────────────────────────
 
 @app.post("/api/forecast/run")
-async def forecast_run(periods: int = 2):
+async def forecast_run():
+    """On-demand forecast refresh. Also called automatically after ETL."""
     engine = get_engine()
-    result = run_forecast(engine, forecast_periods=periods)
+    result = run_forecast(engine, forecast_periods=12)
     if "error" in result:
         raise HTTPException(400, result["error"])
     saved = save_forecast_to_db(engine, result)
@@ -524,18 +775,18 @@ async def forecast_run(periods: int = 2):
 
 
 @app.get("/api/forecast/results")
-async def forecast_results(limit: int = 100, sort: str = "volume"):
-    if "latest" in forecast_cache:
-        data = forecast_cache["latest"]
-    else:
+async def forecast_results(limit: int = 200, sort: str = "volume"):
+    if "latest" not in forecast_cache:
         engine = get_engine()
-        data = run_forecast(engine, forecast_periods=2)
+        data = run_forecast(engine, forecast_periods=12)
         forecast_cache["latest"] = data
+    else:
+        data = forecast_cache["latest"]
     results = data.get("results", [])
     if sort == "mape":
-        results.sort(key=lambda x: x["mape"])
+        results = sorted(results, key=lambda x: x["mape"])
     elif sort == "trend":
-        results.sort(key=lambda x: abs(x["trend"]), reverse=True)
+        results = sorted(results, key=lambda x: abs(x["trend"]), reverse=True)
     return {"summary": data.get("summary", {}), "results": results[:limit], "total": len(results)}
 
 
@@ -543,12 +794,33 @@ async def forecast_results(limit: int = 100, sort: str = "volume"):
 async def forecast_sku(sku: str):
     if "latest" not in forecast_cache:
         engine = get_engine()
-        forecast_cache["latest"] = run_forecast(engine, forecast_periods=2)
+        forecast_cache["latest"] = run_forecast(engine, forecast_periods=12)
     results = forecast_cache["latest"].get("results", [])
     match = next((r for r in results if r["sku"] == sku), None)
     if not match:
         raise HTTPException(404, f"SKU {sku} tidak ditemukan")
     return match
+
+
+# ── Replenishment API ─────────────────────────────────────────
+
+@app.get("/api/replenishment")
+async def replenishment():
+    """
+    Replenishment recommendations based on Holt's DES forecast.
+    Lead time: 6w (optimistic) / 8w (conservative). Safety stock: 10%.
+    """
+    engine = get_engine()
+
+    # Ensure forecast is available
+    if "latest" not in forecast_cache:
+        data = run_forecast(engine, forecast_periods=12)
+        if "error" in data:
+            return {"results": [], "summary": {"error": data["error"]}}
+        forecast_cache["latest"] = data
+
+    result = calculate_replenishment(engine, forecast_cache["latest"])
+    return result
 
 
 if __name__ == "__main__":
