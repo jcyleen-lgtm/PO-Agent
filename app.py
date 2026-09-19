@@ -81,11 +81,105 @@ async def dashboard_page():
 @app.post("/api/master-sku/upload")
 async def upload_master_sku(file: UploadFile = File(...)):
     global master_sku
+    if not file.filename.endswith((".xls", ".xlsx")):
+        raise HTTPException(400, "Format file harus .xls atau .xlsx")
+
     content = await file.read()
     with open(MASTER_SKU_PATH, "wb") as f:
         f.write(content)
-    master_sku = load_master_sku(MASTER_SKU_PATH)
-    return {"status": "success", "entries": len(master_sku)}
+
+    try:
+        # Keep the existing description -> SKU mapping used by the sales ETL.
+        master_sku = load_master_sku(MASTER_SKU_PATH)
+
+        # IMPORTANT: stock_snapshots.sku has a foreign key to products.sku.
+        # Therefore every SKU from the uploaded Master SKU must also exist in
+        # products, even if that SKU has never appeared in sales yet.
+        master_df = pd.read_excel(MASTER_SKU_PATH, engine="openpyxl")
+        master_df.columns = [str(c).strip() for c in master_df.columns]
+        sku_col = next((c for c in master_df.columns if "sku" in c.lower()), None)
+        name_col = next((c for c in master_df.columns
+                         if "desc" in c.lower() or "name" in c.lower() or "product" in c.lower()), None)
+
+        if not sku_col or not name_col:
+            raise ValueError("Kolom SKU dan Description/Name/Product tidak ditemukan di Master SKU")
+
+        rows = []
+        for _, row in master_df.iterrows():
+            if pd.isna(row[sku_col]):
+                continue
+            sku = str(row[sku_col]).strip()
+            if not sku or sku.lower() == "nan":
+                continue
+            name = "" if pd.isna(row[name_col]) else str(row[name_col]).strip()
+            rows.append((sku, name or sku))
+
+        # Deduplicate by SKU before upsert.
+        products_by_sku = {}
+        for sku, name in rows:
+            products_by_sku[sku] = name
+
+        conn = get_raw_conn()
+        cur = conn.cursor()
+        try:
+            for sku, name in products_by_sku.items():
+                cur.execute(
+                    """
+                    INSERT INTO products (sku, name)
+                    VALUES (%s, %s)
+                    ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name
+                    """,
+                    (sku, name),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+
+        return {
+            "status": "success",
+            "entries": len(master_sku),
+            "products_synced": len(products_by_sku),
+            "message": f"Master SKU berhasil di-upload dan {len(products_by_sku)} SKU disinkronkan ke database.",
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Gagal memproses Master SKU: {e}")
+
+
+@app.post("/api/food-sku/upload")
+async def upload_food_sku(file: UploadFile = File(...)):
+    """Upload list of food SKUs. Marks matching products as product_type='food', rest as 'import'."""
+    content = await file.read()
+    tmp = os.path.join(UPLOAD_DIR, f"food_{uuid.uuid4().hex[:8]}.xlsx")
+    with open(tmp, "wb") as f:
+        f.write(content)
+    try:
+        df = pd.read_excel(tmp, engine="openpyxl", header=None)
+        df.columns = ["sku", "name"] if len(df.columns) >= 2 else ["sku"]
+        df["sku"] = df["sku"].astype(str).str.strip()
+        food_skus = set(df["sku"].tolist())
+
+        engine = get_engine()
+        with engine.connect() as conn:
+            # Reset all to import first
+            conn.execute(text("UPDATE products SET product_type = 'import' WHERE product_type IS DISTINCT FROM 'import'"))
+            # Mark food SKUs (exact match OR prefix match: if 299.025 is in list, all 299.025.xx become food)
+            updated = 0
+            for fsku in food_skus:
+                r = conn.execute(text(
+                    "UPDATE products SET product_type = 'food' WHERE sku = :s OR sku LIKE :prefix"
+                ), {"s": fsku, "prefix": fsku + ".%"})
+                updated += r.rowcount
+            conn.commit()
+        os.remove(tmp)
+        return {"status": "success", "food_skus_in_file": len(food_skus), "products_marked_food": updated}
+    except Exception as e:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise HTTPException(500, f"Gagal parse food SKU: {e}")
 
 
 @app.post("/api/etl/upload")
@@ -269,6 +363,20 @@ async def stock_upload(file: UploadFile = File(...)):
         cur = conn.cursor()
         conn.autocommit = False
         try:
+            # Validate all Stock SKUs first so one missing product does not
+            # surface as an opaque PostgreSQL foreign-key 500 error.
+            stock_skus = sorted(set(df["sku"].astype(str).str.strip()))
+            cur.execute("SELECT sku FROM products WHERE sku = ANY(%s)", (stock_skus,))
+            existing_skus = {r[0] for r in cur.fetchall()}
+            missing_skus = [sku for sku in stock_skus if sku not in existing_skus]
+            if missing_skus:
+                preview = ", ".join(missing_skus[:20])
+                extra = f" (+{len(missing_skus)-20} lainnya)" if len(missing_skus) > 20 else ""
+                raise ValueError(
+                    f"{len(missing_skus)} SKU Stock belum terdaftar di database products: {preview}{extra}. "
+                    "Upload Master SKU terlebih dahulu, lalu upload Stock kembali."
+                )
+
             cur.execute("DELETE FROM stock_snapshots WHERE snapshot_date = %s", (today,))
             for _, row in df.iterrows():
                 cur.execute("INSERT INTO stock_snapshots (sku, quantity, snapshot_date) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
@@ -337,7 +445,7 @@ async def po_upload(file: UploadFile = File(...)):
         if df.empty:
             raise HTTPException(400, "Tidak ada data PO valid (qty > 0)")
 
-        # Resolve SKU: from sku column, or lookup from products table by name
+        # Resolve SKU: from sku column, products table, or master_sku fallback
         engine = get_engine()
         product_lookup = {}
         with engine.connect() as c:
@@ -350,19 +458,31 @@ async def po_upload(file: UploadFile = File(...)):
 
         resolved = []
         unmatched = []
+        new_products = []  # products to auto-insert from master_sku
         for _, row in df.iterrows():
             sku = str(row.get("sku", "")).strip()
             pname = str(row.get("product_name", "")).strip()
 
-            # Try SKU first, then name lookup
+            # Try SKU first, then name lookup from products table
             if not sku or sku in ("", "nan", "0"):
                 sku = product_lookup.get(pname.lower(), "")
-                # Partial match fallback
+                # Partial match fallback (products table)
                 if not sku:
                     for db_name, db_sku in product_lookup.items():
                         if db_name in pname.lower() or pname.lower() in db_name:
                             sku = db_sku
                             break
+
+            # Fallback to master_sku if still no match
+            if not sku and master_sku:
+                sku = master_sku.get(pname.lower(), "")
+                if not sku:
+                    for desc_key, sku_val in master_sku.items():
+                        if desc_key in pname.lower() or pname.lower() in desc_key:
+                            sku = sku_val
+                            break
+                if sku:
+                    new_products.append({"sku": sku, "name": pname})
 
             if sku:
                 resolved.append({
@@ -383,6 +503,12 @@ async def po_upload(file: UploadFile = File(...)):
         conn.autocommit = False
         cur = conn.cursor()
         try:
+            # Auto-insert new products found via master_sku
+            for np in new_products:
+                cur.execute("""
+                    INSERT INTO products (sku, name) VALUES (%s, %s)
+                    ON CONFLICT (sku) DO NOTHING
+                """, (np["sku"], np["name"]))
             # Cancel all existing pending POs (fresh upload = fresh state)
             cur.execute("UPDATE purchase_orders SET status = 'cancelled', updated_at = NOW() WHERE status IN ('pending', 'partial')")
             for po in resolved:
@@ -407,6 +533,7 @@ async def po_upload(file: UploadFile = File(...)):
             "status": "success",
             "message": f"{len(resolved)} PO berhasil dimuat",
             "matched": len(resolved),
+            "new_products": len(new_products),
             "unmatched": len(unmatched),
             "unmatched_names": unmatched[:20],
         }
@@ -711,15 +838,18 @@ async def best_sellers_at_risk():
 
 
 @app.get("/api/weekly-analysis")
-async def weekly_analysis():
+async def weekly_analysis(product_type: str = "import"):
     engine = get_engine()
+    type_filter = ""
+    if product_type in ("import", "food"):
+        type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
     with engine.connect() as conn:
-        df = pd.read_sql(text("""
+        df = pd.read_sql(text(f"""
             SELECT s.sku, p.name as product_name,
                    DATE_TRUNC('week', s.invoice_date)::date as week_start,
                    SUM(s.quantity) as qty
             FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL
+            WHERE s.invoice_date IS NOT NULL {type_filter}
             GROUP BY s.sku, p.name, DATE_TRUNC('week', s.invoice_date)::date
             ORDER BY s.sku, week_start
         """), conn)
@@ -837,21 +967,26 @@ async def coverage_analysis():
 # ── Inventory (merged Coverage + Replenishment) ──────────────
 
 @app.get("/api/inventory")
-async def inventory_analysis(sort: str = "priority"):
+async def inventory_analysis(sort: str = "priority", product_type: str = "import"):
     """
     Merged Coverage + Replenishment in one endpoint.
     Coverage = Avg L4W basis. Replenishment = Holt's DES basis.
+    product_type: 'import' (default), 'food', or 'all'
     """
     engine = get_engine()
 
+    type_filter = ""
+    if product_type in ("import", "food"):
+        type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
+
     with engine.connect() as conn:
         # Weekly sales per SKU
-        wdf = pd.read_sql(text("""
+        wdf = pd.read_sql(text(f"""
             SELECT s.sku, p.name as product_name,
                    DATE_TRUNC('week', s.invoice_date)::date as week_start,
                    SUM(s.quantity) as qty, SUM(s.amount) as rev
             FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL
+            WHERE s.invoice_date IS NOT NULL {type_filter}
             GROUP BY s.sku, p.name, DATE_TRUNC('week', s.invoice_date)::date
         """), conn)
 

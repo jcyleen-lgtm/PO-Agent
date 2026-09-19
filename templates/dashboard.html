@@ -103,7 +103,9 @@ tr:hover td{background:rgba(75,139,245,0.04)}
 .filter-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 .search-box{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:var(--r-sm);padding:8px 14px;color:var(--text);font-family:var(--font);font-size:13px;width:260px;outline:none;transition:border-color .2s}
 .search-box:focus{border-color:rgba(96,165,250,0.4)}.search-box::placeholder{color:var(--sub2)}
-select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--text);padding:8px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;cursor:pointer}
+select{background:var(--card);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2360A5FA' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+select:focus{border-color:rgba(96,165,250,0.4);outline:none;box-shadow:0 0 8px rgba(75,139,245,0.2)}
+select option{background:#0C1630;color:var(--text);padding:8px}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border:none;border-radius:var(--r-sm);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
 .btn-brand{background:linear-gradient(135deg,#2563EB,var(--brand));color:#fff;box-shadow:0 0 20px var(--brand-glow),0 4px 12px rgba(0,0,0,0.3)}
 .btn-brand:hover{box-shadow:0 0 30px rgba(75,139,245,0.5);transform:translateY(-1px)}.btn-brand:disabled{opacity:.4;cursor:not-allowed;transform:none}
@@ -174,10 +176,11 @@ select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)
 <!-- TAB 2: PRODUCT ANALYSIS -->
 <div id="tab-product" class="tab-content">
   <h1 style="font-size:28px;margin-bottom:6px">Product <span>Analysis</span></h1><p style="font-size:13px;color:var(--sub);margin-bottom:18px">Per-product weekly sales analysis · click a row for forecast detail</p>
-  <div class="filter-bar"><input class="search-box" id="weeklySearch" placeholder="Search SKU or product..." oninput="filterWeekly()"><select id="weeklyTrend" onchange="filterWeekly()"><option value="">All Trends</option><option value="up">↑ Rising</option><option value="stable">→ Stable</option><option value="down">↓ Falling</option></select></div>
+  <div class="filter-bar"><input class="search-box" id="weeklySearch" placeholder="Search SKU or product..." oninput="filterWeekly()"><select id="weeklyCategory" onchange="loadWeekly()"><option value="import">Import</option><option value="food">Food</option><option value="all">All</option></select><select id="weeklyTrend" onchange="filterWeekly()"><option value="">All Trends</option><option value="up">↑ Rising</option><option value="stable">→ Stable</option><option value="down">↓ Falling</option></select></div>
   <div class="glass"><div class="accent-line" style="background:linear-gradient(90deg,var(--brand),transparent)"></div><div class="tbl-wrap" id="weeklyTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading...</div></div><div class="paging" id="weeklyPaging"></div></div>
-  <!-- Per-SKU Forecast Detail -->
-  <div class="glass" style="margin-top:16px;display:none" id="skuDetailBox"><div class="accent-line" style="background:linear-gradient(90deg,var(--purple),transparent)"></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><span class="section-label" style="margin:0">Holt's DES Forecast — <span id="skuDetailName" style="color:var(--text);text-transform:none;letter-spacing:0"></span></span><button class="link-btn" onclick="document.getElementById('skuDetailBox').style.display='none'">Close ✕</button></div><div id="skuInfo" style="font-size:12px;color:var(--sub);margin-bottom:12px"></div><div style="height:280px"><canvas id="skuChart"></canvas></div>
+  <!-- Per-SKU Forecast Detail (moved inline under the clicked row by JS; visual unchanged) -->
+  <div id="skuDetailHome"></div>
+  <div class="glass" style="margin-top:16px;display:none" id="skuDetailBox"><div class="accent-line" style="background:linear-gradient(90deg,var(--purple),transparent)"></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><span class="section-label" style="margin:0">Holt's DES Forecast — <span id="skuDetailName" style="color:var(--text);text-transform:none;letter-spacing:0"></span></span><button class="link-btn" onclick="closeSkuDetail()">Close ✕</button></div><div id="skuInfo" style="font-size:12px;color:var(--sub);margin-bottom:12px"></div><div style="height:280px"><canvas id="skuChart"></canvas></div>
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px" id="skuFcKpis"></div>
   </div>
 </div>
@@ -200,6 +203,7 @@ select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)
   <div class="glass"><div class="accent-line" style="background:linear-gradient(90deg,var(--yellow),transparent)"></div>
     <div class="filter-bar">
       <input class="search-box" id="invSearch" placeholder="Search SKU or product..." oninput="filterInv()">
+      <select id="invCategory" onchange="loadInventory()"><option value="import">Import</option><option value="food">Food</option><option value="all">All</option></select>
       <select id="invStatus" onchange="filterInv()"><option value="">All Status</option><option value="critical">Critical</option><option value="understock">Understock</option><option value="healthy">Healthy</option><option value="overstock">Overstock</option></select>
       <select id="invSort" onchange="loadInventory()"><option value="priority">Priority (default)</option><option value="revenue">L4W Revenue</option><option value="coverage">Coverage</option><option value="stockout">Stockout Risk</option></select>
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);cursor:pointer;margin-left:auto"><input type="checkbox" id="invActionOnly" onchange="filterInv()" checked style="accent-color:#60A5FA"> Action needed only</label>
@@ -213,7 +217,7 @@ select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)
 <div id="tab-etl" class="tab-content">
   <h1 style="font-size:28px;margin-bottom:6px">Data <span>Upload</span></h1><p style="font-size:13px;color:var(--sub);margin-bottom:20px">Import sales data, stock snapshots, and master SKU</p>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:20px">
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px">
     <!-- Sales Upload -->
     <div class="glass" style="text-align:center">
       <div class="accent-line" style="background:linear-gradient(90deg,var(--brand),transparent)"></div>
@@ -232,7 +236,7 @@ select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)
       <input type="file" id="stockFile" accept=".xls,.xlsx" style="display:none" onchange="uploadStock()">
       <button class="btn btn-brand" onclick="document.getElementById('stockFile').click()" id="btnStockUpload" style="background:linear-gradient(135deg,#059669,var(--green))">Upload Stock</button>
     </div>
-    <!-- Master SKU -->
+    <!-- Master SKU Import -->
     <div class="glass" style="text-align:center">
       <div class="accent-line" style="background:linear-gradient(90deg,var(--yellow),transparent)"></div>
       <div style="font-size:28px;margin-bottom:8px;opacity:.5">📋</div>
@@ -240,6 +244,15 @@ select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)
       <p style="font-size:12px;color:var(--sub);margin-bottom:14px">Update master SKU mapping</p>
       <input type="file" id="masterFile" accept=".xls,.xlsx" style="display:none" onchange="uploadMaster()">
       <button class="btn btn-brand" onclick="document.getElementById('masterFile').click()" id="btnMasterUpload" style="background:linear-gradient(135deg,#D97706,var(--yellow))">Upload Master</button>
+    </div>
+    <!-- Food SKU -->
+    <div class="glass" style="text-align:center">
+      <div class="accent-line" style="background:linear-gradient(90deg,#F472B6,transparent)"></div>
+      <div style="font-size:28px;margin-bottom:8px;opacity:.5">🍜</div>
+      <div class="section-label">Food SKU</div>
+      <p style="font-size:12px;color:var(--sub);margin-bottom:14px">Upload list SKU makanan</p>
+      <input type="file" id="foodFile" accept=".xls,.xlsx" style="display:none" onchange="uploadFood()">
+      <button class="btn btn-brand" onclick="document.getElementById('foodFile').click()" id="btnFoodUpload" style="background:linear-gradient(135deg,#DB2777,#F472B6)">Upload Food</button>
     </div>
     <!-- PO Upload -->
     <div class="glass" style="text-align:center">
@@ -345,18 +358,32 @@ function renderTopTable(data){let h='<thead><tr><th>SKU</th><th>Product</th><th 
 function renderRiskTable(data){let h='<thead><tr><th>SKU</th><th>Product</th><th style="text-align:right">L4W Sales</th><th style="text-align:right">Revenue</th><th style="text-align:right">Coverage</th><th>Status</th><th></th></tr></thead><tbody>';data.forEach(r=>{h+=`<tr><td style="font-size:12px;font-weight:600">${r.sku}</td><td style="font-weight:500">${(r.name||'').substring(0,40)}</td><td style="text-align:right;font-weight:600">${fmt(r.l4w_qty)}</td><td style="text-align:right">${fmtRp(r.revenue)}</td><td style="text-align:right;font-weight:700">${r.coverage!=null?r.coverage.toFixed(1)+'w':'—'}</td><td>${statusBadge(r.status)}</td><td><button class="link-btn" onclick="switchTab('inventory')">Review PO</button></td></tr>`});h+='</tbody>';document.getElementById('riskTable').innerHTML=h}
 
 /* ═══ TAB 2: PRODUCT ANALYSIS ═══ */
-async function loadWeekly(){try{await loadFcMap();const r=await fetch('/api/weekly-analysis');const d=await r.json();weeklyData=d.results||[];window._wl=d.week_labels;weeklyPage=0;filterWeekly()}catch(e){document.getElementById('weeklyTableWrap').innerHTML='<div class="empty-state"><p>'+e.message+'</p></div>'}}
+async function loadWeekly(){try{await loadFcMap();const cat=document.getElementById('weeklyCategory')?.value||'import';const r=await fetch(`/api/weekly-analysis?product_type=${cat}`);const d=await r.json();weeklyData=d.results||[];window._wl=d.week_labels;weeklyPage=0;filterWeekly()}catch(e){document.getElementById('weeklyTableWrap').innerHTML='<div class="empty-state"><p>'+e.message+'</p></div>'}}
 function filterWeekly(){const q=(document.getElementById('weeklySearch').value||'').toLowerCase(),t=document.getElementById('weeklyTrend').value;let f=weeklyData;if(q)f=f.filter(r=>r.sku.toLowerCase().includes(q)||r.product_name.toLowerCase().includes(q));if(t)f=f.filter(r=>r.trend===t);weeklyPage=0;renderWeeklyTable(f)}
 function weeklyGoPage(p){weeklyPage=p;filterWeekly()}
-function renderWeeklyTable(data){const wl=window._wl||{};const s=weeklyPage*PAGE_SIZE,pg=data.slice(s,s+PAGE_SIZE);let h=`<table><thead><tr><th></th><th>SKU</th><th>Product</th><th style="text-align:right">${wl.w2||'W-2'}</th><th style="text-align:right">${wl.w1||'W-1'}</th><th style="text-align:right">Chg</th><th style="text-align:right">Growth</th><th style="text-align:right">Avg L4W</th><th style="text-align:right">L4W</th><th style="text-align:right">Fc/Wk</th><th style="text-align:right">Next 4W</th><th>MAPE</th><th></th></tr></thead><tbody>`;pg.forEach(r=>{const fc=fcDataMap[r.sku];const fcAvg=fc?fc.avg_weekly_demand:'—';const fc4w=fc?fmt(Math.round(fc.forecast_data.quantities.slice(0,4).reduce((a,b)=>a+b,0))):'—';const mape=fc?fc.mape:null;const mc=mape!=null?(mape<25?'badge-green':mape<50?'badge-yellow':'badge-red'):'badge-gray';const ml=mape!=null?mape+'%':'—';
-h+=`<tr style="cursor:pointer" onclick="loadSkuForecast('${r.sku}')"><td>${trendBadge(r.trend)}</td><td style="font-size:12px;font-weight:600">${r.sku}</td><td style="font-weight:500">${r.product_name.substring(0,32)}</td><td style="text-align:right">${fmt(r.w2)}</td><td style="text-align:right;font-weight:600">${fmt(r.w1)}</td><td style="text-align:right" class="${r.change>0?'num-pos':r.change<0?'num-neg':''}">${r.change>0?'+':''}${fmt(r.change)}</td><td style="text-align:right" class="${r.growth>0?'num-pos':r.growth<0?'num-neg':''}">${fmtPct(r.growth)}</td><td style="text-align:right;font-weight:700">${r.avg_l4w}</td><td style="text-align:right">${fmt(r.l4w)}</td><td style="text-align:right;font-weight:600">${fcAvg}</td><td style="text-align:right;font-weight:700">${fc4w}</td><td><span class="badge ${mc}">${ml}</span></td><td>${sparklineSvg(r.sparkline)}</td></tr>`});h+='</tbody></table>';document.getElementById('weeklyTableWrap').innerHTML=h;renderPaging('weeklyPaging',weeklyPage,data.length,'weeklyGoPage')}
+function renderWeeklyTable(data){closeSkuDetail();const wl=window._wl||{};const s=weeklyPage*PAGE_SIZE,pg=data.slice(s,s+PAGE_SIZE);let h=`<table><thead><tr><th></th><th>SKU</th><th>Product</th><th style="text-align:right">${wl.w2||'W-2'}</th><th style="text-align:right">${wl.w1||'W-1'}</th><th style="text-align:right">Chg</th><th style="text-align:right">Growth</th><th style="text-align:right">Avg L4W</th><th style="text-align:right">L4W</th><th style="text-align:right">Fc/Wk</th><th style="text-align:right">Next 4W</th><th>MAPE</th><th></th></tr></thead><tbody>`;pg.forEach(r=>{const fc=fcDataMap[r.sku];const fcAvg=fc?fc.avg_weekly_demand:'—';const fc4w=fc?fmt(Math.round(fc.forecast_data.quantities.slice(0,4).reduce((a,b)=>a+b,0))):'—';const mape=fc?fc.mape:null;const mc=mape!=null?(mape<25?'badge-green':mape<50?'badge-yellow':'badge-red'):'badge-gray';const ml=mape!=null?mape+'%':'—';
+h+=`<tr style="cursor:pointer" onclick="loadSkuForecast('${r.sku}',this)"><td>${trendBadge(r.trend)}</td><td style="font-size:12px;font-weight:600">${r.sku}</td><td style="font-weight:500">${r.product_name.substring(0,32)}</td><td style="text-align:right">${fmt(r.w2)}</td><td style="text-align:right;font-weight:600">${fmt(r.w1)}</td><td style="text-align:right" class="${r.change>0?'num-pos':r.change<0?'num-neg':''}">${r.change>0?'+':''}${fmt(r.change)}</td><td style="text-align:right" class="${r.growth>0?'num-pos':r.growth<0?'num-neg':''}">${fmtPct(r.growth)}</td><td style="text-align:right;font-weight:700">${r.avg_l4w}</td><td style="text-align:right">${fmt(r.l4w)}</td><td style="text-align:right;font-weight:600">${fcAvg}</td><td style="text-align:right;font-weight:700">${fc4w}</td><td><span class="badge ${mc}">${ml}</span></td><td>${sparklineSvg(r.sparkline)}</td></tr>`});h+='</tbody></table>';document.getElementById('weeklyTableWrap').innerHTML=h;renderPaging('weeklyPaging',weeklyPage,data.length,'weeklyGoPage')}
 
 /* Forecast data for Product Analysis table */
 let fcDataMap={};
 async function loadFcMap(){try{const r=await fetch('/api/forecast/results?limit=500');const d=await r.json();(d.results||[]).forEach(f=>{fcDataMap[f.sku]=f})}catch(e){}}
 
 /* Per-SKU Forecast Detail */
-async function loadSkuForecast(sku){try{const r=await fetch(`/api/forecast/sku/${sku}`);const d=await r.json();const box=document.getElementById('skuDetailBox');box.style.display='block';document.getElementById('skuDetailName').textContent=d.product_name;document.getElementById('skuInfo').innerHTML=`<strong style="color:var(--text)">${d.sku}</strong> · α=${d.alpha} β=${d.beta} · MAPE: <span class="${d.mape<25?'num-pos':d.mape<50?'':'num-neg'}">${d.mape}%</span> · Trend: <span class="${d.trend_direction==='up'?'trend-up':d.trend_direction==='down'?'trend-down':'trend-stable'}">${d.trend_direction==='up'?'↑':d.trend_direction==='down'?'↓':'→'} ${d.trend_direction}</span>`;
+function closeSkuDetail(){
+  const box=document.getElementById('skuDetailBox');
+  const home=document.getElementById('skuDetailHome');
+  const row=document.getElementById('skuDetailRow');
+  if(box){box.style.display='none';if(home&&box.parentElement!==home)home.appendChild(box)}
+  if(row)row.remove();
+}
+async function loadSkuForecast(sku,clickedRow){try{
+  const r=await fetch(`/api/forecast/sku/${sku}`);const d=await r.json();
+  const box=document.getElementById('skuDetailBox');
+  const oldRow=document.getElementById('skuDetailRow');if(oldRow)oldRow.remove();
+  const detailRow=document.createElement('tr');detailRow.id='skuDetailRow';
+  const detailCell=document.createElement('td');detailCell.colSpan=13;detailCell.style.padding='0';detailCell.style.border='0';
+  detailRow.appendChild(detailCell);clickedRow.insertAdjacentElement('afterend',detailRow);detailCell.appendChild(box);
+  box.style.display='block';document.getElementById('skuDetailName').textContent=d.product_name;document.getElementById('skuInfo').innerHTML=`<strong style="color:var(--text)">${d.sku}</strong> · α=${d.alpha} β=${d.beta} · MAPE: <span class="${d.mape<25?'num-pos':d.mape<50?'':'num-neg'}">${d.mape}%</span> · Trend: <span class="${d.trend_direction==='up'?'trend-up':d.trend_direction==='down'?'trend-down':'trend-stable'}">${d.trend_direction==='up'?'↑':d.trend_direction==='down'?'↓':'→'} ${d.trend_direction}</span>`;
 const ctx=document.getElementById('skuChart').getContext('2d');if(skuChartObj)skuChartObj.destroy();
 const aw=d.actual_data.weeks,fw=d.forecast_data.weeks,all=[...aw,...fw];const aq=d.actual_data.quantities,fq=d.fitted_data.quantities,fcq=d.forecast_data.quantities;
 const af=[...aq,...fw.map(()=>null)],ff=[...fq,...fw.map(()=>null)],fc2=[...aw.map(()=>null)];fc2[fc2.length-1]=aq[aq.length-1];fc2.push(...fcq);
@@ -370,10 +397,10 @@ document.getElementById('skuFcKpis').innerHTML=`
 <div style="text-align:center"><div style="font-size:10px;color:var(--sub2);text-transform:uppercase;font-weight:700;letter-spacing:.08em;margin-bottom:4px">Next 12W</div><div style="font-size:20px;font-weight:800">${fmt(Math.round(fc12))}</div></div>
 <div style="text-align:center"><div style="font-size:10px;color:var(--sub2);text-transform:uppercase;font-weight:700;letter-spacing:.08em;margin-bottom:4px">Avg/Week</div><div style="font-size:20px;font-weight:800">${Math.round(fcAvg)}</div></div>
 <div style="text-align:center"><div style="font-size:10px;color:var(--sub2);text-transform:uppercase;font-weight:700;letter-spacing:.08em;margin-bottom:4px">Trend</div><div style="font-size:20px;font-weight:800" class="${d.trend_direction==='up'?'trend-up':d.trend_direction==='down'?'trend-down':'trend-stable'}">${d.trend>0?'+':''}${d.trend}/w</div></div>`;
-box.scrollIntoView({behavior:'smooth'})}catch(e){console.error(e)}}
+}catch(e){console.error(e)}}
 
 /* ═══ TAB 3: INVENTORY & REPLENISHMENT ═══ */
-async function loadInventory(){const sort=document.getElementById('invSort')?.value||'priority';try{const r=await fetch(`/api/inventory?sort=${sort}`);const d=await r.json();invData=d.results||[];const sm=d.summary||{};if(invData.length){document.getElementById('invKpis').style.display='grid';document.getElementById('ikCritical').textContent=fmt(sm.critical||0);document.getElementById('ikUnder').textContent=fmt(sm.understock||0);document.getElementById('ikHealthy').textContent=fmt(sm.healthy||0);document.getElementById('ikOver').textContent=fmt(sm.overstock||0)}document.getElementById('invSub').textContent=(d.stock_date?'Stock: '+d.stock_date+' · ':'No stock data · ')+'Coverage = Avg L4W · Reco PO = Holt\'s DES · LT 6–8w · SS 10%';invPage=0;filterInv()}catch(e){document.getElementById('invTableWrap').innerHTML='<div class="empty-state"><p>'+e.message+'</p></div>'}}
+async function loadInventory(){const sort=document.getElementById('invSort')?.value||'priority';const cat=document.getElementById('invCategory')?.value||'import';try{const r=await fetch(`/api/inventory?sort=${sort}&product_type=${cat}`);const d=await r.json();invData=d.results||[];const sm=d.summary||{};if(invData.length){document.getElementById('invKpis').style.display='grid';document.getElementById('ikCritical').textContent=fmt(sm.critical||0);document.getElementById('ikUnder').textContent=fmt(sm.understock||0);document.getElementById('ikHealthy').textContent=fmt(sm.healthy||0);document.getElementById('ikOver').textContent=fmt(sm.overstock||0)}document.getElementById('invSub').textContent=(d.stock_date?'Stock: '+d.stock_date+' · ':'No stock data · ')+'Coverage = Avg L4W · Reco PO = Holt\'s DES · LT 6–8w · SS 10%';invPage=0;filterInv()}catch(e){document.getElementById('invTableWrap').innerHTML='<div class="empty-state"><p>'+e.message+'</p></div>'}}
 function filterInv(){const q=(document.getElementById('invSearch').value||'').toLowerCase(),s=document.getElementById('invStatus').value,ao=document.getElementById('invActionOnly').checked;let f=invData;if(q)f=f.filter(r=>r.sku.toLowerCase().includes(q)||r.product_name.toLowerCase().includes(q));if(s)f=f.filter(r=>r.status===s);if(ao)f=f.filter(r=>r.status==='critical'||r.status==='understock');invPage=0;renderInvTable(f)}
 function invGoPage(p){invPage=p;filterInv()}
 function renderInvTable(data){const s=invPage*PAGE_SIZE,pg=data.slice(s,s+PAGE_SIZE);
@@ -403,6 +430,9 @@ const fd=new FormData();fd.append('file',file);try{const r=await fetch('/api/sto
 
 async function uploadMaster(){const file=document.getElementById('masterFile').files[0];if(!file)return;const btn=document.getElementById('btnMasterUpload');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span>';
 const fd=new FormData();fd.append('file',file);try{const r=await fetch('/api/master-sku/upload',{method:'POST',body:fd});const d=await r.json();if(r.ok)etlMsg(`<strong style="color:var(--green)">✓ Master SKU:</strong> ${d.entries} entries loaded`,'success');else etlMsg(`<strong style="color:var(--red)">Error:</strong> ${d.detail}`,'error')}catch(e){etlMsg(`Error: ${e.message}`,'error')}btn.disabled=false;btn.textContent='Upload Master'}
+
+async function uploadFood(){const file=document.getElementById('foodFile').files[0];if(!file)return;const btn=document.getElementById('btnFoodUpload');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span>';
+const fd=new FormData();fd.append('file',file);try{const r=await fetch('/api/food-sku/upload',{method:'POST',body:fd});const d=await r.json();if(r.ok)etlMsg(`<strong style="color:var(--green)">✓ Food SKU:</strong> ${d.products_marked_food} products marked as food`,'success');else etlMsg(`<strong style="color:var(--red)">Error:</strong> ${d.detail}`,'error')}catch(e){etlMsg(`Error: ${e.message}`,'error')}btn.disabled=false;btn.textContent='Upload Food'}
 
 /* ═══ PURCHASE ORDERS ═══ */
 async function uploadPO(){const file=document.getElementById('poFile').files[0];if(!file)return;const btn=document.getElementById('btnPoUpload');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span>';
