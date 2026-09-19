@@ -213,7 +213,7 @@ select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)
 <div id="tab-etl" class="tab-content">
   <h1 style="font-size:28px;margin-bottom:6px">Data <span>Upload</span></h1><p style="font-size:13px;color:var(--sub);margin-bottom:20px">Import sales data, stock snapshots, and master SKU</p>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-bottom:20px">
     <!-- Sales Upload -->
     <div class="glass" style="text-align:center">
       <div class="accent-line" style="background:linear-gradient(90deg,var(--brand),transparent)"></div>
@@ -241,6 +241,15 @@ select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)
       <input type="file" id="masterFile" accept=".xls,.xlsx" style="display:none" onchange="uploadMaster()">
       <button class="btn btn-brand" onclick="document.getElementById('masterFile').click()" id="btnMasterUpload" style="background:linear-gradient(135deg,#D97706,var(--yellow))">Upload Master</button>
     </div>
+    <!-- PO Upload -->
+    <div class="glass" style="text-align:center">
+      <div class="accent-line" style="background:linear-gradient(90deg,var(--purple),transparent)"></div>
+      <div style="font-size:28px;margin-bottom:8px;opacity:.5">🛒</div>
+      <div class="section-label">Ongoing PO</div>
+      <p style="font-size:12px;color:var(--sub);margin-bottom:14px">Upload PO berjalan (Product + Qty)</p>
+      <input type="file" id="poFile" accept=".xls,.xlsx,.csv" style="display:none" onchange="uploadPO()">
+      <button class="btn btn-brand" onclick="document.getElementById('poFile').click()" id="btnPoUpload" style="background:linear-gradient(135deg,#7C3AED,var(--purple))">Upload PO</button>
+    </div>
   </div>
 
   <!-- Upload Status -->
@@ -258,6 +267,23 @@ select{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)
     </div>
     <div id="etlStats" style="font-size:13px;color:var(--sub);margin-bottom:12px"></div>
     <div class="tbl-wrap" id="etlPreviewTable"></div>
+  </div>
+
+  <!-- PO List -->
+  <div class="glass" id="poSection">
+    <div class="accent-line" style="background:linear-gradient(90deg,var(--purple),transparent)"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div class="section-label" style="margin:0">Purchase Orders Berjalan</div>
+      <button class="btn btn-ghost" onclick="downloadPoTemplate()" style="font-size:11px">📥 Template</button>
+    </div>
+    <div id="poSummary" style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap"></div>
+    <div class="tbl-wrap">
+      <div id="poEmpty" style="text-align:center;padding:24px;color:var(--sub);font-size:13px">Belum ada PO. Upload file via tombol "Upload PO" di atas.</div>
+      <table id="poTable" style="display:none;width:100%;font-size:12px">
+        <thead><tr><th>SKU</th><th>Produk</th><th style="text-align:right">Qty Ordered</th><th style="text-align:right">Qty Received</th><th>Supplier</th><th>Status</th><th>Order Date</th><th></th></tr></thead>
+        <tbody id="poBody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 </div>
@@ -365,8 +391,8 @@ let etlFileId=null;
 function etlMsg(html,type){const el=document.getElementById('etlStatus');el.style.display='block';const bc=type==='error'?'rgba(248,113,113,0.06)':type==='success'?'rgba(52,211,153,0.06)':'rgba(96,165,250,0.06)';const br=type==='error'?'rgba(248,113,113,0.15)':type==='success'?'rgba(52,211,153,0.15)':'rgba(96,165,250,0.15)';el.style.background=bc;el.style.borderColor=br;document.getElementById('etlStatusContent').innerHTML=html}
 async function uploadSales(){const file=document.getElementById('salesFile').files[0];if(!file)return;const btn=document.getElementById('btnSalesUpload');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span> Uploading...';
 const fd=new FormData();fd.append('file',file);try{const r=await fetch('/api/etl/upload',{method:'POST',body:fd});if(!r.ok){const e=await r.json();etlMsg(`<strong style="color:var(--red)">Error:</strong> ${JSON.stringify(e.detail)}`,'error');btn.disabled=false;btn.textContent='Upload Sales';return}
-const d=await r.json();etlFileId=d.file_id;etlMsg(`<strong style="color:var(--green)">✓ ${d.filename}</strong> parsed — ${d.stats?.total_rows||'?'} rows`,'success');
-const prev=document.getElementById('etlPreview');prev.style.display='block';document.getElementById('etlStats').innerHTML=`File: <strong>${d.filename}</strong> · Rows: <strong>${fmt(d.stats?.total_rows||0)}</strong> · SKUs: <strong>${fmt(d.stats?.unique_skus||0)}</strong>`;
+const d=await r.json();etlFileId=d.file_id;etlMsg(`<strong style="color:var(--green)">✓ ${d.filename}</strong> parsed — ${fmt(d.stats?.clean_rows||0)} rows`,'success');
+const prev=document.getElementById('etlPreview');prev.style.display='block';document.getElementById('etlStats').innerHTML=`File: <strong>${d.filename}</strong> · Rows: <strong>${fmt(d.stats?.clean_rows||0)}</strong> · SKUs: <strong>${fmt(d.stats?.unique_skus||0)}</strong> · Products: <strong>${fmt(d.stats?.unique_products||0)}</strong>`;
 let h='<table><thead><tr>';(d.columns||[]).forEach(c=>{h+=`<th>${c}</th>`});h+='</tr></thead><tbody>';(d.preview||[]).forEach(row=>{h+='<tr>';(d.columns||[]).forEach(c=>{h+=`<td>${row[c]!=null?row[c]:''}</td>`});h+='</tr>'});h+='</tbody></table>';document.getElementById('etlPreviewTable').innerHTML=h}catch(e){etlMsg(`<strong style="color:var(--red)">Upload failed:</strong> ${e.message}`,'error')}btn.disabled=false;btn.textContent='Upload Sales'}
 
 async function confirmETL(){if(!etlFileId){etlMsg('No data to confirm — upload first','error');return}const btn=document.getElementById('btnConfirm');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span> Importing...';
@@ -377,6 +403,24 @@ const fd=new FormData();fd.append('file',file);try{const r=await fetch('/api/sto
 
 async function uploadMaster(){const file=document.getElementById('masterFile').files[0];if(!file)return;const btn=document.getElementById('btnMasterUpload');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span>';
 const fd=new FormData();fd.append('file',file);try{const r=await fetch('/api/master-sku/upload',{method:'POST',body:fd});const d=await r.json();if(r.ok)etlMsg(`<strong style="color:var(--green)">✓ Master SKU:</strong> ${d.entries} entries loaded`,'success');else etlMsg(`<strong style="color:var(--red)">Error:</strong> ${d.detail}`,'error')}catch(e){etlMsg(`Error: ${e.message}`,'error')}btn.disabled=false;btn.textContent='Upload Master'}
+
+/* ═══ PURCHASE ORDERS ═══ */
+async function uploadPO(){const file=document.getElementById('poFile').files[0];if(!file)return;const btn=document.getElementById('btnPoUpload');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span>';
+const fd=new FormData();fd.append('file',file);try{const r=await fetch('/api/po/upload',{method:'POST',body:fd});const d=await r.json();if(r.ok){let msg=`<strong style="color:var(--green)">✓ PO:</strong> ${d.matched} PO dimuat`;if(d.unmatched>0)msg+=` · <span style="color:var(--yellow)">${d.unmatched} unmatched</span>`;etlMsg(msg,'success');if(d.unmatched_names?.length)etlMsg(msg+`<br><span style="font-size:11px;color:var(--sub)">Unmatched: ${d.unmatched_names.slice(0,5).join(', ')}${d.unmatched_names.length>5?' ...':''}</span>`,'success');loadPoList()}else{etlMsg(`<strong style="color:var(--red)">Error:</strong> ${d.detail||'Gagal upload PO'}`,'error')}}catch(e){etlMsg(`<strong style="color:var(--red)">PO upload failed:</strong> ${e.message}`,'error')}btn.disabled=false;btn.textContent='Upload PO'}
+
+async function loadPoList(){try{const r=await fetch('/api/po/list?status=all');const d=await r.json();const empty=document.getElementById('poEmpty'),table=document.getElementById('poTable'),body=document.getElementById('poBody'),summary=document.getElementById('poSummary');
+if(!d.data?.length){empty.style.display='block';table.style.display='none';summary.innerHTML='';return}
+empty.style.display='none';table.style.display='table';
+const counts={pending:0,partial:0,received:0,cancelled:0};d.data.forEach(po=>counts[po.status]=(counts[po.status]||0)+1);
+const colors={pending:'var(--yellow)',partial:'var(--brand)',received:'var(--green)',cancelled:'var(--red)'};
+summary.innerHTML=Object.entries(counts).filter(([,v])=>v>0).map(([k,v])=>`<span style="padding:4px 12px;border-radius:8px;background:rgba(59,130,196,0.08);border:1px solid rgba(91,155,213,0.12);font-size:12px;font-weight:600"><span style="color:${colors[k]||'var(--sub)'}">${v}</span> ${k}</span>`).join('');
+body.innerHTML=d.data.filter(po=>po.status!=='cancelled').map(po=>{const sc=colors[po.status]||'var(--sub)';return`<tr><td style="font-family:monospace;font-size:11px">${po.sku||'-'}</td><td>${po.product||'-'}</td><td style="text-align:right;font-weight:600">${fmt(po.qty_ordered)}</td><td style="text-align:right">${fmt(po.qty_received)}</td><td>${po.supplier||'-'}</td><td><span style="padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;text-transform:uppercase;background:${sc}22;color:${sc}">${po.status}</span></td><td style="font-size:11px;color:var(--sub)">${po.order_date||'-'}</td><td><button class="btn btn-ghost" style="font-size:10px;padding:2px 6px" onclick="deletePo(${po.id})">✕</button></td></tr>`}).join('')}catch(e){console.error('PO list:',e)}}
+
+async function deletePo(id){if(!confirm('Hapus PO ini?'))return;try{await fetch('/api/po/'+id,{method:'DELETE'});loadPoList()}catch(e){alert('Gagal: '+e.message)}}
+
+function downloadPoTemplate(){const csv='Product Name,Qty Ordered,Supplier,Order Date,Expected Date\nContoh Produk A,500,Supplier X,2026-09-01,2026-11-01\nContoh Produk B,1000,Supplier Y,2026-09-05,2026-11-15';const b=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='PO_Template.csv';a.click()}
+
+loadPoList();
 
 renderMonthGrid();loadOverview();
 </script>
