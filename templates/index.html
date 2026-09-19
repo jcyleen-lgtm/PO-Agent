@@ -73,6 +73,23 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); line-he
 .upload-zone .icon { font-size:40px; margin-bottom:12px; display:block; }
 .upload-zone .label { font-size:15px; font-weight:600; margin-bottom:4px; }
 .upload-zone .hint { font-size:12px; color:var(--sub); }
+.upload-mini { border:2px dashed rgba(59,130,196,0.2); border-radius:var(--r-md); padding:20px; text-align:center; cursor:pointer; transition:all .2s; background:rgba(59,130,196,0.02); }
+.upload-mini:hover,.upload-mini.dragover { border-color:#60A5FA; background:rgba(59,130,196,0.06); }
+.upload-mini .label { font-size:13px; font-weight:600; }
+.upload-mini .hint { font-size:11px; color:var(--sub); }
+.po-table { width:100%; border-collapse:collapse; font-size:12px; }
+.po-table th { text-align:left; padding:8px 10px; color:var(--sub); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); }
+.po-table td { padding:8px 10px; border-bottom:1px solid var(--border); }
+.po-table tr:hover td { background:rgba(59,130,196,0.04); }
+.po-badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
+.po-badge.pending { background:rgba(245,158,11,0.15); color:#F59E0B; }
+.po-badge.received { background:rgba(34,197,94,0.15); color:#22C55E; }
+.po-badge.cancelled { background:rgba(239,68,68,0.15); color:#EF4444; }
+.po-badge.partial { background:rgba(96,165,250,0.15); color:#60A5FA; }
+.po-empty { text-align:center; padding:32px; color:var(--sub); font-size:13px; }
+.po-summary { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+.po-chip { padding:6px 14px; border-radius:8px; background:rgba(59,130,196,0.08); border:1px solid var(--border); font-size:12px; font-weight:600; }
+.po-chip strong { color:#60A5FA; }
 input[type="file"] { display:none; }
 
 /* ETL log */
@@ -113,6 +130,9 @@ tr:hover td { background:rgba(59,130,196,0.04); }
 .badge-success { display:inline-flex; align-items:center; gap:6px; background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); border-radius:20px; padding:8px 16px; font-size:13px; color:#4ADE80; font-weight:600; }
 .badge-success .dot { width:6px; height:6px; border-radius:50%; background:#22C55E; box-shadow:0 0 8px #22C55E; }
 .badge-error { display:inline-flex; align-items:center; gap:6px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:20px; padding:8px 16px; font-size:13px; color:#F87171; font-weight:600; }
+.badge-info { display:inline-flex; align-items:center; gap:6px; background:rgba(59,130,196,0.08); border:1px solid rgba(59,130,196,0.2); border-radius:20px; padding:8px 16px; font-size:13px; color:#60A5FA; font-weight:600; }
+.badge-info .dot { width:6px; height:6px; border-radius:50%; background:#3B82C4; box-shadow:0 0 8px #3B82C4; animation:pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
 /* DB bar */
 .db-bar { display:flex; align-items:center; gap:8px; padding:10px 16px; background:rgba(34,197,94,0.04); border:1px solid rgba(34,197,94,0.12); border-radius:var(--r-md); margin-bottom:24px; font-size:12px; color:var(--sub); }
@@ -200,6 +220,29 @@ tr:hover td { background:rgba(59,130,196,0.04); }
       <button class="btn btn-brand" onclick="resetAll()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Upload Data Lain</button>
     </div>
   </div>
+
+  <!-- ═══ PURCHASE ORDERS ═══ -->
+  <div class="section-label" style="margin-top:32px;">Purchase Orders Berjalan</div>
+  <div class="glass" style="margin-bottom:20px;">
+    <div class="accent-line" style="background:linear-gradient(90deg,#A855F7,transparent)"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <p style="font-size:13px;color:var(--sub);">Upload Excel PO ongoing — minimal kolom: <strong>Product Name</strong> + <strong>Qty</strong></p>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" onclick="downloadPoTemplate()" style="font-size:11px;">📥 Template</button>
+        <button class="btn btn-brand" onclick="document.getElementById('poFileInput').click()" style="font-size:12px;">📤 Upload PO</button>
+      </div>
+    </div>
+    <input type="file" id="poFileInput" accept=".xls,.xlsx" style="display:none">
+    <div id="poUploadStatus"></div>
+    <div id="poSummary" class="po-summary"></div>
+    <div class="table-wrap" id="poTableWrap">
+      <div class="po-empty" id="poEmpty">Belum ada PO. Upload file Excel untuk memulai.</div>
+      <table class="po-table" id="poTable" style="display:none;">
+        <thead><tr><th>SKU</th><th>Produk</th><th>Qty Ordered</th><th>Qty Received</th><th>Supplier</th><th>Status</th><th>Order Date</th><th></th></tr></thead>
+        <tbody id="poBody"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -281,6 +324,68 @@ function hide(id){document.getElementById(id).classList.add('hidden');}
 function resetAll(){hide('stepProcess');hide('stepPreview');hide('stepResult');currentFileId=null;fileInput.value='';}
 
 document.querySelectorAll('.nav-item').forEach(item=>{item.querySelector('.nav-btn').addEventListener('click',()=>{document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));item.classList.add('active');});});
+
+// ═══ PURCHASE ORDERS ═══
+const poFileInput=document.getElementById('poFileInput');
+poFileInput.addEventListener('change',ev=>{if(ev.target.files.length)handlePoUpload(ev.target.files[0]);});
+
+async function handlePoUpload(file){
+  if(!file.name.match(/\.xlsx?$/i)){alert('Format harus .xls/.xlsx');return;}
+  const status=document.getElementById('poUploadStatus');
+  status.innerHTML='<div class="badge-info" style="margin-bottom:12px;"><div class="dot"></div>⏳ Mengupload PO...</div>';
+  const fd=new FormData();fd.append('file',file);
+  try{
+    const r=await fetch('/api/po/upload',{method:'POST',body:fd});
+    const data=await r.json();
+    if(r.ok){
+      let msg=`✓ ${data.matched} PO berhasil dimuat`;
+      if(data.unmatched>0) msg+=` · ${data.unmatched} produk tidak ditemukan`;
+      status.innerHTML=`<div class="badge-success" style="margin-bottom:12px;"><div class="dot"></div>${msg}</div>`;
+      if(data.unmatched_names?.length){
+        status.innerHTML+=`<details style="font-size:11px;color:var(--sub);margin-bottom:12px;"><summary style="cursor:pointer;">Produk tidak ter-match (${data.unmatched})</summary><ul style="margin-top:4px;padding-left:20px;">${data.unmatched_names.map(n=>`<li>${n}</li>`).join('')}</ul></details>`;
+      }
+      loadPoList();
+    }else{
+      status.innerHTML=`<div class="badge-error" style="margin-bottom:12px;">✗ ${data.detail||'Gagal upload PO'}</div>`;
+    }
+  }catch(e){status.innerHTML=`<div class="badge-error" style="margin-bottom:12px;">✗ ${e.message}</div>`;}
+  poFileInput.value='';
+}
+
+async function loadPoList(){
+  try{
+    const r=await fetch('/api/po/list?status=all');const data=await r.json();
+    const empty=document.getElementById('poEmpty'),table=document.getElementById('poTable'),body=document.getElementById('poBody'),summary=document.getElementById('poSummary');
+    if(!data.data?.length){empty.style.display='block';table.style.display='none';summary.innerHTML='';return;}
+    empty.style.display='none';table.style.display='table';
+    const counts={pending:0,partial:0,received:0,cancelled:0};
+    data.data.forEach(po=>counts[po.status]=(counts[po.status]||0)+1);
+    summary.innerHTML=Object.entries(counts).filter(([,v])=>v>0).map(([k,v])=>`<div class="po-chip"><strong>${v}</strong> ${k}</div>`).join('');
+    body.innerHTML=data.data.filter(po=>po.status!=='cancelled').map(po=>`<tr>
+      <td style="font-family:monospace;font-size:11px;">${po.sku||'-'}</td>
+      <td>${po.product||'-'}</td>
+      <td style="text-align:right;font-weight:600;">${fmt(po.qty_ordered)}</td>
+      <td style="text-align:right;">${fmt(po.qty_received)}</td>
+      <td>${po.supplier||'-'}</td>
+      <td><span class="po-badge ${po.status}">${po.status}</span></td>
+      <td style="font-size:11px;color:var(--sub);">${po.order_date||'-'}</td>
+      <td><button class="btn btn-ghost" style="font-size:10px;padding:2px 8px;" onclick="deletePo(${po.id})">✕</button></td>
+    </tr>`).join('');
+  }catch(e){console.error('PO list error:',e);}
+}
+
+async function deletePo(id){
+  if(!confirm('Hapus PO ini?'))return;
+  try{await fetch(`/api/po/${id}`,{method:'DELETE'});loadPoList();}catch(e){alert('Gagal hapus: '+e.message);}
+}
+
+function downloadPoTemplate(){
+  const csv='Product Name,Qty Ordered,Supplier,Order Date,Expected Date\nContoh Produk A,500,Supplier X,2026-09-01,2026-11-01\nContoh Produk B,1000,Supplier Y,2026-09-05,2026-11-15';
+  const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='PO_Template.csv';a.click();
+}
+
+loadPoList();
 </script>
 </body>
 </html>

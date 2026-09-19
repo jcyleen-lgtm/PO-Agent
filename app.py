@@ -164,7 +164,11 @@ async def etl_confirm(file_id: str):
                     INSERT INTO products (sku, name) VALUES (%s, %s)
                     ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
                 """, (str(row["SKU"]), row["product_name"]))
-            cur.execute("TRUNCATE TABLE sales RESTART IDENTITY")
+            # ── Append mode: load into temp table, then INSERT ... ON CONFLICT DO NOTHING ──
+            cur.execute("""
+                CREATE TEMP TABLE _sales_stage (LIKE sales INCLUDING DEFAULTS)
+                ON COMMIT DROP
+            """)
             buffer = io.StringIO()
             writer = csv.writer(buffer, delimiter='\t', quoting=csv.QUOTE_MINIMAL)
             for _, row in sales.iterrows():
@@ -183,12 +187,31 @@ async def etl_confirm(file_id: str):
                     int(row["year_val"]) if pd.notna(row["year_val"]) else r'\N',
                 ])
             buffer.seek(0)
-            cur.copy_from(buffer, 'sales', sep='\t', null=r'\N',
+            cur.copy_from(buffer, '_sales_stage', sep='\t', null=r'\N',
                           columns=('sku','invoice_date','quantity','unit','amount',
                                    'cogs_accurate','gpao_accurate','gpao_pct_acc',
                                    'week_label','month_label','quarter_label','year_val'))
+            # Deduplicate: skip rows that already exist (same sku + date + qty + amount)
+            cur.execute("""
+                INSERT INTO sales (sku, invoice_date, quantity, unit, amount,
+                                   cogs_accurate, gpao_accurate, gpao_pct_acc,
+                                   week_label, month_label, quarter_label, year_val)
+                SELECT s.sku, s.invoice_date, s.quantity, s.unit, s.amount,
+                       s.cogs_accurate, s.gpao_accurate, s.gpao_pct_acc,
+                       s.week_label, s.month_label, s.quarter_label, s.year_val
+                FROM _sales_stage s
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM sales e
+                    WHERE e.sku = s.sku
+                      AND e.invoice_date = s.invoice_date
+                      AND e.quantity = s.quantity
+                      AND e.amount = s.amount
+                )
+            """)
+            inserted = cur.rowcount
+            skipped = len(sales) - inserted
             conn.commit()
-            total = len(sales)
+            total = inserted
         except Exception as e:
             conn.rollback()
             raise e
@@ -212,7 +235,7 @@ async def etl_confirm(file_id: str):
 
         return {
             "status": "success",
-            "message": f"{total:,} baris berhasil dimuat ke database",
+            "message": f"{total:,} baris baru ditambahkan ({skipped:,} duplikat di-skip)",
             "database": {"products": row[0], "sales": row[1],
                          "date_range": f"{row[2]} s/d {row[3]}", "unique_skus": row[4]},
             "forecast_status": "auto-run complete" if "latest" in forecast_cache else "skipped",
@@ -263,6 +286,206 @@ async def stock_upload(file: UploadFile = File(...)):
     except Exception as e:
         if os.path.exists(tmp): os.remove(tmp)
         raise HTTPException(500, f"Gagal parse: {e}")
+
+
+# ══════════════════════════════════════════════════════════════
+# PURCHASE ORDER APIs
+# ══════════════════════════════════════════════════════════════
+
+@app.post("/api/po/upload")
+async def po_upload(file: UploadFile = File(...)):
+    """
+    Upload ongoing PO dari Excel.
+    Expected columns: SKU | Product Name | Qty Ordered | Supplier (optional) | Order Date (optional) | Expected Date (optional)
+    Atau minimal: product_name + qty_ordered (akan di-lookup SKU dari master/products).
+    """
+    if not file.filename.endswith((".xls", ".xlsx")):
+        raise HTTPException(400, "Format harus .xls/.xlsx")
+    content = await file.read()
+    tmp = os.path.join(UPLOAD_DIR, f"po_{uuid.uuid4().hex[:8]}{os.path.splitext(file.filename)[1]}")
+    with open(tmp, "wb") as f:
+        f.write(content)
+    try:
+        ext = os.path.splitext(tmp)[1].lower()
+        df = pd.read_excel(tmp, engine="xlrd" if ext == ".xls" else "openpyxl")
+        df.columns = [str(c).strip() for c in df.columns]
+
+        # Flexible column mapping
+        col_map = {}
+        for c in df.columns:
+            cl = c.lower()
+            if cl in ("sku", "kode"):
+                col_map[c] = "sku"
+            elif any(k in cl for k in ("product", "nama", "name", "item", "description")):
+                col_map[c] = "product_name"
+            elif any(k in cl for k in ("qty ordered", "qty_ordered", "quantity", "qty", "jumlah", "order")):
+                col_map[c] = "qty_ordered"
+            elif any(k in cl for k in ("supplier", "vendor")):
+                col_map[c] = "supplier"
+            elif any(k in cl for k in ("order date", "order_date", "tanggal")):
+                col_map[c] = "order_date"
+            elif any(k in cl for k in ("expected", "eta", "estimasi")):
+                col_map[c] = "expected_date"
+        df = df.rename(columns=col_map)
+
+        if "qty_ordered" not in df.columns:
+            raise HTTPException(400, "Kolom qty/quantity tidak ditemukan")
+
+        df["qty_ordered"] = pd.to_numeric(df["qty_ordered"], errors="coerce").fillna(0).astype(int)
+        df = df[df["qty_ordered"] > 0].copy()
+
+        if df.empty:
+            raise HTTPException(400, "Tidak ada data PO valid (qty > 0)")
+
+        # Resolve SKU: from sku column, or lookup from products table by name
+        engine = get_engine()
+        product_lookup = {}
+        with engine.connect() as c:
+            rows = c.execute(text("SELECT sku, name FROM products")).fetchall()
+            for r in rows:
+                product_lookup[r[1].strip().lower()] = r[0]
+
+        if "sku" not in df.columns:
+            df["sku"] = ""
+
+        resolved = []
+        unmatched = []
+        for _, row in df.iterrows():
+            sku = str(row.get("sku", "")).strip()
+            pname = str(row.get("product_name", "")).strip()
+
+            # Try SKU first, then name lookup
+            if not sku or sku in ("", "nan", "0"):
+                sku = product_lookup.get(pname.lower(), "")
+                # Partial match fallback
+                if not sku:
+                    for db_name, db_sku in product_lookup.items():
+                        if db_name in pname.lower() or pname.lower() in db_name:
+                            sku = db_sku
+                            break
+
+            if sku:
+                resolved.append({
+                    "sku": sku,
+                    "qty_ordered": int(row["qty_ordered"]),
+                    "supplier": str(row.get("supplier", "")) if pd.notna(row.get("supplier")) else None,
+                    "order_date": pd.to_datetime(row.get("order_date"), errors="coerce"),
+                    "expected_date": pd.to_datetime(row.get("expected_date"), errors="coerce"),
+                })
+            else:
+                unmatched.append(pname)
+
+        if not resolved:
+            raise HTTPException(400, f"Tidak ada produk yang bisa di-match. Unmatched: {unmatched[:10]}")
+
+        # Insert into purchase_orders — mark old pending as cancelled, then insert new
+        conn = get_raw_conn()
+        conn.autocommit = False
+        cur = conn.cursor()
+        try:
+            # Cancel all existing pending POs (fresh upload = fresh state)
+            cur.execute("UPDATE purchase_orders SET status = 'cancelled', updated_at = NOW() WHERE status IN ('pending', 'partial')")
+            for po in resolved:
+                cur.execute("""
+                    INSERT INTO purchase_orders (sku, qty_ordered, supplier, order_date, expected_date, status)
+                    VALUES (%s, %s, %s, %s, %s, 'pending')
+                """, (
+                    po["sku"], po["qty_ordered"], po["supplier"],
+                    po["order_date"].date() if pd.notna(po["order_date"]) else None,
+                    po["expected_date"].date() if pd.notna(po["expected_date"]) else None,
+                ))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            cur.close()
+            conn.close()
+
+        os.remove(tmp)
+        return {
+            "status": "success",
+            "message": f"{len(resolved)} PO berhasil dimuat",
+            "matched": len(resolved),
+            "unmatched": len(unmatched),
+            "unmatched_names": unmatched[:20],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise HTTPException(500, f"Gagal parse PO: {e}")
+
+
+@app.get("/api/po/list")
+async def po_list(status: str = "pending"):
+    """List ongoing POs. status = pending | partial | received | cancelled | all"""
+    engine = get_engine()
+    with engine.connect() as conn:
+        if status == "all":
+            rows = conn.execute(text("""
+                SELECT po.id, po.sku, p.name, po.qty_ordered, po.qty_received,
+                       po.supplier, po.status, po.order_date, po.expected_date
+                FROM purchase_orders po
+                LEFT JOIN products p ON p.sku = po.sku
+                ORDER BY po.created_at DESC
+            """)).fetchall()
+        else:
+            rows = conn.execute(text("""
+                SELECT po.id, po.sku, p.name, po.qty_ordered, po.qty_received,
+                       po.supplier, po.status, po.order_date, po.expected_date
+                FROM purchase_orders po
+                LEFT JOIN products p ON p.sku = po.sku
+                WHERE po.status = :status
+                ORDER BY po.created_at DESC
+            """), {"status": status}).fetchall()
+
+    return {
+        "count": len(rows),
+        "data": [
+            {
+                "id": r[0], "sku": r[1], "product": r[2],
+                "qty_ordered": r[3], "qty_received": r[4],
+                "supplier": r[5], "status": r[6],
+                "order_date": str(r[7]) if r[7] else None,
+                "expected_date": str(r[8]) if r[8] else None,
+            }
+            for r in rows
+        ],
+    }
+
+
+@app.delete("/api/po/{po_id}")
+async def po_delete(po_id: int):
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text("DELETE FROM purchase_orders WHERE id = :id"), {"id": po_id})
+        conn.commit()
+    return {"status": "deleted", "id": po_id}
+
+
+@app.patch("/api/po/{po_id}")
+async def po_update(po_id: int, body: dict = None):
+    """Update PO status or qty_received."""
+    if not body:
+        raise HTTPException(400, "Body kosong")
+    sets = []
+    params = {"id": po_id}
+    if "status" in body:
+        sets.append("status = :status")
+        params["status"] = body["status"]
+    if "qty_received" in body:
+        sets.append("qty_received = :qty_received")
+        params["qty_received"] = int(body["qty_received"])
+    if not sets:
+        raise HTTPException(400, "Tidak ada field yang di-update")
+    sets.append("updated_at = NOW()")
+    engine = get_engine()
+    with engine.connect() as conn:
+        conn.execute(text(f"UPDATE purchase_orders SET {', '.join(sets)} WHERE id = :id"), params)
+        conn.commit()
+    return {"status": "updated", "id": po_id}
 
 
 # ══════════════════════════════════════════════════════════════
