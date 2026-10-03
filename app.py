@@ -95,7 +95,9 @@ async def upload_master_sku(file: UploadFile = File(...)):
         # IMPORTANT: stock_snapshots.sku has a foreign key to products.sku.
         # Therefore every SKU from the uploaded Master SKU must also exist in
         # products, even if that SKU has never appeared in sales yet.
-        master_df = pd.read_excel(MASTER_SKU_PATH, engine="openpyxl")
+        ext_m = os.path.splitext(MASTER_SKU_PATH)[1].lower()
+        engine_m = "xlrd" if ext_m == ".xls" else "openpyxl"
+        master_df = pd.read_excel(MASTER_SKU_PATH, engine=engine_m)
         master_df.columns = [str(c).strip() for c in master_df.columns]
         sku_col = next((c for c in master_df.columns if "sku" in c.lower()), None)
         name_col = next((c for c in master_df.columns
@@ -157,7 +159,8 @@ async def upload_food_sku(file: UploadFile = File(...)):
     with open(tmp, "wb") as f:
         f.write(content)
     try:
-        df = pd.read_excel(tmp, engine="openpyxl", header=None)
+        ext_f = os.path.splitext(tmp)[1].lower()
+        df = pd.read_excel(tmp, engine="xlrd" if ext_f == ".xls" else "openpyxl", header=None)
         df.columns = ["sku", "name"] if len(df.columns) >= 2 else ["sku"]
         df["sku"] = df["sku"].astype(str).str.strip()
         food_skus = set(df["sku"].tolist())
@@ -352,9 +355,24 @@ async def stock_upload(file: UploadFile = File(...)):
         ext = os.path.splitext(tmp)[1].lower()
         raw = pd.read_excel(tmp, engine="xlrd" if ext == ".xls" else "openpyxl", header=None)
         raw.columns = range(len(raw.columns))
+        if len(raw) > 0:
+            first_val = str(raw.iloc[0, 0]).strip().upper()
+            if any(k in first_val for k in ("SKU", "KODE", "NO", "ITEM")):
+                raw = raw.iloc[1:].reset_index(drop=True)
         raw = raw.dropna(subset=[0])
         raw[0] = raw[0].astype(str).str.strip()
-        raw[2] = pd.to_numeric(raw[2], errors="coerce").fillna(0)
+        def _parse_id_qty(val):
+            if pd.isna(val):
+                return 0.0
+            s = str(val).strip()
+            if s in ("", "-"):
+                return 0.0
+            s = s.replace(".", "").replace(",", ".")
+            try:
+                return float(s)
+            except ValueError:
+                return 0.0
+        raw[2] = raw[2].apply(_parse_id_qty)
         df = raw[raw[0].apply(lambda s: len(s.replace("-",".").split(".")) >= 3)].copy()
         df = df.rename(columns={0:"sku", 1:"product", 2:"quantity"})
         df["quantity"] = df["quantity"].astype(int)
@@ -652,7 +670,8 @@ async def db_stats():
 async def overview_summary(
     start: str = None, end: str = None,
     preset: str = "l4w",
-    top_sort: str = "revenue"
+    top_sort: str = "revenue",
+    product_type: str = "all"
 ):
     engine = get_engine()
     with engine.connect() as conn:
@@ -727,10 +746,13 @@ async def overview_summary(
 
         # Top products
         order_col = "r" if top_sort == "revenue" else "q"
+        type_filter = ""
+        if product_type in ("import", "food"):
+            type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
         top_all = conn.execute(text(f"""
             SELECT s.sku,p.name,SUM(s.quantity) q,SUM(s.amount) r
             FROM sales s JOIN products p ON s.sku=p.sku
-            WHERE s.invoice_date>=:s AND s.invoice_date<=:e
+            WHERE s.invoice_date>=:s AND s.invoice_date<=:e {type_filter}
             GROUP BY s.sku,p.name ORDER BY {order_col} DESC LIMIT 50
         """), {"s": dt_start, "e": dt_end}).fetchall()
         top_g = []
@@ -787,7 +809,7 @@ async def overview_summary(
 
 
 @app.get("/api/best-sellers-at-risk")
-async def best_sellers_at_risk():
+async def best_sellers_at_risk(product_type: str = "all"):
     """Top sellers with low stock coverage — decision support."""
     engine = get_engine()
     with engine.connect() as conn:
@@ -797,10 +819,14 @@ async def best_sellers_at_risk():
         max_date = mx[0]
         l4w_start = max_date - timedelta(days=27)
 
-        sales = conn.execute(text("""
+        type_filter = ""
+        if product_type in ("import", "food"):
+            type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
+
+        sales = conn.execute(text(f"""
             SELECT s.sku, p.name, SUM(s.quantity) qty, SUM(s.amount) rev
             FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date >= :s GROUP BY s.sku, p.name
+            WHERE s.invoice_date >= :s {type_filter} GROUP BY s.sku, p.name
         """), {"s": l4w_start}).fetchall()
 
         try:
@@ -1179,6 +1205,51 @@ async def replenishment():
 
     result = calculate_replenishment(engine, forecast_cache["latest"])
     return result
+
+
+from fastapi.responses import StreamingResponse
+
+@app.get("/api/template/{template_type}")
+async def download_template(template_type: str):
+    templates = {
+        "sales": {
+            "filename": "Sales_Template.xlsx",
+            "columns": ["Invoice Date", "Description", "Quantity", "Amount", "COGS Amount", "Gross Profit"],
+            "sample": [["01 Jan 2026", "299.025.04.001 - Contoh Produk A", 100, 1500000, 1000000, 500000]],
+        },
+        "stock": {
+            "filename": "Stock_Template.xlsx",
+            "columns": ["SKU", "Description", "Quantity"],
+            "sample": [["299.025.04.001", "Contoh Produk A", 500]],
+        },
+        "master": {
+            "filename": "Master_SKU_Template.xlsx",
+            "columns": ["SKU", "Product Name"],
+            "sample": [["299.025.04.001", "Contoh Produk A"], ["299.039.21.04.001", "Contoh Produk B"]],
+        },
+        "food": {
+            "filename": "Food_SKU_Template.xlsx",
+            "columns": ["SKU", "Product Name"],
+            "sample": [["299.025.04.001", "Produk Makanan A"], ["299.025.09", "Produk Makanan B"]],
+        },
+        "po": {
+            "filename": "PO_Template.xlsx",
+            "columns": ["Product Name", "Qty Ordered", "Supplier", "Order Date", "Expected Date"],
+            "sample": [["Contoh Produk A", 500, "Supplier X", "2026-09-01", "2026-11-01"]],
+        },
+    }
+    if template_type not in templates:
+        raise HTTPException(400, f"Template tidak tersedia: {template_type}")
+    t = templates[template_type]
+    df = pd.DataFrame(t["sample"], columns=t["columns"])
+    buf = io.BytesIO()
+    df.to_excel(buf, index=False, engine="openpyxl")
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{t["filename"]}"'},
+    )
 
 
 if __name__ == "__main__":

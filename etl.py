@@ -13,7 +13,9 @@ import os
 def load_master_sku(filepath: str = None) -> dict:
     """Load master SKU mapping from Excel. Returns {description_lower: sku}."""
     if filepath and os.path.exists(filepath):
-        df = pd.read_excel(filepath, engine="openpyxl")
+        ext = os.path.splitext(filepath)[1].lower()
+        engine = "xlrd" if ext == ".xls" else "openpyxl"
+        df = pd.read_excel(filepath, engine=engine)
         df.columns = [c.strip() for c in df.columns]
         sku_col = next((c for c in df.columns if 'sku' in c.lower()), None)
         desc_col = next((c for c in df.columns if 'desc' in c.lower() or 'name' in c.lower() or 'product' in c.lower()), None)
