@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+*.xlsx
+*.xls
+output/
+uploads/
+.DS_Store
+MASTER_SKU.xlsx
+*.log
