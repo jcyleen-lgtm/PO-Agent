@@ -1,8 +1,8 @@
 __pycache__/
-*.pyc
 .env
-*.xlsx
-output/
-credentials.json*.xls
 uploads/
-.DS_Store
+*.pyc
+MASTER SKU.xlsx
+MASTER_SKU.xls
+.venv/
+
