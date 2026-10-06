@@ -6,3 +6,21 @@ MASTER SKU.xlsx
 MASTER_SKU.xls
 .venv/
 
+
+# Data files
+*.xlsx
+*.csv
+data/
+output/
+uploads/
+
+# System
+.DS_Store
+__pycache__/
+*.pyc
+
+# Env
+.env
+
+# Old
+migrations/
