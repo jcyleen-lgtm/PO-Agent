@@ -2,12 +2,14 @@
 ETL Module — membersihkan data mentah Accurate menjadi format siap-load.
 Logic diambil dari ETL_Penjualan_ACCURATE.ipynb.
 Includes Master SKU lookup for products without numeric SKU prefix.
+Supports DB-based product lookup as primary SKU resolver.
 """
 
 import pandas as pd
 import numpy as np
 import re
 import os
+import hashlib
 
 
 def load_master_sku(filepath: str = None) -> dict:
@@ -26,13 +28,31 @@ def load_master_sku(filepath: str = None) -> dict:
     return {}
 
 
-def clean_sales_data(filepath: str, master_sku: dict = None) -> dict:
+def load_product_lookup_from_db(engine) -> dict:
+    """Load {product_name_lower: sku} from products table in DB.
+    This is the primary SKU resolver since Accurate exports use plain
+    product names without SKU prefixes."""
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT sku, name FROM products WHERE sku != '0'")).fetchall()
+            mapping = {}
+            for r in rows:
+                if r[1]:
+                    mapping[str(r[1]).strip().lower()] = str(r[0]).strip()
+            return mapping
+    except Exception:
+        return {}
+
+
+def clean_sales_data(filepath: str, master_sku: dict = None, db_product_lookup: dict = None) -> dict:
     """
     Membersihkan file Excel mentah dari Accurate.
 
     Args:
         filepath: path ke file Excel mentah
-        master_sku: dict {description_lower: sku} untuk lookup
+        master_sku: dict {description_lower: sku} untuk lookup dari file
+        db_product_lookup: dict {product_name_lower: sku} dari DB products table
 
     Returns dict:
         - df: DataFrame bersih
@@ -41,6 +61,8 @@ def clean_sales_data(filepath: str, master_sku: dict = None) -> dict:
     """
     if master_sku is None:
         master_sku = {}
+    if db_product_lookup is None:
+        db_product_lookup = {}
 
     stats = {}
     errors = []
@@ -153,32 +175,52 @@ def clean_sales_data(filepath: str, master_sku: dict = None) -> dict:
     df["product_raw"] = df["product_raw"].ffill()
 
     # ── Step 6: Extract SKU dari nama produk ──────────────────
+    # Merge all lookup sources: DB products (primary) > master_sku file (fallback)
+    # DB lookup takes priority because it's the most up-to-date source
+    combined_lookup = {}
+    combined_lookup.update(master_sku)        # file-based (lower priority)
+    combined_lookup.update(db_product_lookup)  # DB-based (higher priority)
+
+    # Auto-generate stable SKUs for unmatched products
+    # Uses hash of product name so re-uploads produce the same SKU
+    auto_sku_cache = {}
+
+    def _generate_sku(product_name: str) -> str:
+        """Generate a deterministic SKU from product name: AUTO-<8hex>"""
+        h = hashlib.md5(product_name.strip().lower().encode()).hexdigest()[:8].upper()
+        return f"AUTO-{h}"
+
     def extract_sku_name(raw_name):
         if pd.isna(raw_name):
             return "0", str(raw_name)
         s = str(raw_name).strip()
-        # Pattern: numeric SKU (digits+dots) followed by separator then name
+        # Pattern 1: numeric SKU (digits+dots) followed by separator then name
         match = re.match(r"^([\d.]+)\s*[-–]\s*(.+)$", s)
         if match:
             return match.group(1).strip(), match.group(2).strip()
-        # Not a numeric SKU pattern — try master lookup
+        # Pattern 2: exact match in combined lookup (DB + master file)
         lookup_key = s.lower()
-        if lookup_key in master_sku:
-            return master_sku[lookup_key], s
-        # Partial match: check if any master description is contained in s or vice versa
-        for desc_key, sku_val in master_sku.items():
+        if lookup_key in combined_lookup:
+            return combined_lookup[lookup_key], s
+        # Pattern 3: partial match (substring in either direction)
+        for desc_key, sku_val in combined_lookup.items():
             if desc_key in lookup_key or lookup_key in desc_key:
                 return sku_val, s
-        return "0", s
+        # Pattern 4: auto-generate SKU for unmatched products
+        if lookup_key not in auto_sku_cache:
+            auto_sku_cache[lookup_key] = _generate_sku(s)
+        return auto_sku_cache[lookup_key], s
 
     sku_names = df["product_raw"].apply(extract_sku_name)
     df["SKU"] = sku_names.apply(lambda x: x[0])
     df["product_name"] = sku_names.apply(lambda x: x[1])
 
-    # Count how many matched via master
-    sku_zero = (df["SKU"] == "0").sum()
-    stats["sku_from_name"] = int((df["SKU"] != "0").sum())
-    stats["sku_unmatched"] = int(sku_zero)
+    # Count SKU resolution stats
+    is_auto = df["SKU"].str.startswith("AUTO-")
+    stats["sku_from_lookup"] = int((~is_auto & (df["SKU"] != "0")).sum())
+    stats["sku_auto_generated"] = int(is_auto.sum())
+    stats["sku_unmatched"] = int((df["SKU"] == "0").sum())
+    stats["auto_sku_products"] = len(auto_sku_cache)
 
     # ── Step 7: Hanya simpan baris transaksi ──────────────────
     before_rows = len(df)

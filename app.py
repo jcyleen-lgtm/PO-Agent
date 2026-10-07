@@ -19,7 +19,7 @@ import numpy as np
 from sqlalchemy import create_engine, text
 import psycopg2
 
-from etl import clean_sales_data, load_master_sku
+from etl import clean_sales_data, load_master_sku, load_product_lookup_from_db
 from forecast import run_forecast, save_forecast_to_db, calculate_replenishment
 
 DB_URL = os.getenv("SUPABASE_DB_URL")
@@ -192,7 +192,12 @@ async def etl_upload(file: UploadFile = File(...)):
     content = await file.read()
     with open(save_path, "wb") as f:
         f.write(content)
-    result = clean_sales_data(save_path, master_sku=master_sku)
+    # Load DB product lookup for SKU resolution (primary source)
+    try:
+        db_lookup = load_product_lookup_from_db(get_engine())
+    except Exception:
+        db_lookup = {}
+    result = clean_sales_data(save_path, master_sku=master_sku, db_product_lookup=db_lookup)
     if result["errors"]:
         os.remove(save_path)
         raise HTTPException(400, detail={"errors": result["errors"]})
