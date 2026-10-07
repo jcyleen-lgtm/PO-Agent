@@ -359,7 +359,15 @@ async def stock_upload(file: UploadFile = File(...)):
         raw.columns = range(len(raw.columns))
         raw = raw.dropna(subset=[0])
         raw[0] = raw[0].astype(str).str.strip()
-        raw[2] = pd.to_numeric(raw[2], errors="coerce").fillna(0)
+        # Parse Indonesian number format: "312.507,92" -> 312507.92
+        def parse_id_qty(val):
+            if pd.isna(val): return 0
+            s = str(val).strip()
+            if s in ("", "-", "QTY"): return 0
+            s = s.replace(".", "").replace(",", ".")
+            try: return int(float(s))
+            except: return 0
+        raw[2] = raw[2].apply(parse_id_qty)
         df = raw[raw[0].apply(lambda s: len(s.replace("-",".").split(".")) >= 3)].copy()
         df = df.rename(columns={0:"sku", 1:"product", 2:"quantity"})
         df["quantity"] = df["quantity"].astype(int)
@@ -368,19 +376,21 @@ async def stock_upload(file: UploadFile = File(...)):
         cur = conn.cursor()
         conn.autocommit = False
         try:
-            # Validate all Stock SKUs first so one missing product does not
-            # surface as an opaque PostgreSQL foreign-key 500 error.
+            # Auto-insert missing SKUs into products table so stock upload
+            # doesn't fail on FK constraint. Product name taken from stock file.
             stock_skus = sorted(set(df["sku"].astype(str).str.strip()))
             cur.execute("SELECT sku FROM products WHERE sku = ANY(%s)", (stock_skus,))
             existing_skus = {r[0] for r in cur.fetchall()}
             missing_skus = [sku for sku in stock_skus if sku not in existing_skus]
             if missing_skus:
-                preview = ", ".join(missing_skus[:20])
-                extra = f" (+{len(missing_skus)-20} lainnya)" if len(missing_skus) > 20 else ""
-                raise ValueError(
-                    f"{len(missing_skus)} SKU Stock belum terdaftar di database products: {preview}{extra}. "
-                    "Upload Master SKU terlebih dahulu, lalu upload Stock kembali."
-                )
+                # Build SKU -> product name mapping from the stock file
+                sku_name_map = df.drop_duplicates(subset=["sku"]).set_index("sku")["product"].to_dict()
+                for msku in missing_skus:
+                    pname = sku_name_map.get(msku, msku)
+                    cur.execute(
+                        "INSERT INTO products (sku, name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                        (msku, pname)
+                    )
 
             cur.execute("DELETE FROM stock_snapshots WHERE snapshot_date = %s", (today,))
             for _, row in df.iterrows():
@@ -427,11 +437,11 @@ async def po_upload(file: UploadFile = File(...)):
         col_map = {}
         for c in df.columns:
             cl = c.lower()
-            if cl in ("sku", "kode"):
+            if cl in ("sku", "kode", "item code", "item_code", "kode item"):
                 col_map[c] = "sku"
             elif any(k in cl for k in ("product", "nama", "name", "item", "description")):
                 col_map[c] = "product_name"
-            elif any(k in cl for k in ("qty ordered", "qty_ordered", "quantity", "qty", "jumlah", "order")):
+            elif any(k in cl for k in ("qty ordered", "qty_ordered", "quantity", "total qty", "total_qty", "qty", "jumlah", "order")):
                 col_map[c] = "qty_ordered"
             elif any(k in cl for k in ("supplier", "vendor")):
                 col_map[c] = "supplier"
@@ -488,6 +498,10 @@ async def po_upload(file: UploadFile = File(...)):
                             break
                 if sku:
                     new_products.append({"sku": sku, "name": pname})
+
+            # If SKU column had a value but it's not in products, auto-insert it
+            if sku and sku not in product_lookup.values():
+                new_products.append({"sku": sku, "name": pname or sku})
 
             if sku:
                 resolved.append({
@@ -792,9 +806,12 @@ async def overview_summary(
 
 
 @app.get("/api/best-sellers-at-risk")
-async def best_sellers_at_risk():
+async def best_sellers_at_risk(product_type: str = "all"):
     """Top sellers with low stock coverage — decision support."""
     engine = get_engine()
+    type_filter = ""
+    if product_type in ("import", "food"):
+        type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
     with engine.connect() as conn:
         mx = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).fetchone()
         if not mx or not mx[0]:
@@ -802,10 +819,10 @@ async def best_sellers_at_risk():
         max_date = mx[0]
         l4w_start = max_date - timedelta(days=27)
 
-        sales = conn.execute(text("""
+        sales = conn.execute(text(f"""
             SELECT s.sku, p.name, SUM(s.quantity) qty, SUM(s.amount) rev
             FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date >= :s GROUP BY s.sku, p.name
+            WHERE s.invoice_date >= :s {type_filter} GROUP BY s.sku, p.name
         """), {"s": l4w_start}).fetchall()
 
         try:
