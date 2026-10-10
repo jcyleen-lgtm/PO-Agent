@@ -151,7 +151,9 @@ async def upload_master_sku(file: UploadFile = File(...)):
 
 @app.post("/api/food-sku/upload")
 async def upload_food_sku(file: UploadFile = File(...)):
-    """Upload list of food SKUs. Marks matching products as product_type='food', rest as 'import'."""
+    """Upload list of food SKUs. Auto-detects food SKUs from the uploaded file
+    and marks matching products as product_type='food', rest as 'import'.
+    Accepts any Excel file with SKU column — system auto-categorizes."""
     content = await file.read()
     tmp = os.path.join(UPLOAD_DIR, f"food_{uuid.uuid4().hex[:8]}.xlsx")
     with open(tmp, "wb") as f:
@@ -160,22 +162,117 @@ async def upload_food_sku(file: UploadFile = File(...)):
         df = pd.read_excel(tmp, engine="openpyxl", header=None)
         df.columns = ["sku", "name"] if len(df.columns) >= 2 else ["sku"]
         df["sku"] = df["sku"].astype(str).str.strip()
-        food_skus = set(df["sku"].tolist())
+        # Filter out empty/nan SKUs
+        df = df[df["sku"].str.len() > 0]
+        df = df[df["sku"] != "nan"]
+
+        # Auto-detect: check if this is a full master list or a food-only list
+        # If file has SKUs outside 299.025.* prefix, treat it as full list
+        # and auto-detect food items by the 299.025 prefix
+        all_skus = set(df["sku"].tolist())
+        food_prefix = "299.025"
+        has_non_food = any(not s.startswith(food_prefix) for s in all_skus if s != "SKU")
+
+        if has_non_food:
+            # Full list uploaded (like LIST_SKU.xlsx) — auto-detect food by prefix
+            food_skus = {s for s in all_skus if s.startswith(food_prefix)}
+        else:
+            # Food-only list uploaded (like FOOD_SKU.xlsx) — all entries are food
+            food_skus = all_skus
+
+        # Build name->sku mapping from the food file for SKU resolution
+        food_name_to_sku = {}
+        if "name" in df.columns:
+            for _, row in df.iterrows():
+                sku = str(row["sku"]).strip()
+                name = str(row.get("name", "")).strip()
+                if sku and name and sku != "nan" and name != "nan":
+                    food_name_to_sku[name.lower()] = sku
 
         engine = get_engine()
-        with engine.connect() as conn:
-            # Reset all to import first
-            conn.execute(text("UPDATE products SET product_type = 'import' WHERE product_type IS DISTINCT FROM 'import'"))
-            # Mark food SKUs (exact match OR prefix match: if 299.025 is in list, all 299.025.xx become food)
+        conn = get_raw_conn()
+        conn.autocommit = False
+        cur = conn.cursor()
+        try:
+            # Step 1: Upsert food SKUs into products table (like master SKU does)
+            food_products_synced = 0
+            food_rows = df[df["sku"].isin(food_skus)].copy()
+            if "name" in food_rows.columns:
+                for _, row in food_rows.iterrows():
+                    sku = str(row["sku"]).strip()
+                    name = str(row.get("name", "")).strip()
+                    if not sku or sku in ("nan", "SKU", "Item No."):
+                        continue
+                    if not name or name == "nan":
+                        name = sku
+                    cur.execute("""
+                        INSERT INTO products (sku, name, product_type)
+                        VALUES (%s, %s, 'food')
+                        ON CONFLICT (sku) DO UPDATE SET
+                            name = EXCLUDED.name,
+                            product_type = 'food',
+                            updated_at = NOW()
+                    """, (sku, name))
+                    food_products_synced += 1
+
+            # Step 2: Fix AUTO-* SKUs — match by product name and replace with proper food SKU
+            auto_fixed = 0
+            if food_name_to_sku:
+                cur.execute("SELECT sku, name FROM products WHERE sku LIKE 'AUTO-%%'")
+                auto_products = cur.fetchall()
+                for auto_sku, auto_name in auto_products:
+                    if not auto_name:
+                        continue
+                    auto_lower = auto_name.strip().lower()
+                    matched_food_sku = food_name_to_sku.get(auto_lower)
+                    # Partial match fallback
+                    if not matched_food_sku:
+                        for fname, fsku in food_name_to_sku.items():
+                            if fname in auto_lower or auto_lower in fname:
+                                matched_food_sku = fsku
+                                break
+                    if matched_food_sku:
+                        # Update sales records to use proper SKU
+                        cur.execute("UPDATE sales SET sku = %s WHERE sku = %s", (matched_food_sku, auto_sku))
+                        # Update stock_snapshots
+                        cur.execute("UPDATE stock_snapshots SET sku = %s WHERE sku = %s", (matched_food_sku, auto_sku))
+                        # Update purchase_orders
+                        cur.execute("UPDATE purchase_orders SET sku = %s WHERE sku = %s", (matched_food_sku, auto_sku))
+                        # Update forecast_results
+                        cur.execute("UPDATE forecast_results SET sku = %s WHERE sku = %s", (matched_food_sku, auto_sku))
+                        # Delete the AUTO product (proper SKU already exists from step 1)
+                        cur.execute("DELETE FROM products WHERE sku = %s", (auto_sku,))
+                        auto_fixed += 1
+
+            # Step 3: Reset all to import, then mark food
+            cur.execute("UPDATE products SET product_type = 'import' WHERE product_type IS DISTINCT FROM 'import'")
             updated = 0
             for fsku in food_skus:
-                r = conn.execute(text(
-                    "UPDATE products SET product_type = 'food' WHERE sku = :s OR sku LIKE :prefix"
-                ), {"s": fsku, "prefix": fsku + ".%"})
-                updated += r.rowcount
+                cur.execute(
+                    "UPDATE products SET product_type = 'food' WHERE sku = %s OR sku LIKE %s",
+                    (fsku, fsku + ".%")
+                )
+                updated += cur.rowcount
             conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            cur.close()
+            conn.close()
+
         os.remove(tmp)
-        return {"status": "success", "food_skus_in_file": len(food_skus), "products_marked_food": updated}
+
+        mode = "auto-detect dari master list" if has_non_food else "food-only list"
+        return {
+            "status": "success",
+            "detection_mode": mode,
+            "food_skus_in_file": len(food_skus),
+            "total_skus_in_file": len(all_skus),
+            "products_marked_food": updated,
+            "products_synced": food_products_synced,
+            "auto_skus_fixed": auto_fixed,
+        }
     except Exception as e:
         if os.path.exists(tmp):
             os.remove(tmp)
@@ -671,9 +768,27 @@ async def db_stats():
 async def overview_summary(
     start: str = None, end: str = None,
     preset: str = "l4w",
-    top_sort: str = "revenue"
+    top_sort: str = "revenue",
+    product_type: str = "all"
 ):
     engine = get_engine()
+    # Build product_type filter (same pattern as weekly-analysis & inventory)
+    type_filter = ""
+    if product_type in ("import", "food"):
+        type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
+    # For queries that only touch sales (no JOIN products), we need a sub-filter
+    type_filter_sales = ""
+    if product_type in ("import", "food"):
+        type_filter_sales = (
+            f"AND s.sku IN (SELECT sku FROM products WHERE COALESCE(product_type, 'import') = '{product_type}')"
+        )
+    # Simpler version for raw sales table (no alias)
+    type_filter_raw = ""
+    if product_type in ("import", "food"):
+        type_filter_raw = (
+            f"AND sku IN (SELECT sku FROM products WHERE COALESCE(product_type, 'import') = '{product_type}')"
+        )
+
     with engine.connect() as conn:
         mx = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).fetchone()
         max_date = mx[0] if mx and mx[0] else None
@@ -702,9 +817,9 @@ async def overview_summary(
         prev_start = prev_end - timedelta(days=period_days - 1)
 
         # KPIs
-        kpi = conn.execute(text("""
+        kpi = conn.execute(text(f"""
             SELECT COALESCE(SUM(quantity),0), COALESCE(SUM(amount),0), COUNT(DISTINCT sku)
-            FROM sales WHERE invoice_date >= :s AND invoice_date <= :e
+            FROM sales WHERE invoice_date >= :s AND invoice_date <= :e {type_filter_raw}
         """), {"s": dt_start, "e": dt_end}).fetchone()
         total_sales = int(kpi[0]); revenue = float(kpi[1]); active = int(kpi[2])
         avg_weekly = round(total_sales / period_weeks)
@@ -713,18 +828,18 @@ async def overview_summary(
         mid = dt_start + timedelta(days=period_days // 2)
         trending = (0,)
         try:
-            trending = conn.execute(text("""
-                WITH fh AS (SELECT sku,SUM(quantity) q FROM sales WHERE invoice_date>=:s AND invoice_date<:m GROUP BY sku),
-                     sh AS (SELECT sku,SUM(quantity) q FROM sales WHERE invoice_date>=:m AND invoice_date<=:e GROUP BY sku)
+            trending = conn.execute(text(f"""
+                WITH fh AS (SELECT sku,SUM(quantity) q FROM sales WHERE invoice_date>=:s AND invoice_date<:m {type_filter_raw} GROUP BY sku),
+                     sh AS (SELECT sku,SUM(quantity) q FROM sales WHERE invoice_date>=:m AND invoice_date<=:e {type_filter_raw} GROUP BY sku)
                 SELECT COUNT(*) FROM sh JOIN fh ON sh.sku=fh.sku WHERE fh.q>0 AND sh.q>fh.q
             """), {"s": dt_start, "m": mid, "e": dt_end}).fetchone()
         except Exception:
             trending = (0,)
 
         # Previous period KPIs
-        prev = conn.execute(text("""
+        prev = conn.execute(text(f"""
             SELECT COALESCE(SUM(quantity),0), COALESCE(SUM(amount),0), COUNT(DISTINCT sku)
-            FROM sales WHERE invoice_date >= :s AND invoice_date <= :e
+            FROM sales WHERE invoice_date >= :s AND invoice_date <= :e {type_filter_raw}
         """), {"s": prev_start, "e": prev_end}).fetchone()
         p_sales = int(prev[0]); p_rev = float(prev[1]); p_active = int(prev[2])
         p_avg = round(p_sales / period_weeks) if period_weeks else 0
@@ -735,13 +850,13 @@ async def overview_summary(
         # Trend chart
         if period_days <= 14:
             agg = "day"
-            tq = text("SELECT invoice_date::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
+            tq = text(f"SELECT invoice_date::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e {type_filter_raw} GROUP BY d ORDER BY d")
         elif period_days <= 90:
             agg = "week"
-            tq = text("SELECT DATE_TRUNC('week',invoice_date)::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
+            tq = text(f"SELECT DATE_TRUNC('week',invoice_date)::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e {type_filter_raw} GROUP BY d ORDER BY d")
         else:
             agg = "month"
-            tq = text("SELECT DATE_TRUNC('month',invoice_date)::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
+            tq = text(f"SELECT DATE_TRUNC('month',invoice_date)::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e {type_filter_raw} GROUP BY d ORDER BY d")
         trend = conn.execute(tq, {"s": dt_start, "e": dt_end}).fetchall()
 
         # Top products
@@ -749,12 +864,12 @@ async def overview_summary(
         top_all = conn.execute(text(f"""
             SELECT s.sku,p.name,SUM(s.quantity) q,SUM(s.amount) r
             FROM sales s JOIN products p ON s.sku=p.sku
-            WHERE s.invoice_date>=:s AND s.invoice_date<=:e
+            WHERE s.invoice_date>=:s AND s.invoice_date<=:e {type_filter}
             GROUP BY s.sku,p.name ORDER BY {order_col} DESC LIMIT 50
         """), {"s": dt_start, "e": dt_end}).fetchall()
         top_g = []
         for r in top_all:
-            pq = conn.execute(text("SELECT COALESCE(SUM(quantity),0) FROM sales WHERE sku=:k AND invoice_date>=:s AND invoice_date<=:e"),
+            pq = conn.execute(text(f"SELECT COALESCE(SUM(quantity),0) FROM sales WHERE sku=:k AND invoice_date>=:s AND invoice_date<=:e {type_filter_raw}"),
                               {"k": r[0], "s": prev_start, "e": prev_end}).fetchone()
             prev_qty = int(pq[0])
             curr_qty = int(r[2])
