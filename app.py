@@ -23,7 +23,7 @@ from etl import clean_sales_data, load_master_sku, load_product_lookup_from_db
 from forecast import run_forecast, save_forecast_to_db, calculate_replenishment
 
 DB_URL = os.getenv("SUPABASE_DB_URL")
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = os.path.join("/tmp", "uploads")
 MASTER_SKU_PATH = "MASTER_SKU.xlsx"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
