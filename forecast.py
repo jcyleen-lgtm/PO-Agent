@@ -143,12 +143,41 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
 
     results = []
     skipped = 0
+    skip_reasons = {"too_few_weeks": 0, "no_sales": 0, "inactive": 0, "forecast_fail": 0}
+
+    # Recency threshold: skip SKUs with no sales in last 8 weeks
+    max_week = df["week_start"].max()
+    recency_cutoff = max_week - pd.DateOffset(weeks=8)
 
     for sku in df["sku"].unique():
         sku_data = df[df["sku"] == sku].copy()
 
-        # Fill missing weeks with 0
-        sku_weekly = pd.DataFrame({"week_start": all_weeks})
+        # Skip SKU "0" (unmatched products)
+        if str(sku).strip() == "0":
+            skipped += 1
+            skip_reasons["no_sales"] += 1
+            continue
+
+        # Recency check: must have at least 1 sale in last 8 weeks
+        recent_sales = sku_data[sku_data["week_start"] >= recency_cutoff]
+        if recent_sales.empty:
+            skipped += 1
+            skip_reasons["inactive"] += 1
+            continue
+
+        # Activity check: must have sales in at least 3 of last 12 weeks
+        last_12w_cutoff = max_week - pd.DateOffset(weeks=12)
+        last_12w_sales = sku_data[sku_data["week_start"] >= last_12w_cutoff]
+        if len(last_12w_sales) < 3:
+            skipped += 1
+            skip_reasons["inactive"] += 1
+            continue
+
+        # Zero-fill ONLY from first sale date of this SKU, not global start
+        sku_first_sale = sku_data["week_start"].min()
+        sku_weeks = all_weeks[all_weeks >= sku_first_sale]
+
+        sku_weekly = pd.DataFrame({"week_start": sku_weeks})
         sku_weekly = sku_weekly.merge(
             sku_data[["week_start", "total_qty", "total_amount"]],
             on="week_start",
@@ -161,16 +190,19 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
 
         if len(series) < min_weeks:
             skipped += 1
+            skip_reasons["too_few_weeks"] += 1
             continue
 
         if sum(series) == 0:
             skipped += 1
+            skip_reasons["no_sales"] += 1
             continue
 
         # Grid search
         best = grid_search_holts(series, forecast_periods)
         if best is None:
             skipped += 1
+            skip_reasons["forecast_fail"] += 1
             continue
 
         # Forecast week labels
@@ -228,6 +260,7 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     summary = {
         "total_skus_forecasted": len(results),
         "total_skus_skipped": skipped,
+        "skip_reasons": skip_reasons,
         "avg_mape": round(sum(mapes) / len(mapes), 2) if mapes else 0,
         "good_forecast_count": len([m for m in mapes if m < 25]),
         "moderate_forecast_count": len([m for m in mapes if 25 <= m < 50]),
