@@ -282,7 +282,13 @@ def clean_sales_data(filepath: str, master_sku: dict = None, db_product_lookup: 
     if "GPAO" in df.columns and "amount" in df.columns:
         df["GPAO (%)"] = np.where(df["amount"] != 0, df["GPAO"] / df["amount"], 0)
 
-    drop_cols = ["invoice_date", "description"]
+    # ── Step 11b: Filter negative quantity (returns dari Accurate) ──
+    if "quantity" in df.columns:
+        neg_mask = df["quantity"] < 0
+        stats["negative_qty_removed"] = int(neg_mask.sum())
+        df = df[~neg_mask].reset_index(drop=True)
+
+    drop_cols = ["description"]  # KEEP invoice_date for downstream date handling
     df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
 
     # ── Step 12: Final stats ──────────────────────────────────

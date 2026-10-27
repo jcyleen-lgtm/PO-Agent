@@ -70,13 +70,13 @@ def holts_des(series: list, alpha: float, beta: float, forecast_periods: int = 1
 def grid_search_holts(series: list, forecast_periods: int = 12) -> dict:
     """
     Grid search optimal α and β for Holt's DES.
-    α: 0.1–0.9, β: 0.1–0.3 (cap beta to prevent trend explosion on weekly data).
+    α: 0.1–0.9, β: 0.1–0.9 (81 combinations).
     """
     best = None
     best_mape = float("inf")
 
     for a in range(1, 10):
-        for b in range(1, 4):
+        for b in range(1, 10):
             alpha = a / 10
             beta = b / 10
             result = holts_des(series, alpha, beta, forecast_periods)
@@ -121,6 +121,20 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
         return {"error": "No sales data found", "results": []}
 
     df["week_start"] = pd.to_datetime(df["week_start"])
+
+    # ── Pareto 80/20 SKU scoping ─────────────────────────────
+    # Only forecast SKUs contributing to top 80% of total revenue
+    sku_revenue = df.groupby("sku")["total_amount"].sum().sort_values(ascending=False)
+    total_revenue = sku_revenue.sum()
+    cumulative = sku_revenue.cumsum()
+    pareto_skus = set(cumulative[cumulative <= total_revenue * 0.80].index)
+    # Always include the SKU that crosses the 80% threshold
+    if len(pareto_skus) < len(sku_revenue):
+        boundary_sku = cumulative[cumulative > total_revenue * 0.80].index[0]
+        pareto_skus.add(boundary_sku)
+
+    pareto_excluded = len(sku_revenue) - len(pareto_skus)
+    df = df[df["sku"].isin(pareto_skus)]
 
     # Product names
     with engine.connect() as conn:
@@ -260,6 +274,8 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     summary = {
         "total_skus_forecasted": len(results),
         "total_skus_skipped": skipped,
+        "pareto_skus_included": len(pareto_skus),
+        "pareto_skus_excluded": pareto_excluded,
         "skip_reasons": skip_reasons,
         "avg_mape": round(sum(mapes) / len(mapes), 2) if mapes else 0,
         "good_forecast_count": len([m for m in mapes if m < 25]),
