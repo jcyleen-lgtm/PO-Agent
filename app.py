@@ -42,7 +42,13 @@ forecast_cache = {}
 def get_engine():
     if not DB_URL:
         raise HTTPException(500, "SUPABASE_DB_URL not configured")
-    return create_engine(DB_URL)
+    # Force psycopg2 driver (Vercel's SQLAlchemy 2.x defaults to psycopg v3 which isn't installed)
+    url = DB_URL
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+    return create_engine(url)
 
 
 def get_raw_conn():
