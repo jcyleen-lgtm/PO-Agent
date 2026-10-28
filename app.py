@@ -21,6 +21,7 @@ import psycopg2
 
 from etl import clean_sales_data, load_master_sku, load_product_lookup_from_db
 from forecast import run_forecast, save_forecast_to_db, calculate_replenishment
+from auth import router as auth_router, require_login
 
 DB_URL = os.getenv("SUPABASE_DB_URL")
 UPLOAD_DIR = os.path.join("/tmp", "uploads")
@@ -29,6 +30,8 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI(title="PO Agent", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.middleware("http")(require_login)   # every /api/* route needs a login cookie (see auth.py)
+app.include_router(auth_router)         # /api/auth/login, /api/auth/logout, /api/auth/me
 
 master_sku = {}
 if os.path.exists(MASTER_SKU_PATH):
