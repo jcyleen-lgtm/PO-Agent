@@ -75,6 +75,81 @@ def _run_auto_forecast(engine):
         traceback.print_exc()
 
 
+def load_forecast_from_db(engine):
+    """Rebuild the latest forecast from the forecast_results table (written by save_forecast_to_db).
+    Reading it back takes one query instead of re-running the Holt's DES grid search."""
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT f.sku, COALESCE(p.name, f.sku) AS product_name, f.alpha, f.beta, f.mape,
+                   f.forecast_data, f.training_months, f.calculated_at
+            FROM forecast_results f
+            LEFT JOIN products p ON p.sku = f.sku
+            ORDER BY f.id
+        """)).fetchall()
+    if not rows:
+        return None
+
+    results, calc_times = [], []
+    for sku, name, alpha, beta, mape, fd, training, calc_at in rows:
+        fd = fd if isinstance(fd, dict) else json.loads(fd or "{}")
+        results.append({
+            "sku": sku,
+            "product_name": name,
+            "alpha": float(alpha) if alpha is not None else None,
+            "beta": float(beta) if beta is not None else None,
+            "mape": float(mape) if mape is not None else 999,
+            "trend": fd.get("trend", 0),
+            "trend_direction": fd.get("trend_direction", "stable"),
+            "level": fd.get("level", 0),
+            "avg_weekly_demand": fd.get("avg_weekly_demand", 0),
+            "training_weeks": training,
+            "actual_data": fd.get("actual", {"weeks": [], "quantities": []}),
+            "fitted_data": fd.get("fitted", {"weeks": [], "quantities": []}),
+            "forecast_data": fd.get("forecast", {"weeks": [], "quantities": []}),
+        })
+        if calc_at:
+            calc_times.append(calc_at)
+
+    mapes = [r["mape"] for r in results if r["mape"] < 999]
+    summary = {
+        "total_skus_forecasted": len(results),
+        "avg_mape": round(sum(mapes) / len(mapes), 2) if mapes else 0,
+        "good_forecast_count": len([m for m in mapes if m < 25]),
+        "moderate_forecast_count": len([m for m in mapes if 25 <= m < 50]),
+        "poor_forecast_count": len([m for m in mapes if m >= 50]),
+        "forecast_periods": len(results[0]["forecast_data"].get("quantities", [])),
+        "calculated_at": (lambda c: c.isoformat() if hasattr(c, "isoformat") else str(c))(max(calc_times)) if calc_times else None,
+        "source": "database",
+    }
+    return {"summary": summary, "results": results}
+
+
+def get_latest_forecast(engine, compute_if_missing=True):
+    """Forecast lookup order: memory cache → forecast_results table → full recompute (slow).
+    On Vercel every new instance starts with an empty cache, so the table read avoids
+    re-running the grid search on almost every page load."""
+    if "latest" in forecast_cache:
+        return forecast_cache["latest"]
+    try:
+        data = load_forecast_from_db(engine)
+    except Exception as e:
+        print(f"[forecast] could not read saved results: {e}")
+        data = None
+    if data:
+        forecast_cache["latest"] = data
+        return data
+    if not compute_if_missing:
+        return None
+    data = run_forecast(engine, forecast_periods=12)
+    if "error" not in data:
+        try:
+            save_forecast_to_db(engine, data)
+        except Exception as e:
+            print(f"[forecast] could not save results: {e}")
+        forecast_cache["latest"] = data
+    return data
+
+
 # ── Page Routes ───────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
@@ -802,8 +877,8 @@ async def overview_summary(
 
     # Forecast summary (from cache)
     fc_summary = None
-    if "latest" in forecast_cache:
-        fc = forecast_cache["latest"]
+    fc = get_latest_forecast(get_engine(), compute_if_missing=False)
+    if fc:
         fc_results = fc.get("results", [])
         if fc_results:
             # Aggregate demand next 8 weeks
@@ -1067,16 +1142,13 @@ async def inventory_analysis(sort: str = "priority", product_type: str = "import
     r4 = all_weeks[-4:] if len(all_weeks) >= 4 else all_weeks
 
     # Ensure forecast is available
-    if "latest" not in forecast_cache:
-        try:
-            fc_data = run_forecast(engine, forecast_periods=12)
-            if "error" not in fc_data:
-                forecast_cache["latest"] = fc_data
-        except Exception:
-            pass
+    try:
+        fc_data = get_latest_forecast(engine)
+    except Exception:
+        fc_data = None
     fc_map = {}
-    if "latest" in forecast_cache:
-        for r in forecast_cache["latest"].get("results", []):
+    if fc_data:
+        for r in fc_data.get("results", []):
             fc_map[r["sku"]] = r
 
     results = []
@@ -1181,12 +1253,7 @@ async def forecast_run():
 
 @app.get("/api/forecast/results")
 async def forecast_results(limit: int = 200, sort: str = "volume"):
-    if "latest" not in forecast_cache:
-        engine = get_engine()
-        data = run_forecast(engine, forecast_periods=12)
-        forecast_cache["latest"] = data
-    else:
-        data = forecast_cache["latest"]
+    data = get_latest_forecast(get_engine())
     results = data.get("results", [])
     if sort == "mape":
         results = sorted(results, key=lambda x: x["mape"])
@@ -1197,10 +1264,7 @@ async def forecast_results(limit: int = 200, sort: str = "volume"):
 
 @app.get("/api/forecast/sku/{sku}")
 async def forecast_sku(sku: str):
-    if "latest" not in forecast_cache:
-        engine = get_engine()
-        forecast_cache["latest"] = run_forecast(engine, forecast_periods=12)
-    results = forecast_cache["latest"].get("results", [])
+    results = get_latest_forecast(get_engine()).get("results", [])
     match = next((r for r in results if r["sku"] == sku), None)
     if not match:
         raise HTTPException(404, f"SKU {sku} tidak ditemukan")
@@ -1218,13 +1282,11 @@ async def replenishment():
     engine = get_engine()
 
     # Ensure forecast is available
-    if "latest" not in forecast_cache:
-        data = run_forecast(engine, forecast_periods=12)
-        if "error" in data:
-            return {"results": [], "summary": {"error": data["error"]}}
-        forecast_cache["latest"] = data
+    data = get_latest_forecast(engine)
+    if "error" in data:
+        return {"results": [], "summary": {"error": data["error"]}}
 
-    result = calculate_replenishment(engine, forecast_cache["latest"])
+    result = calculate_replenishment(engine, data)
     return result
 
 

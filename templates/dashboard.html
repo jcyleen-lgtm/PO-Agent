@@ -76,7 +76,8 @@ body::before{content:'';position:fixed;inset:0;background:var(--backdrop);pointe
 .nav-item:hover .tip{opacity:1}
 
 /* ═══ MAIN ═══ */
-.main{margin-left:100px;padding:32px 36px 56px;max-width:1520px;position:relative;z-index:1}
+.main{margin-left:100px;padding:32px clamp(20px,2.4vw,48px) 56px clamp(4px,.8vw,16px);position:relative;z-index:1}
+.tab-content{max-width:1840px;margin:0 auto}
 .tab-content{display:none}.tab-content.active{display:block;animation:fadeUp 220ms ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .page-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:14px}
@@ -96,10 +97,10 @@ h1 .name{color:var(--navy)}
 
 /* ═══ KPI STRIP ═══ */
 .kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);padding:0}
-.kpi-cell{padding:22px 24px;border-left:1px solid var(--border)}
+.kpi-cell{padding:22px clamp(14px,1.4vw,24px);border-left:1px solid var(--border);min-width:0}
 .kpi-cell:first-child{border-left:none}
 .kpi-label{font-size:14px;font-weight:500;color:var(--text3);margin-bottom:6px}
-.kpi-value{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.15;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.kpi-value{font-size:clamp(20px,1.6vw,28px);font-weight:700;letter-spacing:-.02em;line-height:1.15;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
 .kpi-cmp{font-size:13px;font-weight:500;margin-top:8px;color:var(--text3)}
 .kpi-cmp.up{color:var(--green)}.kpi-cmp.down{color:var(--red)}
 
@@ -273,6 +274,27 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
 .inv-legend .lg-v{font-size:26px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
 .inv-legend .lg-h{font-size:12px;color:var(--text3)}
 .sw{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+/* ═══ RISK CARDS ═══ */
+.risk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.risk-card{border:1px solid var(--border2);border-radius:16px;padding:16px;background:var(--glass-bg);display:flex;flex-direction:column;gap:10px;transition:border-color 150ms,transform 150ms;min-width:0}
+.risk-card:hover{border-color:var(--navy);transform:translateY(-2px)}
+.rc-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.rc-sku{font-size:13px;color:var(--text3);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-name{font-size:15px;font-weight:600;color:var(--text);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em}
+.rc-cov{display:flex;align-items:baseline;gap:6px}
+.rc-cov-v{font-size:28px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.rc-cov-l{font-size:13px;color:var(--text3)}
+.rc-bar{position:relative;height:8px;border-radius:4px;background:var(--seg)}
+.rc-bar span{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+.rc-bar i{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--text2);border-radius:1px}
+.rc-lt{font-size:12px;color:var(--text3)}
+.rc-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:10px;border-top:1px solid var(--border)}
+.rc-meta .l{font-size:12px;color:var(--text3)}
+.rc-meta .v{font-size:15px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-btn{justify-content:center;width:100%;padding:8px 12px;font-size:14px}
+.risk-card.extra{display:none}
+.risk-grid.all .risk-card.extra{display:flex}
 
 /* ═══ LIST ITEMS (mobile) ═══ */
 .mob-only{display:none}
@@ -484,9 +506,9 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
 
   <!-- Best sellers at risk (moved up) -->
   <div class="card" id="riskSection" style="display:none">
-    <div class="card-header"><div><div class="section-label">Best Sellers at Risk</div><div class="section-meta">Top sellers with low stock coverage</div></div><button class="link-btn" onclick="switchTab('inventory')">Open Inventory →</button></div>
-    <div class="tbl-wrap desk-only"><table id="riskTable"></table></div>
-    <div class="mob-only" id="riskList"></div>
+    <div class="card-header"><div><div class="section-label">Best Sellers at Risk</div><div class="section-meta">Top sellers, fewest weeks of stock first · marker = 8-week lead time</div></div><button class="link-btn" onclick="switchTab('inventory')">Open Inventory →</button></div>
+    <div class="risk-grid" id="riskGrid"></div>
+    <div style="text-align:center;margin-top:14px"><button class="btn btn-ghost" id="riskMore" onclick="toggleRiskAll()" hidden></button></div>
   </div>
 
   <!-- Actual vs forecast + statistics -->
@@ -626,7 +648,7 @@ let lastTrend=null,lastAgg=null,lastProj=null,lastSku=null;
 let weeklyData=[],invData=[],fcDataMap={},invSummaryCache=null,weeklyPromise=null;
 let weeklyPage=0,invPage=0;const PAGE_SIZE=50;
 
-function switchTab(tab){document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.getElementById('tab-'+tab).classList.add('active');const ni=document.querySelector(`.nav-item[data-tab="${tab}"]`);if(ni)ni.classList.add('active');if(tab==='forecast')loadWeekly();if(tab==='inventory')loadInventory();window.scrollTo(0,0);closeAllCdrops()}
+function switchTab(tab){document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.getElementById('tab-'+tab).classList.add('active');const ni=document.querySelector(`.nav-item[data-tab="${tab}"]`);if(ni)ni.classList.add('active');if(tab==='forecast')loadWeekly();if(tab==='inventory')loadInventory();window.scrollTo(0,0);closeAllCdrops();if(tab==='overview')requestAnimationFrame(applyRiskLimit)}
 function sparklineSvg(d,w=80,h=22,color='var(--chart-2)'){if(!d||d.length<2)return'';const mx=Math.max(...d,1);const pts=d.map((v,i)=>`${((i/(d.length-1))*w).toFixed(1)},${(h-1-(v/mx)*(h-2)).toFixed(1)}`).join(' ');return`<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" style="stroke:${color}" stroke-width="1.5" stroke-linejoin="round"/></svg>`}
 function trendBadge(t){return t==='up'?'<span class="trend-up" title="Rising">&#9650;</span>':t==='down'?'<span class="trend-down" title="Falling">&#9660;</span>':'<span class="trend-stable" title="Stable">&#9654;</span>'}
 function statusBadge(s){const m={understocked:'badge-red',healthy:'badge-green',overstocked:'badge-slate',no_sales:'badge-gray',critical:'badge-red',understock:'badge-yellow',overstock:'badge-slate'};const l={understocked:'Understocked',healthy:'Healthy',overstocked:'Overstocked',no_sales:'N/A',critical:'Critical',understock:'Understock',overstock:'Overstock'};return`<span class="badge ${m[s]||'badge-gray'}">${l[s]||s}</span>`}
@@ -661,29 +683,27 @@ function areaFill(ctx,hex){const g=ctx.createLinearGradient(0,0,0,ctx.canvas.cli
 
 /* ═══ TAB 1: OVERVIEW ═══ */
 async function fetchInvSummary(){if(invSummaryCache)return invSummaryCache;try{const r=await fetch('/api/inventory?sort=priority&product_type=import');const d=await r.json();invSummaryCache=d.summary||null}catch(e){}return invSummaryCache}
-async function loadOverview(){try{const ts=cDropVal('topSortSelect')||'revenue';let url;const s=document.getElementById('dateStart').value,e=document.getElementById('dateEnd').value;if(currentPreset==='custom'&&s&&e){url=`/api/overview?start=${s}&end=${e}&top_sort=${ts}&product_type=all`}else{url=`/api/overview?preset=${currentPreset==='custom'?'l4w':currentPreset}&top_sort=${ts}&product_type=all`}
-const[sR,oR,rR]=await Promise.all([fetch('/api/db/stats'),fetch(url),fetch('/api/best-sellers-at-risk?product_type=all')]);const stats=await sR.json(),ov=await oR.json(),risk=await rR.json();
-document.getElementById('lastUpdate').textContent=stats.last_update||'--';
-document.getElementById('dbInfo').innerHTML=`Connected · <strong>${fmt(stats.sales)}</strong> sales · <strong>${fmt(stats.products)}</strong> products · <strong>${stats.date_range||'--'}</strong>`;
+let ovSeq=0,lastOv=null,lastRisk=[];
+function refreshInsights(){if(lastOv)renderInsights(lastOv,lastRisk,invSummaryCache)}
+async function loadOverview(){const seq=++ovSeq;try{const ts=cDropVal('topSortSelect')||'revenue';let url;const s=document.getElementById('dateStart').value,e=document.getElementById('dateEnd').value;if(currentPreset==='custom'&&s&&e){url=`/api/overview?start=${s}&end=${e}&top_sort=${ts}&product_type=all`}else{url=`/api/overview?preset=${currentPreset==='custom'?'l4w':currentPreset}&top_sort=${ts}&product_type=all`}
+// Slow/secondary requests start now but nothing waits for them.
+fetch('/api/best-sellers-at-risk?product_type=all').then(r=>r.ok?r.json():{results:[]}).then(risk=>{if(seq!==ovSeq)return;lastRisk=risk.results||[];renderRisk(lastRisk);refreshInsights()}).catch(()=>{});
+fetch('/api/db/stats').then(r=>r.ok?r.json():null).then(stats=>{if(!stats||seq!==ovSeq)return;document.getElementById('lastUpdate').textContent=stats.last_update||'--';document.getElementById('dbInfo').innerHTML=`Connected · <strong>${fmt(stats.sales)}</strong> sales · <strong>${fmt(stats.products)}</strong> products · <strong>${stats.date_range||'--'}</strong>`}).catch(()=>{});
+const oR=await fetch(url);if(!oR.ok)throw new Error('Overview request failed ('+oR.status+')');const ov=await oR.json();if(seq!==ovSeq)return;lastOv=ov;
 const p=ov.period||{},pp=ov.prev_period||{};
 document.getElementById('periodInfo').innerHTML=p.start?`Business overview for <b>${p.start} – ${p.end}</b> (${p.days} days), compared with ${pp.start} – ${pp.end}`:'Business overview';
 const k=ov.kpis||{},cmp=ov.comparison||{};
-countUp('kpiSales',k.total_sales||0,fmt);
-countUp('kpiRevenue',k.revenue||0,fmtRp);
-countUp('kpiAvgWeekly',k.avg_weekly_sales||0,fmt);
-countUp('kpiActive',k.active_products||0,fmt);
-countUp('kpiTrending',k.trending_up||0,fmt);
+countUp('kpiSales',k.total_sales||0,fmt);countUp('kpiRevenue',k.revenue||0,fmtRp);countUp('kpiAvgWeekly',k.avg_weekly_sales||0,fmt);countUp('kpiActive',k.active_products||0,fmt);countUp('kpiTrending',k.trending_up||0,fmt);
 setCmp('cmpSales',cmp.total_sales);setCmp('cmpRevenue',cmp.revenue);setCmp('cmpAvgWeekly',cmp.avg_weekly_sales);setCmp('cmpActive',cmp.active_products);
 const aggTxt=p.aggregation==='day'?'per day':'per period';
 document.getElementById('chRevMeta').textContent=`Rupiah, ${aggTxt}`;document.getElementById('chSalesMeta').textContent=`Units sold, ${aggTxt}`;
 const trend=ov.trend||[];lastTrend=trend.length?trend:null;lastAgg=p.aggregation;if(lastTrend){renderRevChart(trend,p.aggregation);renderSalesChart(trend,p.aggregation)}
 if((ov.top_products||[]).length)renderTopTable(ov.top_products);
-const riskRows=risk.results||[];if(riskRows.length){document.getElementById('riskSection').style.display='block';renderRiskTable(riskRows)}else{document.getElementById('riskSection').style.display='none'}
 const fcs=ov.forecast_summary;if(fcs){document.getElementById('fcsDemand8w').textContent=fmt(fcs.forecast_demand_8w);document.getElementById('fcsTotal').textContent=fmt(fcs.total_forecasted);document.getElementById('fcsMape').textContent=fcs.avg_mape!=null?fcs.avg_mape+'%':'--';document.getElementById('fcsTrendDown').textContent=fmt(fcs.trending_down)}
-const inv=await fetchInvSummary();
-renderRings(fcs,inv);renderInsights(ov,riskRows,inv);
+renderRings(fcs,invSummaryCache);refreshInsights();
+fetchInvSummary().then(inv=>{if(seq!==ovSeq)return;renderRings(ov.forecast_summary,inv);refreshInsights()});
 fetchWeekly().then(renderProjection).catch(()=>renderProjection());
-}catch(e){document.getElementById('dbInfo').innerHTML='Error · '+e.message}}
+}catch(e){document.getElementById('dbInfo').innerHTML='Error · '+esc(e.message)}}
 
 function setCmp(id,v){const el=document.getElementById(id);if(!el)return;if(v==null){el.textContent='';el.className='kpi-cmp';return}el.className='kpi-cmp '+(v>0?'up':v<0?'down':'');el.textContent=`${v>0?'↑':v<0?'↓':'→'} ${Math.abs(v)}% vs previous`}
 
@@ -715,8 +735,21 @@ const c1=cv('--chart-1'),c2=cv('--chart-2');
 projChartObj=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Actual',data:aData,borderColor:c1,backgroundColor:areaFill(ctx,c1),fill:true,tension:.3,pointRadius:0,pointHoverRadius:4,borderWidth:2,spanGaps:false},{label:'Forecast',data:fData,borderColor:c2,fill:false,borderDash:[6,4],tension:.3,pointRadius:0,pointHoverRadius:4,borderWidth:2,spanGaps:false}]},options:baseOpts(v=>fmt(v),c=>`${c.dataset.label}: ${fmt(Math.round(c.parsed.y))} units`)})}
 
 function renderTopTable(data){let h='<thead><tr><th>SKU</th><th>Product</th><th class="r">Sales</th><th class="r">Revenue</th><th class="r">Growth</th></tr></thead><tbody>';data.forEach(r=>{let gt,gc='';if(r.is_new){gt='<span class="badge badge-blue">New</span>'}else if(r.growth!=null){gc=r.growth>0?'num-pos':r.growth<0?'num-neg':'';gt=fmtPct(r.growth)}else{gt='<span class="text-dim">No prev</span>'}h+=`<tr><td class="t-strong">${r.sku}</td><td class="t-strong" style="font-weight:500">${(r.name||'').substring(0,45)}</td><td class="r t-strong">${fmt(r.qty)}</td><td class="r">${fmtRp(r.revenue)}</td><td class="r ${gc}">${gt}</td></tr>`});h+='</tbody>';document.getElementById('topTable').innerHTML=h}
-function renderRiskTable(data){let h='<thead><tr><th>SKU</th><th>Product</th><th class="r">L4W Sales</th><th class="r">Revenue</th><th class="r" title="Estimated weeks of stock left at current sales rate">Coverage</th><th>Status</th><th></th></tr></thead><tbody>';data.forEach(r=>{h+=`<tr><td class="t-strong">${r.sku}</td><td class="t-strong" style="font-weight:500">${(r.name||'').substring(0,40)}</td><td class="r">${fmt(r.l4w_qty)}</td><td class="r">${fmtRp(r.revenue)}</td><td class="r t-strong">${r.coverage!=null?r.coverage.toFixed(1)+' w':'--'}</td><td>${statusBadge(r.status)}</td><td><button class="link-btn" onclick="switchTab('inventory')">Review PO</button></td></tr>`});h+='</tbody>';document.getElementById('riskTable').innerHTML=h;
-document.getElementById('riskList').innerHTML=data.map(r=>`<div class="list-item" onclick="switchTab('inventory')"><div class="icon-tile" style="background:var(--red-bg);color:var(--red)">${ICON.alert}</div><div class="li-main"><div class="li-title">${(r.name||'').substring(0,40)}</div><div class="li-sub">${r.sku} · ${fmt(r.l4w_qty)} sold L4W</div></div><div class="li-right"><div class="t-strong">${r.coverage!=null?r.coverage.toFixed(1)+' w':'--'}</div>${statusBadge(r.status)}</div></div>`).join('')}
+const LEAD_WEEKS=8,BAR_WEEKS=12;
+function renderRisk(data){const sec=document.getElementById('riskSection');if(!data.length){sec.style.display='none';return}sec.style.display='block';
+const rows=[...data].sort((a,b)=>(a.coverage==null?1e9:a.coverage)-(b.coverage==null?1e9:b.coverage));
+document.getElementById('riskGrid').innerHTML=rows.map(r=>{const cov=r.coverage;const col=cov==null?'var(--slate)':cov<6?'var(--red)':cov<LEAD_WEEKS?'var(--amber)':'var(--green)';const pct=cov==null?0:Math.min(100,cov/BAR_WEEKS*100);const name=esc(r.name||'');
+return`<article class="risk-card"><div class="rc-top"><span class="rc-sku" title="${esc(r.sku)}">${esc(r.sku)}</span>${statusBadge(r.status)}</div>
+<div class="rc-name" title="${name}">${name}</div>
+<div class="rc-cov"><span class="rc-cov-v" style="color:${col}">${cov!=null?cov.toFixed(1):'--'}</span><span class="rc-cov-l">weeks of stock</span></div>
+<div class="rc-bar" title="${cov!=null?cov.toFixed(1):'--'} of ${LEAD_WEEKS} weeks lead time"><span style="width:${pct}%;background:${col}"></span><i style="left:${LEAD_WEEKS/BAR_WEEKS*100}%"></i></div>
+<div class="rc-meta"><div><div class="l">L4W sales</div><div class="v">${fmt(r.l4w_qty)}</div></div><div><div class="l">Revenue L4W</div><div class="v" title="${fmtRp(r.revenue)}">${fmtRp(r.revenue)}</div></div></div>
+<button class="btn btn-ghost rc-btn" onclick="reviewSku('${String(r.sku).replace(/'/g,"\\'")}')">Review PO</button></article>`}).join('');applyRiskLimit()}
+let riskShowAll=false;
+function applyRiskLimit(){const g=document.getElementById('riskGrid'),btn=document.getElementById('riskMore');const cards=[...g.children];if(!cards.length)return;if(g.offsetParent===null)return;const cols=Math.max(1,getComputedStyle(g).gridTemplateColumns.split(' ').length);cards.forEach((c,i)=>c.classList.toggle('extra',i>=cols));g.classList.toggle('all',riskShowAll);const hiddenN=Math.max(0,cards.length-cols);btn.hidden=hiddenN===0;btn.textContent=riskShowAll?'Show less':`Show all ${cards.length}`}
+function toggleRiskAll(){riskShowAll=!riskShowAll;applyRiskLimit()}
+let riskRaf=0;window.addEventListener('resize',()=>{cancelAnimationFrame(riskRaf);riskRaf=requestAnimationFrame(applyRiskLimit)});
+function reviewSku(sku){document.getElementById('invSearch').value=sku;document.getElementById('invActionOnly').checked=false;const all=document.querySelector('.cdrop[data-id="invStatus"] .cdrop-opt[data-val=""]');if(all&&cDropVal('invStatus')){all.parentElement.querySelectorAll('.cdrop-opt').forEach(o=>o.classList.remove('active'));all.classList.add('active');all.closest('.cdrop').querySelector('.cdrop-label').textContent='All Status'}switchTab('inventory')}
 
 /* ═══ TAB 2: FORECAST ═══ */
 async function loadFcMap(){try{const r=await fetch('/api/forecast/results?limit=500');const d=await r.json();(d.results||[]).forEach(f=>{fcDataMap[f.sku]=f})}catch(e){}}
@@ -860,8 +893,9 @@ let appStarted=false;
 async function startApp(username){sessionExpiredShown=false;const s=getSettings();if(username&&!s.name){s.name=username;saveSettings(s)}applySettings();
   const ws=document.getElementById('waitScreen');ws.classList.add('active');document.getElementById('loginOverlay').classList.add('hidden');
   const t0=Date.now();
-  if(!appStarted){appStarted=true;renderMonthGrid();loadPoList();await loadOverview()}
-  else{invSummaryCache=null;weeklyData=[];fcDataMap={};loadPoList();await loadOverview();const act=document.querySelector('.tab-content.active');if(act&&act.id==='tab-inventory')loadInventory();if(act&&act.id==='tab-forecast')loadWeekly()}
+  const capped=pr=>Promise.race([pr,new Promise(r=>setTimeout(r,3000))]);
+  if(!appStarted){appStarted=true;renderMonthGrid();loadPoList();await capped(loadOverview())}
+  else{invSummaryCache=null;weeklyData=[];fcDataMap={};loadPoList();await capped(loadOverview());const act=document.querySelector('.tab-content.active');if(act&&act.id==='tab-inventory')loadInventory();if(act&&act.id==='tab-forecast')loadWeekly()}
   setTimeout(()=>ws.classList.remove('active'),Math.max(0,600-(Date.now()-t0)))}
 async function doLogin(){const btn=document.getElementById('loginBtn'),status=document.getElementById('loginStatus');
   const username=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPass').value;
