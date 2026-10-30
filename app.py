@@ -132,7 +132,10 @@ def get_forecast_light(engine):
     """Only the forecast fields the dashboard tables need (no actual/fitted history).
     ~10x smaller than the full forecast, so it is cheap to load on a fresh Vercel instance."""
     def slim(r):
+        q = r["forecast_data"].get("quantities", [])
         return {
+            # same rounding as the Inventory "Forecast/Wk" column (avg of next 8 forecast weeks)
+            "fc_avg_8w": round(sum(q[:8]) / min(len(q), 8), 1) if q else 0,
             "sku": r["sku"], "product_name": r.get("product_name", r["sku"]),
             "mape": r["mape"], "trend": r.get("trend", 0),
             "trend_direction": r.get("trend_direction", "stable"),
@@ -170,11 +173,12 @@ def get_forecast_light(engine):
     return light
 
 
-def forecast_summary_fast(engine):
+def forecast_summary_fast(engine, product_type="all"):
     """The 4 headline forecast numbers for the Overview, computed in SQL so the
     full forecast table never has to be downloaded just for them."""
+    tf = f"WHERE COALESCE(p.product_type, 'import') = '{product_type}'" if product_type in ("import", "food") else ""
     fc = forecast_cache.get("latest")
-    if fc and fc.get("results"):
+    if fc and fc.get("results") and not tf:
         res = fc["results"]
         return {
             "total_forecasted": len(res),
@@ -185,9 +189,9 @@ def forecast_summary_fast(engine):
             "calculated_at": fc["summary"].get("calculated_at"),
         }
     with engine.connect() as conn:
-        row = conn.execute(text("""
+        row = conn.execute(text(f"""
             SELECT COUNT(*),
-                   ROUND(AVG(mape) FILTER (WHERE mape < 999), 2),
+                   ROUND(AVG(f.mape) FILTER (WHERE f.mape < 999), 2),
                    COALESCE(SUM((
                        SELECT SUM(q::numeric)
                        FROM jsonb_array_elements_text(f.forecast_data::jsonb -> 'forecast' -> 'quantities')
@@ -196,8 +200,10 @@ def forecast_summary_fast(engine):
                    )), 0),
                    COUNT(*) FILTER (WHERE f.forecast_data::jsonb ->> 'trend_direction' = 'up'),
                    COUNT(*) FILTER (WHERE f.forecast_data::jsonb ->> 'trend_direction' = 'down'),
-                   MAX(calculated_at)
+                   MAX(f.calculated_at)
             FROM forecast_results f
+            LEFT JOIN products p ON p.sku = f.sku
+            {tf}
         """)).fetchone()
     if not row or not row[0]:
         return None
@@ -320,9 +326,26 @@ async def upload_master_sku(file: UploadFile = File(...)):
         raise HTTPException(500, f"Gagal memproses Master SKU: {e}")
 
 
-# ── Food exclusion ────────────────────────────────────────────
-# Scope rule: food products are not part of this system. The food list is stored in
-# food_skus; their sales are moved (not deleted) to sales_excluded and new uploads skip them.
+# ── Stock status (one definition for the whole dashboard) ──────
+# Coverage = (stock + open PO) / average weekly sales of the last 4 weeks.
+UNDERSTOCK_WEEKS = 8    # below this: understocked (matches the 8-week lead time)
+OVERSTOCK_WEEKS = 20    # above this: overstocked
+
+
+def coverage_status(cov):
+    if cov is None:
+        return "no_sales"
+    if cov < UNDERSTOCK_WEEKS:
+        return "understocked"
+    if cov <= OVERSTOCK_WEEKS:
+        return "healthy"
+    return "overstocked"
+
+
+# ── Food / import classification ──────────────────────────────
+# The food list is stored in food_skus. Products matching it get product_type='food',
+# everything else 'import'. The dashboard filters on product_type (default: import).
+# New sales uploads are tagged with the same rules.
 
 SALES_COLS = ("sku, invoice_date, quantity, unit, amount, cogs_accurate, gpao_accurate, "
               "gpao_pct_acc, week_label, month_label, quarter_label, year_val")
@@ -338,12 +361,6 @@ def ensure_food_tables(conn):
             code     VARCHAR(80) PRIMARY KEY,
             name     TEXT,
             added_at TIMESTAMPTZ DEFAULT NOW()
-        )"""))
-    conn.execute(text("""
-        CREATE TABLE IF NOT EXISTS sales_excluded (
-            LIKE sales INCLUDING DEFAULTS,
-            excluded_at TIMESTAMPTZ DEFAULT NOW(),
-            reason      VARCHAR(30)
         )"""))
 
 
@@ -369,8 +386,8 @@ def is_food(sku, name, codes, names):
 @app.post("/api/food-sku/upload")
 async def upload_food_sku(file: UploadFile = File(...)):
     """Upload the food list (Excel: col A = SKU/code, col B = product name).
-    Replaces the stored list, marks matching products as food, and moves their
-    sales into sales_excluded so they disappear from every dashboard figure."""
+    Replaces the stored list and re-tags every product as food or import.
+    Sales data is not touched (any rows archived by an earlier version are restored)."""
     if not file.filename.lower().endswith((".xls", ".xlsx")):
         raise HTTPException(400, "File harus .xls atau .xlsx")
     content = await file.read()
@@ -399,28 +416,33 @@ async def upload_food_sku(file: UploadFile = File(...)):
 
         products = conn.execute(text("SELECT sku, name FROM products")).fetchall()
         food = [sku for sku, name in products if is_food(sku, name, codes, names)]
+        food_set = set(food)
         auto_matched = sorted({name for sku, name in products
-                               if sku in set(food) and str(sku).startswith("AUTO-")})
+                               if sku in food_set and str(sku).startswith("AUTO-")})
 
         conn.execute(text("UPDATE products SET product_type = 'import' WHERE product_type IS DISTINCT FROM 'import'"))
-        archived = removed_fc = 0
         if food:
             conn.execute(text("UPDATE products SET product_type = 'food' WHERE sku = ANY(:k)"), {"k": food})
-            archived = conn.execute(text(f"""
-                INSERT INTO sales_excluded ({SALES_COLS}, reason)
-                SELECT {SALES_COLS}, 'food' FROM sales WHERE sku = ANY(:k)
-            """), {"k": food}).rowcount
-            conn.execute(text("DELETE FROM sales WHERE sku = ANY(:k)"), {"k": food})
-            removed_fc = conn.execute(text("DELETE FROM forecast_results WHERE sku = ANY(:k)"),
-                                      {"k": food}).rowcount
+
+        # Undo the earlier "exclude food" behaviour: move archived food sales back (skip exact duplicates).
+        restored = 0
+        if conn.execute(text("SELECT to_regclass('public.sales_excluded')")).scalar():
+            restored = conn.execute(text(f"""
+                INSERT INTO sales ({SALES_COLS})
+                SELECT {SALES_COLS} FROM sales_excluded x
+                WHERE x.reason = 'food' AND NOT EXISTS (
+                    SELECT 1 FROM sales e WHERE e.sku = x.sku AND e.invoice_date = x.invoice_date
+                      AND e.quantity = x.quantity AND e.amount = x.amount)
+            """)).rowcount
+            conn.execute(text("DELETE FROM sales_excluded WHERE reason = 'food'"))
 
     forecast_cache.clear()
     return {
         "status": "success",
         "food_skus_in_file": len(entries),
         "products_marked_food": len(food),
-        "sales_rows_excluded": archived,
-        "forecasts_removed": removed_fc,
+        "products_marked_import": len(products) - len(food),
+        "sales_rows_restored": restored,
         "auto_sku_matched_by_name": auto_matched[:20],
         "auto_sku_matched_count": len(auto_matched),
     }
@@ -469,15 +491,10 @@ async def etl_confirm(file_id: str):
     cached = processed_cache[file_id]
     df = cached["df"]
     try:
-        # Food products are out of scope: drop them before anything is stored.
+        # Tag products as food/import with the stored food list (if one was uploaded).
         with get_engine().connect() as c:
             food_codes, food_names = load_food_rules(c)
-        excluded_food = 0
-        if food_codes or food_names:
-            food_mask = pd.Series([is_food(sk, nm, food_codes, food_names)
-                                   for sk, nm in zip(df["SKU"], df["product_name"])], index=df.index)
-            excluded_food = int(food_mask.sum())
-            df = df[~food_mask]
+        has_food_rules = bool(food_codes or food_names)
         sales = df.copy()
         sales = sales.rename(columns={
             "SKU": "sku", "date": "invoice_date", "quantity": "quantity",
@@ -511,11 +528,18 @@ async def etl_confirm(file_id: str):
         conn.autocommit = False
         cur = conn.cursor()
         try:
+            food_tagged = 0
             for _, row in products.iterrows():
+                ptype = None
+                if has_food_rules:
+                    ptype = "food" if is_food(row["SKU"], row["product_name"], food_codes, food_names) else "import"
+                    food_tagged += ptype == "food"
                 cur.execute("""
-                    INSERT INTO products (sku, name) VALUES (%s, %s)
-                    ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
-                """, (str(row["SKU"]), row["product_name"]))
+                    INSERT INTO products (sku, name, product_type) VALUES (%s, %s, %s)
+                    ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name,
+                        product_type = COALESCE(EXCLUDED.product_type, products.product_type),
+                        updated_at = NOW()
+                """, (str(row["SKU"]), row["product_name"], ptype))
             # ── Append mode: load into temp table, then INSERT ... ON CONFLICT DO NOTHING ──
             cur.execute("""
                 CREATE TEMP TABLE _sales_stage (LIKE sales INCLUDING DEFAULTS)
@@ -588,8 +612,8 @@ async def etl_confirm(file_id: str):
         return {
             "status": "success",
             "message": f"{total:,} baris baru ditambahkan ({skipped:,} duplikat di-skip)"
-                       + (f", {excluded_food:,} baris makanan dikecualikan" if excluded_food else ""),
-            "food_rows_excluded": excluded_food,
+                       + (f" · {food_tagged:,} produk ditandai food" if food_tagged else ""),
+            "food_products_tagged": food_tagged,
             "database": {"products": row[0], "sales": row[1],
                          "date_range": f"{row[2]} s/d {row[3]}", "unique_skus": row[4]},
             "forecast_status": "auto-run complete" if "latest" in forecast_cache else "skipped",
@@ -954,13 +978,17 @@ async def overview_summary(
 
         period_days = (dt_end - dt_start).days + 1
         period_weeks = max(period_days / 7, 1)
+
+        # Product type filter (import / food / all) applies to every figure below.
+        tf = f"AND COALESCE(p.product_type, 'import') = '{product_type}'" if product_type in ("import", "food") else ""
+        SRC = "sales s JOIN products p ON s.sku = p.sku" if tf else "sales s"
         prev_end = dt_start - timedelta(days=1)
         prev_start = prev_end - timedelta(days=period_days - 1)
 
         # KPIs
-        kpi = conn.execute(text("""
-            SELECT COALESCE(SUM(quantity),0), COALESCE(SUM(amount),0), COUNT(DISTINCT sku)
-            FROM sales WHERE invoice_date >= :s AND invoice_date <= :e
+        kpi = conn.execute(text(f"""
+            SELECT COALESCE(SUM(s.quantity),0), COALESCE(SUM(s.amount),0), COUNT(DISTINCT s.sku)
+            FROM {SRC} WHERE s.invoice_date >= :s AND s.invoice_date <= :e {tf}
         """), {"s": dt_start, "e": dt_end}).fetchone()
         total_sales = int(kpi[0]); revenue = float(kpi[1]); active = int(kpi[2])
         avg_weekly = round(total_sales / period_weeks)
@@ -969,18 +997,18 @@ async def overview_summary(
         mid = dt_start + timedelta(days=period_days // 2)
         trending = (0,)
         try:
-            trending = conn.execute(text("""
-                WITH fh AS (SELECT sku,SUM(quantity) q FROM sales WHERE invoice_date>=:s AND invoice_date<:m GROUP BY sku),
-                     sh AS (SELECT sku,SUM(quantity) q FROM sales WHERE invoice_date>=:m AND invoice_date<=:e GROUP BY sku)
+            trending = conn.execute(text(f"""
+                WITH fh AS (SELECT s.sku,SUM(s.quantity) q FROM {SRC} WHERE s.invoice_date>=:s AND s.invoice_date<:m {tf} GROUP BY s.sku),
+                     sh AS (SELECT s.sku,SUM(s.quantity) q FROM {SRC} WHERE s.invoice_date>=:m AND s.invoice_date<=:e {tf} GROUP BY s.sku)
                 SELECT COUNT(*) FROM sh JOIN fh ON sh.sku=fh.sku WHERE fh.q>0 AND sh.q>fh.q
             """), {"s": dt_start, "m": mid, "e": dt_end}).fetchone()
         except Exception:
             trending = (0,)
 
         # Previous period KPIs
-        prev = conn.execute(text("""
-            SELECT COALESCE(SUM(quantity),0), COALESCE(SUM(amount),0), COUNT(DISTINCT sku)
-            FROM sales WHERE invoice_date >= :s AND invoice_date <= :e
+        prev = conn.execute(text(f"""
+            SELECT COALESCE(SUM(s.quantity),0), COALESCE(SUM(s.amount),0), COUNT(DISTINCT s.sku)
+            FROM {SRC} WHERE s.invoice_date >= :s AND s.invoice_date <= :e {tf}
         """), {"s": prev_start, "e": prev_end}).fetchone()
         p_sales = int(prev[0]); p_rev = float(prev[1]); p_active = int(prev[2])
         p_avg = round(p_sales / period_weeks) if period_weeks else 0
@@ -991,20 +1019,18 @@ async def overview_summary(
         # Trend chart
         if period_days <= 14:
             agg = "day"
-            tq = text("SELECT invoice_date::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
+            tq = text(f"SELECT s.invoice_date::date d,SUM(s.quantity) q,SUM(s.amount) r FROM {SRC} WHERE s.invoice_date>=:s AND s.invoice_date<=:e {tf} GROUP BY d ORDER BY d")
         elif period_days <= 90:
             agg = "week"
-            tq = text("SELECT DATE_TRUNC('week',invoice_date)::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
+            tq = text(f"SELECT DATE_TRUNC('week',s.invoice_date)::date d,SUM(s.quantity) q,SUM(s.amount) r FROM {SRC} WHERE s.invoice_date>=:s AND s.invoice_date<=:e {tf} GROUP BY d ORDER BY d")
         else:
             agg = "month"
-            tq = text("SELECT DATE_TRUNC('month',invoice_date)::date d,SUM(quantity) q,SUM(amount) r FROM sales WHERE invoice_date>=:s AND invoice_date<=:e GROUP BY d ORDER BY d")
+            tq = text(f"SELECT DATE_TRUNC('month',s.invoice_date)::date d,SUM(s.quantity) q,SUM(s.amount) r FROM {SRC} WHERE s.invoice_date>=:s AND s.invoice_date<=:e {tf} GROUP BY d ORDER BY d")
         trend = conn.execute(tq, {"s": dt_start, "e": dt_end}).fetchall()
 
         # Top products
         order_col = "r" if top_sort == "revenue" else "q"
-        top_type_filter = ""
-        if product_type in ("import", "food"):
-            top_type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
+        top_type_filter = tf
         top_all = conn.execute(text(f"""
             SELECT s.sku,p.name,SUM(s.quantity) q,SUM(s.amount) r
             FROM sales s JOIN products p ON s.sku=p.sku
@@ -1046,7 +1072,7 @@ async def overview_summary(
 
     # Forecast summary (memory cache, else one SQL aggregate)
     try:
-        fc_summary = forecast_summary_fast(engine)
+        fc_summary = forecast_summary_fast(engine, product_type)
     except Exception as e:
         print(f"[overview] forecast summary skipped: {e}")
         fc_summary = None
@@ -1070,17 +1096,23 @@ async def best_sellers_at_risk(product_type: str = "all"):
     if product_type in ("import", "food"):
         type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
     with engine.connect() as conn:
-        mx = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).fetchone()
-        if not mx or not mx[0]:
+        # Same "last 4 weeks" window as /api/inventory (last 4 sales weeks), so coverage
+        # and status are identical for a SKU on both pages.
+        r4 = sorted(r[0] for r in conn.execute(text(f"""
+            SELECT DISTINCT DATE_TRUNC('week', s.invoice_date)::date AS w
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date IS NOT NULL {type_filter}
+            ORDER BY w DESC LIMIT 4
+        """)).fetchall())
+        if not r4:
             return {"results": []}
-        max_date = mx[0]
-        l4w_start = max_date - timedelta(days=27)
+        n_weeks = len(r4)
 
         sales = conn.execute(text(f"""
             SELECT s.sku, p.name, SUM(s.quantity) qty, SUM(s.amount) rev
             FROM sales s JOIN products p ON s.sku = p.sku
             WHERE s.invoice_date >= :s {type_filter} GROUP BY s.sku, p.name
-        """), {"s": l4w_start}).fetchall()
+        """), {"s": r4[0]}).fetchall()
 
         try:
             stk = {r[0]: int(r[1]) for r in conn.execute(text("""
@@ -1102,12 +1134,12 @@ async def best_sellers_at_risk(product_type: str = "all"):
             sku, name, qty, rev = r[0], r[1], int(r[2]), float(r[3])
             if qty <= 0:
                 continue
-            avg_w = round(qty / 4, 1)
+            avg_w = round(qty / n_weeks, 1)
             cs = stk.get(sku, 0)
             op = po.get(sku, 0)
             cov = round((cs + op) / avg_w, 1) if avg_w > 0 else None
-            st = "understocked" if cov is not None and cov < 8 else ("healthy" if cov is not None and cov <= 20 else "overstocked" if cov is not None else "no_data")
-            if cov is not None and cov < 12:
+            st = coverage_status(cov)
+            if st == "understocked":
                 results.append({"sku": sku, "name": name, "l4w_qty": qty, "revenue": rev,
                                 "avg_weekly": avg_w, "current_stock": cs, "ongoing_po": op,
                                 "coverage": cov, "status": st})
@@ -1117,7 +1149,8 @@ async def best_sellers_at_risk(product_type: str = "all"):
 
 
 @app.get("/api/weekly-analysis")
-async def weekly_analysis(product_type: str = "import"):
+async def weekly_analysis(product_type: str = "import", scope: str = "all"):
+    """scope=bestseller -> only SKUs in the Pareto 80% set (the ones that have a forecast)."""
     engine = get_engine()
     type_filter = ""
     if product_type in ("import", "food"):
@@ -1151,6 +1184,13 @@ async def weekly_analysis(product_type: str = "import"):
             FROM sales s JOIN products p ON s.sku = p.sku
             WHERE s.invoice_date IS NOT NULL {type_filter}
         """)).scalar()
+
+    if scope == "bestseller":
+        try:
+            best = {r["sku"] for r in get_forecast_light(engine)}
+        except Exception:
+            best = set()
+        totals = [t for t in totals if t[0] in best]
 
     weekly = {}
     for sku, w, q in recent:
@@ -1262,7 +1302,7 @@ async def coverage_analysis():
 # ── Inventory (merged Coverage + Replenishment) ──────────────
 
 @app.get("/api/inventory")
-async def inventory_analysis(sort: str = "priority", product_type: str = "import"):
+async def inventory_analysis(sort: str = "priority", product_type: str = "import", scope: str = "all"):
     """
     Merged Coverage + Replenishment in one endpoint.
     Coverage = Avg L4W basis. Replenishment = Holt's DES basis.
@@ -1338,6 +1378,9 @@ async def inventory_analysis(sort: str = "priority", product_type: str = "import
         except Exception:
             fc_map = {}
 
+    if scope == "bestseller":  # Pareto 80% set = SKUs that have a forecast
+        sku_rows = [r for r in sku_rows if r[0] in fc_map]
+
     results = []
     for sku, name in sku_rows:
         wmap = qty_by.get(sku, {})
@@ -1375,17 +1418,8 @@ async def inventory_analysis(sort: str = "priority", product_type: str = "import
                     stockout = wi + 1
                     break
 
-        # Status
-        if stockout is not None and stockout <= 6:
-            status = "critical"
-        elif reco > 0:
-            status = "understock"
-        elif coverage is not None and coverage > 20:
-            status = "overstock"
-        elif coverage is not None:
-            status = "healthy"
-        else:
-            status = "no_data"
+        # Status: coverage-based, same rule as Best Sellers at Risk
+        status = coverage_status(coverage)
 
         results.append({
             "sku": sku, "product_name": name,
@@ -1401,7 +1435,7 @@ async def inventory_analysis(sort: str = "priority", product_type: str = "import
         })
 
     # Sort
-    status_order = {"critical": 0, "understock": 1, "healthy": 2, "overstock": 3, "no_data": 4}
+    status_order = {"understocked": 0, "healthy": 1, "overstocked": 2, "no_sales": 3}
     if sort == "priority":
         results.sort(key=lambda x: (status_order.get(x["status"], 9), -(x["l4w_revenue"])))
     elif sort == "revenue":
@@ -1413,10 +1447,10 @@ async def inventory_analysis(sort: str = "priority", product_type: str = "import
 
     sm = {
         "total": len(results),
-        "critical": len([r for r in results if r["status"] == "critical"]),
-        "understock": len([r for r in results if r["status"] == "understock"]),
+        "understocked": len([r for r in results if r["status"] == "understocked"]),
         "healthy": len([r for r in results if r["status"] == "healthy"]),
-        "overstock": len([r for r in results if r["status"] == "overstock"]),
+        "overstocked": len([r for r in results if r["status"] == "overstocked"]),
+        "no_sales": len([r for r in results if r["status"] == "no_sales"]),
     }
 
     return {"results": results, "summary": sm, "stock_date": snap_date, "has_stock": len(stk) > 0}
