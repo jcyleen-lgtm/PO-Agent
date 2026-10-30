@@ -67,6 +67,7 @@ def _run_auto_forecast(engine):
         if "error" not in result:
             saved = save_forecast_to_db(engine, result)
             forecast_cache["latest"] = result
+            forecast_cache.pop("light", None)
             print(f"[auto-forecast] {result['summary']['total_skus_forecasted']} SKUs forecasted, saved={saved}")
         else:
             print(f"[auto-forecast] skipped: {result['error']}")
@@ -75,17 +76,20 @@ def _run_auto_forecast(engine):
         traceback.print_exc()
 
 
-def load_forecast_from_db(engine):
+def load_forecast_from_db(engine, sku=None):
     """Rebuild the latest forecast from the forecast_results table (written by save_forecast_to_db).
-    Reading it back takes one query instead of re-running the Holt's DES grid search."""
+    Reading it back takes one query instead of re-running the Holt's DES grid search.
+    Pass sku= to read a single product only."""
+    where = "WHERE f.sku = :sku" if sku else ""
     with engine.connect() as conn:
-        rows = conn.execute(text("""
+        rows = conn.execute(text(f"""
             SELECT f.sku, COALESCE(p.name, f.sku) AS product_name, f.alpha, f.beta, f.mape,
                    f.forecast_data, f.training_months, f.calculated_at
             FROM forecast_results f
             LEFT JOIN products p ON p.sku = f.sku
+            {where}
             ORDER BY f.id
-        """)).fetchall()
+        """), {"sku": sku} if sku else {}).fetchall()
     if not rows:
         return None
 
@@ -122,6 +126,89 @@ def load_forecast_from_db(engine):
         "source": "database",
     }
     return {"summary": summary, "results": results}
+
+
+def get_forecast_light(engine):
+    """Only the forecast fields the dashboard tables need (no actual/fitted history).
+    ~10x smaller than the full forecast, so it is cheap to load on a fresh Vercel instance."""
+    def slim(r):
+        return {
+            "sku": r["sku"], "product_name": r.get("product_name", r["sku"]),
+            "mape": r["mape"], "trend": r.get("trend", 0),
+            "trend_direction": r.get("trend_direction", "stable"),
+            "avg_weekly_demand": r.get("avg_weekly_demand", 0),
+            "forecast_data": {"weeks": r["forecast_data"].get("weeks", []),
+                              "quantities": r["forecast_data"].get("quantities", [])},
+        }
+    if "latest" in forecast_cache:
+        return [slim(r) for r in forecast_cache["latest"].get("results", [])]
+    if "light" in forecast_cache:
+        return forecast_cache["light"]
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT f.sku, COALESCE(p.name, f.sku), f.mape,
+                   f.forecast_data::jsonb -> 'forecast',
+                   f.forecast_data::jsonb ->> 'trend',
+                   f.forecast_data::jsonb ->> 'trend_direction',
+                   f.forecast_data::jsonb ->> 'avg_weekly_demand'
+            FROM forecast_results f LEFT JOIN products p ON p.sku = f.sku
+            ORDER BY f.id
+        """)).fetchall()
+    light = []
+    for sku, name, mape, fc, trend, tdir, avg in rows:
+        fc = fc if isinstance(fc, dict) else json.loads(fc or "{}")
+        light.append(slim({
+            "sku": sku, "product_name": name,
+            "mape": float(mape) if mape is not None else 999,
+            "trend": float(trend) if trend is not None else 0,
+            "trend_direction": tdir or "stable",
+            "avg_weekly_demand": float(avg) if avg is not None else 0,
+            "forecast_data": fc or {"weeks": [], "quantities": []},
+        }))
+    if light:
+        forecast_cache["light"] = light
+    return light
+
+
+def forecast_summary_fast(engine):
+    """The 4 headline forecast numbers for the Overview, computed in SQL so the
+    full forecast table never has to be downloaded just for them."""
+    fc = forecast_cache.get("latest")
+    if fc and fc.get("results"):
+        res = fc["results"]
+        return {
+            "total_forecasted": len(res),
+            "avg_mape": fc["summary"].get("avg_mape", 0),
+            "forecast_demand_8w": round(sum(sum(r["forecast_data"]["quantities"][:8]) for r in res)),
+            "trending_up": len([r for r in res if r["trend_direction"] == "up"]),
+            "trending_down": len([r for r in res if r["trend_direction"] == "down"]),
+            "calculated_at": fc["summary"].get("calculated_at"),
+        }
+    with engine.connect() as conn:
+        row = conn.execute(text("""
+            SELECT COUNT(*),
+                   ROUND(AVG(mape) FILTER (WHERE mape < 999), 2),
+                   COALESCE(SUM((
+                       SELECT SUM(q::numeric)
+                       FROM jsonb_array_elements_text(f.forecast_data::jsonb -> 'forecast' -> 'quantities')
+                            WITH ORDINALITY AS t(q, i)
+                       WHERE i <= 8
+                   )), 0),
+                   COUNT(*) FILTER (WHERE f.forecast_data::jsonb ->> 'trend_direction' = 'up'),
+                   COUNT(*) FILTER (WHERE f.forecast_data::jsonb ->> 'trend_direction' = 'down'),
+                   MAX(calculated_at)
+            FROM forecast_results f
+        """)).fetchone()
+    if not row or not row[0]:
+        return None
+    return {
+        "total_forecasted": int(row[0]),
+        "avg_mape": float(row[1]) if row[1] is not None else 0,
+        "forecast_demand_8w": round(float(row[2])),
+        "trending_up": int(row[3]),
+        "trending_down": int(row[4]),
+        "calculated_at": row[5].isoformat() if row[5] else None,
+    }
 
 
 def get_latest_forecast(engine, compute_if_missing=True):
@@ -852,14 +939,24 @@ async def overview_summary(
             WHERE s.invoice_date>=:s AND s.invoice_date<=:e {top_type_filter}
             GROUP BY s.sku,p.name ORDER BY {order_col} DESC LIMIT 50
         """), {"s": dt_start, "e": dt_end}).fetchall()
+        # Previous-period qty and first sale date for all top SKUs in 2 queries
+        # (was 2 queries per SKU = ~100 round trips to Supabase).
+        top_skus = [r[0] for r in top_all]
+        prev_map, first_map = {}, {}
+        if top_skus:
+            prev_map = {k: v for k, v in conn.execute(text("""
+                SELECT sku, COALESCE(SUM(quantity),0) FROM sales
+                WHERE sku = ANY(:k) AND invoice_date>=:s AND invoice_date<=:e GROUP BY sku
+            """), {"k": top_skus, "s": prev_start, "e": prev_end}).fetchall()}
+            first_map = {k: v for k, v in conn.execute(text("""
+                SELECT sku, MIN(invoice_date) FROM sales WHERE sku = ANY(:k) GROUP BY sku
+            """), {"k": top_skus}).fetchall()}
         top_g = []
         for r in top_all:
-            pq = conn.execute(text("SELECT COALESCE(SUM(quantity),0) FROM sales WHERE sku=:k AND invoice_date>=:s AND invoice_date<=:e"),
-                              {"k": r[0], "s": prev_start, "e": prev_end}).fetchone()
-            prev_qty = int(pq[0])
+            prev_qty = int(prev_map.get(r[0], 0))
             curr_qty = int(r[2])
-            first_seen = conn.execute(text("SELECT MIN(invoice_date) FROM sales WHERE sku=:k"), {"k": r[0]}).fetchone()
-            is_new = first_seen[0] is not None and first_seen[0] >= dt_start
+            first_seen = first_map.get(r[0])
+            is_new = first_seen is not None and first_seen >= dt_start
             if prev_qty > 0:
                 growth = round((curr_qty - prev_qty) / prev_qty * 100, 1)
             elif is_new:
@@ -875,24 +972,12 @@ async def overview_summary(
             top_g = has_g + no_g
         top_g = top_g[:10]
 
-    # Forecast summary (from cache)
-    fc_summary = None
-    fc = get_latest_forecast(get_engine(), compute_if_missing=False)
-    if fc:
-        fc_results = fc.get("results", [])
-        if fc_results:
-            # Aggregate demand next 8 weeks
-            total_demand_8w = sum(sum(r["forecast_data"]["quantities"][:8]) for r in fc_results)
-            trending_up = len([r for r in fc_results if r["trend_direction"] == "up"])
-            trending_down = len([r for r in fc_results if r["trend_direction"] == "down"])
-            fc_summary = {
-                "total_forecasted": len(fc_results),
-                "avg_mape": fc["summary"].get("avg_mape", 0),
-                "forecast_demand_8w": round(total_demand_8w),
-                "trending_up": trending_up,
-                "trending_down": trending_down,
-                "calculated_at": fc["summary"].get("calculated_at"),
-            }
+    # Forecast summary (memory cache, else one SQL aggregate)
+    try:
+        fc_summary = forecast_summary_fast(engine)
+    except Exception as e:
+        print(f"[overview] forecast summary skipped: {e}")
+        fc_summary = None
 
     return {
         "period": {"start":str(dt_start),"end":str(dt_end),"days":period_days,"aggregation":agg},
@@ -966,27 +1051,44 @@ async def weekly_analysis(product_type: str = "import"):
     if product_type in ("import", "food"):
         type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
     with engine.connect() as conn:
-        df = pd.read_sql(text(f"""
-            SELECT s.sku, p.name as product_name,
-                   DATE_TRUNC('week', s.invoice_date)::date as week_start,
-                   SUM(s.quantity) as qty
+        # Only the last 8 weeks are needed week-by-week; lifetime figures come pre-aggregated.
+        week_rows = conn.execute(text(f"""
+            SELECT DISTINCT DATE_TRUNC('week', s.invoice_date)::date AS w
             FROM sales s JOIN products p ON s.sku = p.sku
             WHERE s.invoice_date IS NOT NULL {type_filter}
-            GROUP BY s.sku, p.name, DATE_TRUNC('week', s.invoice_date)::date
-            ORDER BY s.sku, week_start
-        """), conn)
-    if df.empty:
-        return {"results": [], "week_labels": {}}
+            ORDER BY w DESC LIMIT 8
+        """)).fetchall()
+        if not week_rows:
+            return {"results": [], "week_labels": {}}
+        spark_w = sorted(r[0] for r in week_rows)
+        totals = conn.execute(text(f"""
+            SELECT s.sku, MIN(p.name), SUM(s.quantity),
+                   COUNT(DISTINCT DATE_TRUNC('week', s.invoice_date))
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date IS NOT NULL {type_filter}
+            GROUP BY s.sku ORDER BY s.sku
+        """)).fetchall()
+        recent = conn.execute(text(f"""
+            SELECT s.sku, DATE_TRUNC('week', s.invoice_date)::date AS w, SUM(s.quantity)
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date >= :w8 {type_filter}
+            GROUP BY s.sku, w
+        """), {"w8": spark_w[0]}).fetchall()
+        n_weeks = conn.execute(text(f"""
+            SELECT COUNT(DISTINCT DATE_TRUNC('week', s.invoice_date))
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date IS NOT NULL {type_filter}
+        """)).scalar()
 
-    all_weeks = sorted(df["week_start"].unique())
-    recent_4 = all_weeks[-4:] if len(all_weeks) >= 4 else all_weeks
-    last_2 = all_weeks[-2:] if len(all_weeks) >= 2 else all_weeks
+    weekly = {}
+    for sku, w, q in recent:
+        weekly.setdefault(sku, {})[w] = q
+    recent_4 = spark_w[-4:]
+    last_2 = spark_w[-2:]
 
     results = []
-    for sku in df["sku"].unique():
-        sd = df[df["sku"] == sku]
-        name = sd.iloc[0]["product_name"]
-        wmap = dict(zip(sd["week_start"], sd["qty"]))
+    for sku, name, lifetime_q, active_weeks in totals:
+        wmap = weekly.get(sku, {})
 
         w1 = int(wmap.get(last_2[-1], 0)) if len(last_2) >= 1 else 0
         w2 = int(wmap.get(last_2[-2], 0)) if len(last_2) >= 2 else 0
@@ -995,14 +1097,13 @@ async def weekly_analysis(product_type: str = "import"):
 
         l4w = sum(int(wmap.get(w, 0)) for w in recent_4)
         avg_l4w = round(l4w / max(len(recent_4), 1), 1)
-        lifetime = int(sd["qty"].sum())
-        active = len(sd)
+        lifetime = int(lifetime_q or 0)
+        active = int(active_weeks)
         avg_lt = math.ceil(lifetime / active) if active > 0 else 0
         diff = round(avg_l4w - avg_lt, 1)
         diff_pct = round((avg_l4w / avg_lt) * 100, 1) if avg_lt > 0 else 0.0
 
         trend = "up" if growth > 20 else ("down" if growth < -20 else "stable")
-        spark_w = all_weeks[-8:] if len(all_weeks) >= 8 else all_weeks
         spark = [int(wmap.get(w, 0)) for w in spark_w]
 
         results.append({
@@ -1017,7 +1118,7 @@ async def weekly_analysis(product_type: str = "import"):
     return {
         "results": results,
         "week_labels": {"w1": str(last_2[-1]) if last_2 else "", "w2": str(last_2[-2]) if len(last_2) >= 2 else ""},
-        "total_weeks": len(all_weeks), "total_skus": len(results),
+        "total_weeks": int(n_weeks or 0), "total_skus": len(results),
     }
 
 
@@ -1102,15 +1203,25 @@ async def inventory_analysis(sort: str = "priority", product_type: str = "import
         type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
 
     with engine.connect() as conn:
-        # Weekly sales per SKU
-        wdf = pd.read_sql(text(f"""
-            SELECT s.sku, p.name as product_name,
-                   DATE_TRUNC('week', s.invoice_date)::date as week_start,
-                   SUM(s.quantity) as qty, SUM(s.amount) as rev
+        # Only the last 4 sales weeks are used below, so only those are fetched week-by-week.
+        r4 = sorted(r[0] for r in conn.execute(text(f"""
+            SELECT DISTINCT DATE_TRUNC('week', s.invoice_date)::date AS w
             FROM sales s JOIN products p ON s.sku = p.sku
             WHERE s.invoice_date IS NOT NULL {type_filter}
-            GROUP BY s.sku, p.name, DATE_TRUNC('week', s.invoice_date)::date
-        """), conn)
+            ORDER BY w DESC LIMIT 4
+        """)).fetchall())
+        sku_rows = conn.execute(text(f"""
+            SELECT s.sku, MIN(p.name)
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date IS NOT NULL {type_filter}
+            GROUP BY s.sku ORDER BY s.sku
+        """)).fetchall() if r4 else []
+        recent = conn.execute(text(f"""
+            SELECT s.sku, DATE_TRUNC('week', s.invoice_date)::date AS w, SUM(s.quantity), SUM(s.amount)
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date >= :w4 {type_filter}
+            GROUP BY s.sku, w
+        """), {"w4": r4[0]}).fetchall() if r4 else []
 
         # Stock
         try:
@@ -1135,28 +1246,30 @@ async def inventory_analysis(sort: str = "priority", product_type: str = "import
         except Exception:
             po_map = {}
 
-    if wdf.empty:
+    if not sku_rows:
         return {"results": [], "summary": {}, "stock_date": None}
 
-    all_weeks = sorted(wdf["week_start"].unique())
-    r4 = all_weeks[-4:] if len(all_weeks) >= 4 else all_weeks
+    qty_by, rev_by = {}, {}
+    for sku, w, q, a in recent:
+        qty_by.setdefault(sku, {})[w] = q
+        rev_by.setdefault(sku, {})[w] = a
 
-    # Ensure forecast is available
+    # Forecast quantities only (light version: no actual/fitted history)
     try:
-        fc_data = get_latest_forecast(engine)
+        fc_map = {r["sku"]: r for r in get_forecast_light(engine)}
     except Exception:
-        fc_data = None
-    fc_map = {}
-    if fc_data:
-        for r in fc_data.get("results", []):
-            fc_map[r["sku"]] = r
+        fc_map = {}
+    if not fc_map:
+        try:
+            fc_data = get_latest_forecast(engine)
+            fc_map = {r["sku"]: r for r in (fc_data or {}).get("results", [])}
+        except Exception:
+            fc_map = {}
 
     results = []
-    for sku in wdf["sku"].unique():
-        sd = wdf[wdf["sku"] == sku]
-        name = sd.iloc[0]["product_name"]
-        wmap = dict(zip(sd["week_start"], sd["qty"]))
-        rmap = dict(zip(sd["week_start"], sd["rev"]))
+    for sku, name in sku_rows:
+        wmap = qty_by.get(sku, {})
+        rmap = rev_by.get(sku, {})
 
         # L4W metrics
         l4w_qty = sum(int(wmap.get(w, 0)) for w in r4)
@@ -1248,13 +1361,22 @@ async def forecast_run():
         raise HTTPException(400, result["error"])
     saved = save_forecast_to_db(engine, result)
     forecast_cache["latest"] = result
+    forecast_cache.pop("light", None)
     return {"status": "success", "summary": result["summary"], "saved_to_db": saved}
 
 
 @app.get("/api/forecast/results")
-async def forecast_results(limit: int = 200, sort: str = "volume"):
-    data = get_latest_forecast(get_engine())
-    results = data.get("results", [])
+async def forecast_results(limit: int = 200, sort: str = "volume", fields: str = "full"):
+    """fields=light returns only what the dashboard tables need (~10x smaller payload)."""
+    engine = get_engine()
+    if fields == "light":
+        results = get_forecast_light(engine)
+        if not results:  # nothing saved yet -> compute once (slow path)
+            results = get_forecast_light(engine) if get_latest_forecast(engine).get("results") else []
+        data = {"summary": forecast_summary_fast(engine) or {}}
+    else:
+        data = get_latest_forecast(engine)
+        results = data.get("results", [])
     if sort == "mape":
         results = sorted(results, key=lambda x: x["mape"])
     elif sort == "trend":
@@ -1264,8 +1386,20 @@ async def forecast_results(limit: int = 200, sort: str = "volume"):
 
 @app.get("/api/forecast/sku/{sku}")
 async def forecast_sku(sku: str):
-    results = get_latest_forecast(get_engine()).get("results", [])
-    match = next((r for r in results if r["sku"] == sku), None)
+    engine = get_engine()
+    match = None
+    if "latest" in forecast_cache:
+        match = next((r for r in forecast_cache["latest"].get("results", []) if r["sku"] == sku), None)
+    else:
+        # Read just this SKU's saved forecast instead of loading every SKU.
+        try:
+            one = load_forecast_from_db(engine, sku=sku)
+            match = one["results"][0] if one else None
+        except Exception as e:
+            print(f"[forecast_sku] DB read failed: {e}")
+        if match is None and not forecast_cache.get("light"):
+            results = get_latest_forecast(engine).get("results", [])
+            match = next((r for r in results if r["sku"] == sku), None)
     if not match:
         raise HTTPException(404, f"SKU {sku} tidak ditemukan")
     return match
