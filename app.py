@@ -320,49 +320,110 @@ async def upload_master_sku(file: UploadFile = File(...)):
         raise HTTPException(500, f"Gagal memproses Master SKU: {e}")
 
 
+# ── Food exclusion ────────────────────────────────────────────
+# Scope rule: food products are not part of this system. The food list is stored in
+# food_skus; their sales are moved (not deleted) to sales_excluded and new uploads skip them.
+
+SALES_COLS = ("sku, invoice_date, quantity, unit, amount, cogs_accurate, gpao_accurate, "
+              "gpao_pct_acc, week_label, month_label, quarter_label, year_val")
+
+
+def _norm_name(name):
+    return " ".join(str(name or "").lower().split())
+
+
+def ensure_food_tables(conn):
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS food_skus (
+            code     VARCHAR(80) PRIMARY KEY,
+            name     TEXT,
+            added_at TIMESTAMPTZ DEFAULT NOW()
+        )"""))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS sales_excluded (
+            LIKE sales INCLUDING DEFAULTS,
+            excluded_at TIMESTAMPTZ DEFAULT NOW(),
+            reason      VARCHAR(30)
+        )"""))
+
+
+def load_food_rules(conn):
+    """Return (codes, normalized_names). Empty sets if no food list was uploaded yet."""
+    exists = conn.execute(text("SELECT to_regclass('public.food_skus')")).scalar()
+    if not exists:
+        return set(), set()
+    rows = conn.execute(text("SELECT code, name FROM food_skus")).fetchall()
+    return {r[0] for r in rows}, {_norm_name(r[1]) for r in rows if r[1]}
+
+
+def is_food(sku, name, codes, names):
+    """Food if the SKU equals a listed code or sits under one (299.025 covers 299.025.xx...),
+    or if the product name matches a listed name exactly (catches AUTO-xxxx SKUs)."""
+    sku = str(sku or "").strip()
+    parts = sku.split(".")
+    if any(".".join(parts[:i]) in codes for i in range(1, len(parts) + 1)):
+        return True
+    return _norm_name(name) in names
+
+
 @app.post("/api/food-sku/upload")
 async def upload_food_sku(file: UploadFile = File(...)):
-    """Upload list of food SKUs. Marks matching products as product_type='food', rest as 'import'."""
+    """Upload the food list (Excel: col A = SKU/code, col B = product name).
+    Replaces the stored list, marks matching products as food, and moves their
+    sales into sales_excluded so they disappear from every dashboard figure."""
+    if not file.filename.lower().endswith((".xls", ".xlsx")):
+        raise HTTPException(400, "File harus .xls atau .xlsx")
     content = await file.read()
-    tmp = os.path.join(UPLOAD_DIR, f"food_{uuid.uuid4().hex[:8]}.xlsx")
-    with open(tmp, "wb") as f:
-        f.write(content)
     try:
-        df = pd.read_excel(tmp, engine="openpyxl", header=None)
-        df.columns = ["sku", "name"] if len(df.columns) >= 2 else ["sku"]
-        df["sku"] = df["sku"].astype(str).str.strip()
-        food_skus = set(df["sku"].tolist())
-
-        engine = get_engine()
-        with engine.connect() as conn:
-            # Reset all to import first
-            conn.execute(text("UPDATE products SET product_type = 'import' WHERE product_type IS DISTINCT FROM 'import'"))
-            # Mark food SKUs (exact match OR prefix match: if 299.025 is in list, all 299.025.xx become food)
-            updated = 0
-            for fsku in food_skus:
-                r = conn.execute(text(
-                    "UPDATE products SET product_type = 'food' WHERE sku = :s OR sku LIKE :prefix"
-                ), {"s": fsku, "prefix": fsku + ".%"})
-                updated += r.rowcount
-            # Also mark AUTO-SKU products as food if their name matches any already-marked food product
-            # This catches duplicates where sales created AUTO-xxx SKUs for products that exist in the food list
-            r2 = conn.execute(text("""
-                UPDATE products p SET product_type = 'food'
-                WHERE p.product_type = 'import' AND p.sku LIKE 'AUTO-%'
-                  AND EXISTS (
-                    SELECT 1 FROM products f
-                    WHERE f.product_type = 'food' AND f.sku NOT LIKE 'AUTO-%'
-                      AND LOWER(TRIM(f.name)) = LOWER(TRIM(p.name))
-                  )
-            """))
-            updated += r2.rowcount
-            conn.commit()
-        os.remove(tmp)
-        return {"status": "success", "food_skus_in_file": len(food_skus), "products_marked_food": updated}
+        df = pd.read_excel(io.BytesIO(content), header=None, dtype=str)
     except Exception as e:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        raise HTTPException(500, f"Gagal parse food SKU: {e}")
+        raise HTTPException(400, f"Gagal membaca file: {e}")
+
+    entries = {}
+    for row in df.itertuples(index=False):
+        code = str(row[0]).strip() if len(row) > 0 and pd.notna(row[0]) else ""
+        name = str(row[1]).strip() if len(row) > 1 and pd.notna(row[1]) else ""
+        if not code or not code[0].isdigit():  # skips the header row ("Item No.") and blanks
+            continue
+        entries[code] = name
+    if not entries:
+        raise HTTPException(400, "Tidak ada SKU di kolom A. Format: kolom A = SKU, kolom B = nama produk.")
+
+    engine = get_engine()
+    with engine.begin() as conn:
+        ensure_food_tables(conn)
+        conn.execute(text("DELETE FROM food_skus"))
+        conn.execute(text("INSERT INTO food_skus (code, name) VALUES (:c, :n)"),
+                     [{"c": c, "n": n} for c, n in entries.items()])
+        codes, names = set(entries), {_norm_name(n) for n in entries.values() if n}
+
+        products = conn.execute(text("SELECT sku, name FROM products")).fetchall()
+        food = [sku for sku, name in products if is_food(sku, name, codes, names)]
+        auto_matched = sorted({name for sku, name in products
+                               if sku in set(food) and str(sku).startswith("AUTO-")})
+
+        conn.execute(text("UPDATE products SET product_type = 'import' WHERE product_type IS DISTINCT FROM 'import'"))
+        archived = removed_fc = 0
+        if food:
+            conn.execute(text("UPDATE products SET product_type = 'food' WHERE sku = ANY(:k)"), {"k": food})
+            archived = conn.execute(text(f"""
+                INSERT INTO sales_excluded ({SALES_COLS}, reason)
+                SELECT {SALES_COLS}, 'food' FROM sales WHERE sku = ANY(:k)
+            """), {"k": food}).rowcount
+            conn.execute(text("DELETE FROM sales WHERE sku = ANY(:k)"), {"k": food})
+            removed_fc = conn.execute(text("DELETE FROM forecast_results WHERE sku = ANY(:k)"),
+                                      {"k": food}).rowcount
+
+    forecast_cache.clear()
+    return {
+        "status": "success",
+        "food_skus_in_file": len(entries),
+        "products_marked_food": len(food),
+        "sales_rows_excluded": archived,
+        "forecasts_removed": removed_fc,
+        "auto_sku_matched_by_name": auto_matched[:20],
+        "auto_sku_matched_count": len(auto_matched),
+    }
 
 
 @app.post("/api/etl/upload")
@@ -408,6 +469,15 @@ async def etl_confirm(file_id: str):
     cached = processed_cache[file_id]
     df = cached["df"]
     try:
+        # Food products are out of scope: drop them before anything is stored.
+        with get_engine().connect() as c:
+            food_codes, food_names = load_food_rules(c)
+        excluded_food = 0
+        if food_codes or food_names:
+            food_mask = pd.Series([is_food(sk, nm, food_codes, food_names)
+                                   for sk, nm in zip(df["SKU"], df["product_name"])], index=df.index)
+            excluded_food = int(food_mask.sum())
+            df = df[~food_mask]
         sales = df.copy()
         sales = sales.rename(columns={
             "SKU": "sku", "date": "invoice_date", "quantity": "quantity",
@@ -517,7 +587,9 @@ async def etl_confirm(file_id: str):
 
         return {
             "status": "success",
-            "message": f"{total:,} baris baru ditambahkan ({skipped:,} duplikat di-skip)",
+            "message": f"{total:,} baris baru ditambahkan ({skipped:,} duplikat di-skip)"
+                       + (f", {excluded_food:,} baris makanan dikecualikan" if excluded_food else ""),
+            "food_rows_excluded": excluded_food,
             "database": {"products": row[0], "sales": row[1],
                          "date_range": f"{row[2]} s/d {row[3]}", "unique_skus": row[4]},
             "forecast_status": "auto-run complete" if "latest" in forecast_cache else "skipped",
