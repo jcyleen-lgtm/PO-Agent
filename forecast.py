@@ -101,17 +101,20 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     """
     from sqlalchemy import text
 
-    # Weekly sales per SKU
+    # Weekly sales per SKU — research scope is IMPORT products only (food is excluded),
+    # so the Pareto 80/20 below is computed on import revenue.
     query = """
-        SELECT sku,
-               DATE_TRUNC('week', invoice_date)::date AS week_start,
-               SUM(quantity) AS total_qty,
-               SUM(amount) AS total_amount,
+        SELECT s.sku,
+               DATE_TRUNC('week', s.invoice_date)::date AS week_start,
+               SUM(s.quantity) AS total_qty,
+               SUM(s.amount) AS total_amount,
                COUNT(*) AS transaction_count
-        FROM sales
-        WHERE invoice_date IS NOT NULL
-        GROUP BY sku, DATE_TRUNC('week', invoice_date)::date
-        ORDER BY sku, week_start
+        FROM sales s
+        JOIN products p ON p.sku = s.sku
+        WHERE s.invoice_date IS NOT NULL
+          AND COALESCE(p.product_type, 'import') = 'import'
+        GROUP BY s.sku, DATE_TRUNC('week', s.invoice_date)::date
+        ORDER BY s.sku, week_start
     """
 
     with engine.connect() as conn:
