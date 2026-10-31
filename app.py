@@ -1,7 +1,9 @@
 """
-PO Agent — Web Server v3
-FastAPI backend: ETL, Weekly Analysis, Coverage, Forecasting, Replenishment.
+Stockwise — Inventory & Procurement Intelligence (formerly PO Agent)
+FastAPI backend: ETL, inventory health, forecasting, replenishment planning, PO tracking.
 Forecast runs automatically after ETL (no manual trigger).
+Shared calculations live in replenishment.py (status, ROP, SS, reco, stockout, urgency) and
+metrics.py (unit cost, valuation, movement class, turnover, freshness); config.py holds the parameters.
 """
 
 from dotenv import load_dotenv
@@ -10,7 +12,7 @@ load_dotenv()
 import os, io, uuid, csv, json, math, traceback
 from datetime import datetime, date, timedelta
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,7 +22,10 @@ from sqlalchemy import create_engine, text
 import psycopg2
 
 from etl import clean_sales_data, load_master_sku, load_product_lookup_from_db
-from forecast import run_forecast, save_forecast_to_db, calculate_replenishment
+from forecast import run_forecast, save_forecast_to_db, _holdout_summary
+from config import settings as get_settings
+import replenishment as rp
+import metrics as mt
 from auth import router as auth_router, require_login
 
 DB_URL = os.getenv("SUPABASE_DB_URL")
@@ -28,7 +33,7 @@ UPLOAD_DIR = os.path.join("/tmp", "uploads")
 MASTER_SKU_PATH = "MASTER_SKU.xlsx"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-app = FastAPI(title="PO Agent", version="3.0")
+app = FastAPI(title="Stockwise", version="4.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.middleware("http")(require_login)   # every /api/* route needs a login cookie (see auth.py)
 app.include_router(auth_router)         # /api/auth/login, /api/auth/logout, /api/auth/me
@@ -67,7 +72,7 @@ def _run_auto_forecast(engine):
         if "error" not in result:
             saved = save_forecast_to_db(engine, result)
             forecast_cache["latest"] = result
-            forecast_cache.pop("light", None)
+            forecast_cache.pop("light", None); forecast_cache.pop("light_calc_at", None)
             print(f"[auto-forecast] {result['summary']['total_skus_forecasted']} SKUs forecasted, saved={saved}")
         else:
             print(f"[auto-forecast] skipped: {result['error']}")
@@ -110,6 +115,7 @@ def load_forecast_from_db(engine, sku=None):
             "actual_data": fd.get("actual", {"weeks": [], "quantities": []}),
             "fitted_data": fd.get("fitted", {"weeks": [], "quantities": []}),
             "forecast_data": fd.get("forecast", {"weeks": [], "quantities": []}),
+            "holdout": fd.get("holdout"),
         })
         if calc_at:
             calc_times.append(calc_at)
@@ -121,6 +127,7 @@ def load_forecast_from_db(engine, sku=None):
         "good_forecast_count": len([m for m in mapes if m < 25]),
         "moderate_forecast_count": len([m for m in mapes if 25 <= m < 50]),
         "poor_forecast_count": len([m for m in mapes if m >= 50]),
+        "holdout": _holdout_summary(results),
         "forecast_periods": len(results[0]["forecast_data"].get("quantities", [])),
         "calculated_at": (lambda c: c.isoformat() if hasattr(c, "isoformat") else str(c))(max(calc_times)) if calc_times else None,
         "source": "database",
@@ -129,22 +136,30 @@ def load_forecast_from_db(engine, sku=None):
 
 
 def get_forecast_light(engine):
-    """Only the forecast fields the dashboard tables need (no actual/fitted history).
-    ~10x smaller than the full forecast, so it is cheap to load on a fresh Vercel instance."""
-    def slim(r):
+    """Only the forecast fields the dashboard tables need (no full actual/fitted history).
+    ~10x smaller than the full forecast, so it is cheap to load on a fresh Vercel instance.
+    Also carries the relative trend and the holdout WMAPE so every page reads the same values."""
+    def slim(r, actual8, holdout, ptype):
         q = r["forecast_data"].get("quantities", [])
+        tp, tc = rp.relative_trend(actual8, q)
+        h = holdout or {}
+        ha, hf = h.get("holdout_actual") or [], h.get("holdout_forecast") or []
         return {
-            # same rounding as the Inventory "Forecast/Wk" column (avg of next 8 forecast weeks)
+            # same rounding as the "Forecast/Wk" column (avg of next 8 forecast weeks)
             "fc_avg_8w": round(sum(q[:8]) / min(len(q), 8), 1) if q else 0,
             "sku": r["sku"], "product_name": r.get("product_name", r["sku"]),
+            "product_type": ptype or "import",
             "mape": r["mape"], "trend": r.get("trend", 0),
-            "trend_direction": r.get("trend_direction", "stable"),
+            "trend_direction": r.get("trend_direction", "stable"),   # legacy (beta-based), kept for comparison
+            "trend_pct": tp, "trend_class": tc,
+            "actual_8w": [round(float(x), 1) for x in (actual8 or [])[-8:]],
+            "holdout_wmape": h.get("wmape"), "holdout_reason": h.get("reason") if h else "not_computed",
+            "holdout_abs_err": round(sum(abs(a - f) for a, f in zip(ha, hf)), 1) if h.get("wmape") is not None else None,
+            "holdout_actual_sum": round(sum(ha), 1) if h.get("wmape") is not None else None,
             "avg_weekly_demand": r.get("avg_weekly_demand", 0),
             "forecast_data": {"weeks": r["forecast_data"].get("weeks", []),
-                              "quantities": r["forecast_data"].get("quantities", [])},
+                              "quantities": q},
         }
-    if "latest" in forecast_cache:
-        return [slim(r) for r in forecast_cache["latest"].get("results", [])]
     if "light" in forecast_cache:
         return forecast_cache["light"]
     with engine.connect() as conn:
@@ -153,13 +168,18 @@ def get_forecast_light(engine):
                    f.forecast_data::jsonb -> 'forecast',
                    f.forecast_data::jsonb ->> 'trend',
                    f.forecast_data::jsonb ->> 'trend_direction',
-                   f.forecast_data::jsonb ->> 'avg_weekly_demand'
+                   f.forecast_data::jsonb ->> 'avg_weekly_demand',
+                   f.forecast_data::jsonb -> 'actual' -> 'quantities',
+                   f.forecast_data::jsonb -> 'holdout',
+                   p.product_type
             FROM forecast_results f LEFT JOIN products p ON p.sku = f.sku
             ORDER BY f.id
         """)).fetchall()
     light = []
-    for sku, name, mape, fc, trend, tdir, avg in rows:
+    for sku, name, mape, fc, trend, tdir, avg, actual, holdout, ptype in rows:
         fc = fc if isinstance(fc, dict) else json.loads(fc or "{}")
+        actual = actual if isinstance(actual, list) else json.loads(actual or "[]")
+        holdout = holdout if isinstance(holdout, dict) or holdout is None else json.loads(holdout)
         light.append(slim({
             "sku": sku, "product_name": name,
             "mape": float(mape) if mape is not None else 999,
@@ -167,53 +187,42 @@ def get_forecast_light(engine):
             "trend_direction": tdir or "stable",
             "avg_weekly_demand": float(avg) if avg is not None else 0,
             "forecast_data": fc or {"weeks": [], "quantities": []},
-        }))
+        }, actual[-8:], holdout, ptype))
     if light:
         forecast_cache["light"] = light
     return light
 
 
 def forecast_summary_fast(engine, product_type="all"):
-    """The 4 headline forecast numbers for the Overview, computed in SQL so the
-    full forecast table never has to be downloaded just for them."""
-    tf = f"WHERE COALESCE(p.product_type, 'import') = '{product_type}'" if product_type in ("import", "food") else ""
-    fc = forecast_cache.get("latest")
-    if fc and fc.get("results") and not tf:
-        res = fc["results"]
-        return {
-            "total_forecasted": len(res),
-            "avg_mape": fc["summary"].get("avg_mape", 0),
-            "forecast_demand_8w": round(sum(sum(r["forecast_data"]["quantities"][:8]) for r in res)),
-            "trending_up": len([r for r in res if r["trend_direction"] == "up"]),
-            "trending_down": len([r for r in res if r["trend_direction"] == "down"]),
-            "calculated_at": fc["summary"].get("calculated_at"),
-        }
-    with engine.connect() as conn:
-        row = conn.execute(text(f"""
-            SELECT COUNT(*),
-                   ROUND(AVG(f.mape) FILTER (WHERE f.mape < 999), 2),
-                   COALESCE(SUM((
-                       SELECT SUM(q::numeric)
-                       FROM jsonb_array_elements_text(f.forecast_data::jsonb -> 'forecast' -> 'quantities')
-                            WITH ORDINALITY AS t(q, i)
-                       WHERE i <= 8
-                   )), 0),
-                   COUNT(*) FILTER (WHERE f.forecast_data::jsonb ->> 'trend_direction' = 'up'),
-                   COUNT(*) FILTER (WHERE f.forecast_data::jsonb ->> 'trend_direction' = 'down'),
-                   MAX(f.calculated_at)
-            FROM forecast_results f
-            LEFT JOIN products p ON p.sku = f.sku
-            {tf}
-        """)).fetchone()
-    if not row or not row[0]:
+    """Headline forecast numbers for the Overview, from the light forecast (one cached query)."""
+    light = get_forecast_light(engine)
+    if product_type in ("import", "food"):
+        light = [r for r in light if r["product_type"] == product_type]
+    if not light:
         return None
+    mapes = [r["mape"] for r in light if r["mape"] < 999]
+    ev = [r for r in light if r["holdout_wmape"] is not None]
+    act = sum(r["holdout_actual_sum"] for r in ev)
+    calc = forecast_cache.get("light_calc_at")
+    if calc is None:
+        try:
+            with engine.connect() as conn:
+                calc = conn.execute(text("SELECT MAX(calculated_at) FROM forecast_results")).scalar()
+            calc = calc.isoformat() if calc else None
+            forecast_cache["light_calc_at"] = calc
+        except Exception:
+            calc = None
     return {
-        "total_forecasted": int(row[0]),
-        "avg_mape": float(row[1]) if row[1] is not None else 0,
-        "forecast_demand_8w": round(float(row[2])),
-        "trending_up": int(row[3]),
-        "trending_down": int(row[4]),
-        "calculated_at": row[5].isoformat() if row[5] else None,
+        "total_forecasted": len(light),
+        "avg_mape": round(sum(mapes) / len(mapes), 2) if mapes else 0,
+        "mape_basis": "in_sample",
+        "holdout_wmape": round(sum(r["holdout_abs_err"] for r in ev) / act * 100, 2) if act else None,
+        "holdout_evaluated": len(ev), "holdout_not_evaluated": len(light) - len(ev),
+        "forecast_demand_8w": round(sum(sum(r["forecast_data"]["quantities"][:8]) for r in light)),
+        "trending_up": len([r for r in light if r["trend_class"] == "increasing"]),
+        "trending_down": len([r for r in light if r["trend_class"] == "decreasing"]),
+        "trend_basis": "relative_8w_10pct",
+        "calculated_at": calc,
     }
 
 
@@ -328,18 +337,185 @@ async def upload_master_sku(file: UploadFile = File(...)):
 
 # ── Stock status (one definition for the whole dashboard) ──────
 # Coverage = (stock + open PO) / average weekly sales of the last 4 weeks.
-UNDERSTOCK_WEEKS = 8    # below this: understocked (matches the 8-week lead time)
-OVERSTOCK_WEEKS = 20    # above this: overstocked
+def _type_filter(product_type):
+    return f"AND COALESCE(p.product_type, 'import') = '{product_type}'" if product_type in ("import", "food") else ""
 
 
-def coverage_status(cov):
-    if cov is None:
-        return "no_sales"
-    if cov < UNDERSTOCK_WEEKS:
-        return "understocked"
-    if cov <= OVERSTOCK_WEEKS:
-        return "healthy"
-    return "overstocked"
+def coverage_status(cov, stock=0):
+    """Kept for old callers; the rule itself lives in replenishment.stock_status (3 statuses only)."""
+    return rp.stock_status(cov, stock, get_settings())
+
+
+def _fetch_po_lines(conn, sku=None):
+    """Outstanding PO lines (pending/partial, ordered > received). Cancelled/superseded never count."""
+    where = "AND po.sku = :sku" if sku else ""
+    rows = conn.execute(text(f"""
+        SELECT po.id, po.sku, po.qty_ordered - COALESCE(po.qty_received, 0), po.order_date,
+               po.expected_date, po.supplier, po.status, po.qty_ordered, COALESCE(po.qty_received, 0)
+        FROM purchase_orders po
+        WHERE po.status IN ('pending', 'partial') AND po.qty_ordered > COALESCE(po.qty_received, 0) {where}
+        ORDER BY po.id
+    """), {"sku": sku} if sku else {}).fetchall()
+    out = {}
+    for r in rows:
+        out.setdefault(r[1], []).append({"id": r[0], "outstanding": int(r[2]), "order_date": r[3],
+                                         "expected_date": r[4], "supplier": r[5], "status": r[6],
+                                         "qty_ordered": int(r[7]), "qty_received": int(r[8])})
+    return out
+
+
+def build_inventory(engine, product_type="import", scope="all", today=None):
+    """One pass that every inventory/replenishment page reads from, so a SKU shows the same
+    coverage, status, cost, reco and urgency everywhere."""
+    cfg = get_settings()
+    today = today or date.today()
+    tf = _type_filter(product_type)
+    n_hist = max(12, cfg["movement_window_weeks"])
+    with engine.connect() as conn:
+        weeks = sorted(r[0] for r in conn.execute(text(f"""
+            SELECT DISTINCT DATE_TRUNC('week', s.invoice_date)::date AS w
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date IS NOT NULL {tf}
+            ORDER BY w DESC LIMIT :n
+        """), {"n": n_hist}).fetchall())
+        last_sale = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).scalar()
+        snap_dates = [r[0] for r in conn.execute(text(
+            "SELECT DISTINCT snapshot_date FROM stock_snapshots ORDER BY snapshot_date DESC")).fetchall()]
+        snap_date = snap_dates[0] if snap_dates else None
+        stk = {r[0]: int(r[1]) for r in conn.execute(text(
+            "SELECT sku, SUM(quantity) FROM stock_snapshots WHERE snapshot_date = :d GROUP BY sku"),
+            {"d": snap_date}).fetchall()} if snap_date else {}
+        po_lines = _fetch_po_lines(conn)
+        if not weeks:
+            return {"rows": [], "summary": {}, "freshness": mt.freshness(snap_date, last_sale, cfg, today),
+                    "stock_date": str(snap_date) if snap_date else None, "has_stock": bool(stk),
+                    "snapshot_count": len(snap_dates), "settings": cfg}
+        r4 = weeks[-4:]
+        rmov = weeks[-cfg["movement_window_weeks"]:]
+        sku_rows = conn.execute(text(f"""
+            SELECT s.sku, MIN(p.name)
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date IS NOT NULL {tf}
+            GROUP BY s.sku ORDER BY s.sku
+        """)).fetchall()
+        recent = conn.execute(text(f"""
+            SELECT s.sku, DATE_TRUNC('week', s.invoice_date)::date AS w, SUM(s.quantity), SUM(s.amount)
+            FROM sales s JOIN products p ON s.sku = p.sku
+            WHERE s.invoice_date >= :w0 {tf}
+            GROUP BY s.sku, w
+        """), {"w0": weeks[0]}).fetchall()
+        costs = mt.unit_costs(conn, cfg)
+
+    qty_by, rev_by = {}, {}
+    for sku, w, q, a in recent:
+        qty_by.setdefault(sku, {})[w] = int(q or 0)
+        rev_by.setdefault(sku, {})[w] = float(a or 0)
+
+    avg_mov = {sku: sum(qty_by.get(sku, {}).get(w, 0) for w in rmov) / max(len(rmov), 1) for sku, _ in sku_rows}
+    movement = mt.movement_classes(avg_mov, cfg)
+
+    try:
+        fc_map = {r["sku"]: r for r in get_forecast_light(engine)}
+    except Exception:
+        fc_map = {}
+    if scope == "bestseller" and fc_map:
+        sku_rows = [r for r in sku_rows if r[0] in fc_map]
+
+    rows = []
+    for sku, name in sku_rows:
+        wmap, rmap = qty_by.get(sku, {}), rev_by.get(sku, {})
+        l4w_qty = sum(wmap.get(w, 0) for w in r4)
+        l4w_rev = sum(rmap.get(w, 0) for w in r4)
+        avg_l4w = round(l4w_qty / max(len(r4), 1), 1)
+        cs = stk.get(sku, 0)
+        lines = po_lines.get(sku, [])
+        op = sum(l["outstanding"] for l in lines)
+        available = cs + op
+        cov = rp.coverage_weeks(cs, op, avg_l4w)
+        status = rp.stock_status(cov, cs, cfg)
+        c = costs.get(sku)
+        ovq = rp.overstock_qty(available, avg_l4w, cfg) if status == "overstocked" else 0
+        row = {
+            "sku": sku, "product_name": name,
+            "l4w_qty": l4w_qty, "l4w_revenue": round(l4w_rev), "avg_l4w": avg_l4w,
+            "current_stock": cs, "out_of_stock": cs <= 0,
+            "ongoing_po": op, "available": available,
+            "coverage": cov, "days_of_inventory": round(cov * 7) if cov is not None else None,
+            "status": status,
+            "movement": movement.get(sku, "non_moving"), "avg_weekly_12w": round(avg_mov.get(sku, 0), 1),
+            "unit_cost": c["cost"] if c else None,
+            "cost_source": c["source"] if c else None,
+            "cost_verified": c["verified"] if c else False,
+            "inventory_value": round(max(cs, 0) * c["cost"]) if c else None,
+            "overstock_qty": ovq,
+            "overstock_value": round(ovq * c["cost"]) if (c and ovq) else (0 if not ovq else None),
+            "forecasted": sku in fc_map,
+            # forecast-based fields (None when the SKU is not a forecasted best seller)
+            "fc_avg_weekly": None, "mape": None, "holdout_wmape": None,
+            "trend_pct": None, "trend_class": None, "trend_direction": None,
+            "lt_demand_8w": None, "safety_stock": None, "rop": None,
+            "inventory_position": None, "confirmed_incoming": None, "unconfirmed_incoming": None,
+            "reco_po": None, "reco_order_up_to": None, "reco_if_unconfirmed_arrives": None,
+            "stockout_week": None, "stockout_week_if_unconfirmed_arrives": None,
+            "urgency": None, "slack_weeks": None, "needs_po_check": False, "est_purchase_cost": None,
+        }
+        fc = fc_map.get(sku)
+        if fc:
+            fq = fc["forecast_data"]["quantities"]
+            plan = rp.plan_sku(cs, lines, fq, fc["forecast_data"].get("weeks", []), cfg, today=today)
+            row.update({
+                "fc_avg_weekly": fc["fc_avg_8w"], "mape": fc["mape"], "holdout_wmape": fc["holdout_wmape"],
+                "trend_pct": fc["trend_pct"], "trend_class": fc["trend_class"],
+                "trend_direction": fc["trend_direction"],
+                "lt_demand_8w": plan["lt_demand"], "safety_stock": plan["safety_stock"], "rop": plan["rop"],
+                "inventory_position": plan["inventory_position"],
+                "confirmed_incoming": plan["confirmed_incoming"],
+                "unconfirmed_incoming": plan["unconfirmed_incoming"],
+                "reco_po": plan["reco_qty"], "reco_order_up_to": plan["reco_order_up_to"],
+                "reco_if_unconfirmed_arrives": plan["reco_if_unconfirmed_arrives"],
+                "stockout_week": plan["stockout_week"],
+                "stockout_week_if_unconfirmed_arrives": plan["stockout_week_if_unconfirmed_arrives"],
+                "urgency": plan["urgency"], "slack_weeks": plan["slack_weeks"],
+                "needs_po_check": plan["needs_po_check"],
+                "est_purchase_cost": round(plan["reco_qty"] * c["cost"]) if (c and plan["reco_qty"]) else (0 if not plan["reco_qty"] else None),
+                "flags": plan["flags"],
+            })
+        rows.append(row)
+
+    with_cost = [r for r in rows if r["unit_cost"] is not None]
+    summary = {
+        "total": len(rows),
+        "understocked": sum(r["status"] == "understocked" for r in rows),
+        "healthy": sum(r["status"] == "healthy" for r in rows),
+        "overstocked": sum(r["status"] == "overstocked" for r in rows),
+        "unclassified": sum(r["status"] is None for r in rows),   # no sales and no stock: not a status
+        "out_of_stock": sum(r["out_of_stock"] for r in rows),
+        "stock_on_hand": sum(max(r["current_stock"], 0) for r in rows),
+        "negative_stock_skus": sum(r["current_stock"] < 0 for r in rows),
+        "inventory_value": sum(r["inventory_value"] for r in with_cost),
+        "valued_skus": len(with_cost), "no_cost_skus": len(rows) - len(with_cost),
+        "cost_verified": bool(with_cost) and all(r["cost_verified"] for r in with_cost),
+        "overstock_qty": sum(r["overstock_qty"] for r in rows),
+        "overstock_value": sum(r["overstock_value"] or 0 for r in rows),
+        "forecasted": sum(r["forecasted"] for r in rows),
+        "reorder_skus": sum(1 for r in rows if (r["reco_po"] or 0) > 0),
+        "reorder_qty": sum(r["reco_po"] or 0 for r in rows),
+        "est_purchase_cost": sum(r["est_purchase_cost"] or 0 for r in rows),
+        "urgency": {u: sum(r["urgency"] == u for r in rows) for u in ("critical", "high", "medium", "low")},
+        "needs_po_check": sum(r["needs_po_check"] for r in rows),
+        "movement": {m: sum(r["movement"] == m for r in rows) for m in ("fast", "medium", "slow", "non_moving")},
+        # legacy key (old dashboards): there is no 4th status any more
+        "no_sales": 0,
+    }
+    return {
+        "rows": rows, "summary": summary,
+        "freshness": mt.freshness(snap_date, last_sale, cfg, today),
+        "stock_date": str(snap_date) if snap_date else None, "has_stock": bool(stk),
+        "snapshot_count": len(snap_dates), "sales_weeks": [str(w) for w in r4],
+        "settings": {k: cfg[k] for k in ("lead_time_weeks", "review_period_days", "ss_pct", "ss_basis_weeks",
+                                         "understock_weeks", "overstock_weeks", "cost_verified",
+                                         "stale_warn_days", "stale_block_days")},
+    }
 
 
 # ── Food / import classification ──────────────────────────────
@@ -625,7 +801,15 @@ async def etl_confirm(file_id: str):
 # ── Stock Upload ──────────────────────────────────────────────
 
 @app.post("/api/stock/upload")
-async def stock_upload(file: UploadFile = File(...)):
+async def stock_upload(file: UploadFile = File(...), report_date: str = Form(None)):
+    """report_date = the date of the stock report (YYYY-MM-DD). Defaults to today when not given.
+    The upload time is kept separately in created_at."""
+    try:
+        snap_day = date.fromisoformat(report_date) if report_date else date.today()
+    except ValueError:
+        raise HTTPException(400, "report_date harus format YYYY-MM-DD")
+    if snap_day > date.today():
+        raise HTTPException(400, "Tanggal laporan stok tidak boleh di masa depan")
     if not file.filename.endswith((".xls", ".xlsx")):
         raise HTTPException(400, "Format harus .xls/.xlsx")
     content = await file.read()
@@ -650,7 +834,7 @@ async def stock_upload(file: UploadFile = File(...)):
         df = raw[raw[0].apply(lambda s: len(s.replace("-",".").split(".")) >= 3)].copy()
         df = df.rename(columns={0:"sku", 1:"product", 2:"quantity"})
         df["quantity"] = df["quantity"].astype(int)
-        today = date.today()
+        today = snap_day
         conn = get_raw_conn()
         cur = conn.cursor()
         conn.autocommit = False
@@ -694,6 +878,48 @@ async def stock_upload(file: UploadFile = File(...)):
 # PURCHASE ORDER APIs
 # ══════════════════════════════════════════════════════════════
 
+PO_ALIASES = {
+    "sku": {"sku", "kode", "kode item", "kode barang", "item code", "item_code", "item no", "no. barang"},
+    "product_name": {"product", "product name", "nama", "nama barang", "nama item", "name", "item", "description", "deskripsi"},
+    "qty_ordered": {"qty", "qty ordered", "qty_ordered", "quantity", "kuantitas", "jumlah", "total qty", "total_qty", "qty order"},
+    "supplier": {"supplier", "vendor", "pemasok"},
+    "order_date": {"order date", "order_date", "tanggal", "tanggal po", "tgl po", "po date", "tanggal pesanan"},
+    "expected_date": {"expected date", "expected_date", "eta", "estimasi", "estimasi tiba", "tanggal kirim", "delivery date"},
+    "po_number": {"po number", "po_number", "no po", "no. po", "nomor po", "po no", "po"},
+    "source_status": {"status", "status po"},
+}
+# keyword fallback, checked in this order (dates before qty on purpose)
+PO_KEYWORDS = [
+    ("expected_date", ("expected", "eta", "estimasi", "delivery")),
+    ("order_date", ("order date", "tanggal", "tgl", "date")),
+    ("po_number", ("po number", "nomor po", "no po")),
+    ("supplier", ("supplier", "vendor", "pemasok")),
+    ("qty_ordered", ("qty", "quantity", "kuantitas", "jumlah")),
+    ("sku", ("sku", "kode")),
+    ("product_name", ("product", "nama", "name", "item", "description")),
+]
+
+
+def map_po_columns(columns):
+    """Return ({original: target}, warnings). Each target is used once; unmapped columns are reported."""
+    col_map, used, warnings = {}, set(), []
+    norm = {c: " ".join(str(c).strip().lower().replace("_", " ").split()) for c in columns}
+    for c, n in norm.items():
+        for tgt, names in PO_ALIASES.items():
+            if tgt not in used and (n in names or n.replace(" ", "_") in names):
+                col_map[c] = tgt; used.add(tgt); break
+    for c, n in norm.items():
+        if c in col_map:
+            continue
+        for tgt, keys in PO_KEYWORDS:
+            if tgt not in used and any(k in n for k in keys):
+                col_map[c] = tgt; used.add(tgt); break
+    unmapped = [str(c) for c in columns if c not in col_map]
+    if unmapped:
+        warnings.append(f"Kolom tidak dipakai: {', '.join(unmapped)}")
+    return col_map, warnings
+
+
 @app.post("/api/po/upload")
 async def po_upload(file: UploadFile = File(...)):
     """
@@ -712,28 +938,22 @@ async def po_upload(file: UploadFile = File(...)):
         df = pd.read_excel(tmp, engine="xlrd" if ext == ".xls" else "openpyxl")
         df.columns = [str(c).strip() for c in df.columns]
 
-        # Flexible column mapping
-        col_map = {}
-        for c in df.columns:
-            cl = c.lower()
-            if cl in ("sku", "kode", "item code", "item_code", "kode item"):
-                col_map[c] = "sku"
-            elif any(k in cl for k in ("product", "nama", "name", "item", "description")):
-                col_map[c] = "product_name"
-            elif any(k in cl for k in ("qty ordered", "qty_ordered", "quantity", "total qty", "total_qty", "qty", "jumlah", "order")):
-                col_map[c] = "qty_ordered"
-            elif any(k in cl for k in ("supplier", "vendor")):
-                col_map[c] = "supplier"
-            elif any(k in cl for k in ("order date", "order_date", "tanggal")):
-                col_map[c] = "order_date"
-            elif any(k in cl for k in ("expected", "eta", "estimasi")):
-                col_map[c] = "expected_date"
+        # Column mapping: exact aliases first, then keyword rules in a fixed priority order.
+        # Dates are matched BEFORE quantity, so "Order Date" can never become the qty column.
+        col_map, warnings = map_po_columns(df.columns)
         df = df.rename(columns=col_map)
 
         if "qty_ordered" not in df.columns:
-            raise HTTPException(400, "Kolom qty/quantity tidak ditemukan")
+            raise HTTPException(400, f"Kolom qty tidak ditemukan. Kolom di file: {list(map(str, col_map.keys()) or df.columns)}")
 
         df["qty_ordered"] = pd.to_numeric(df["qty_ordered"], errors="coerce").fillna(0).astype(int)
+        for dc in ("order_date", "expected_date"):
+            if dc in df.columns:
+                parsed = pd.to_datetime(df[dc], errors="coerce", dayfirst=True)
+                bad = int((df[dc].notna() & parsed.isna()).sum())
+                if bad:
+                    warnings.append(f"{bad} nilai {dc} tidak bisa dibaca sebagai tanggal (dikosongkan)")
+                df[dc] = parsed
         df = df[df["qty_ordered"] > 0].copy()
 
         if df.empty:
@@ -789,6 +1009,8 @@ async def po_upload(file: UploadFile = File(...)):
                     "supplier": str(row.get("supplier", "")) if pd.notna(row.get("supplier")) else None,
                     "order_date": pd.to_datetime(row.get("order_date"), errors="coerce"),
                     "expected_date": pd.to_datetime(row.get("expected_date"), errors="coerce"),
+                    # only cancelled when the source file itself says so
+                    "status": "cancelled" if any(k in str(row.get("source_status", "")).lower() for k in ("cancel", "batal")) else "pending",
                 })
             else:
                 unmatched.append(pname)
@@ -807,16 +1029,19 @@ async def po_upload(file: UploadFile = File(...)):
                     INSERT INTO products (sku, name) VALUES (%s, %s)
                     ON CONFLICT (sku) DO NOTHING
                 """, (np["sku"], np["name"]))
-            # Cancel all existing pending POs (fresh upload = fresh state)
-            cur.execute("UPDATE purchase_orders SET status = 'cancelled', updated_at = NOW() WHERE status IN ('pending', 'partial')")
+            # The file is the new list of open POs. Previously open lines are marked 'superseded'
+            # (NOT 'cancelled'), so a replaced line can be told apart from a real cancellation and
+            # the history stays. Upsert by PO number arrives with the P2 migration (po_number column).
+            cur.execute("UPDATE purchase_orders SET status = 'superseded', updated_at = NOW() WHERE status IN ('pending', 'partial')")
             for po in resolved:
                 cur.execute("""
                     INSERT INTO purchase_orders (sku, qty_ordered, supplier, order_date, expected_date, status)
-                    VALUES (%s, %s, %s, %s, %s, 'pending')
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """, (
                     po["sku"], po["qty_ordered"], po["supplier"],
                     po["order_date"].date() if pd.notna(po["order_date"]) else None,
                     po["expected_date"].date() if pd.notna(po["expected_date"]) else None,
+                    po["status"],
                 ))
             conn.commit()
         except Exception as e:
@@ -834,6 +1059,8 @@ async def po_upload(file: UploadFile = File(...)):
             "new_products": len(new_products),
             "unmatched": len(unmatched),
             "unmatched_names": unmatched[:20],
+            "column_mapping": {str(k): v for k, v in col_map.items()},
+            "warnings": warnings,
         }
     except HTTPException:
         raise
@@ -844,41 +1071,135 @@ async def po_upload(file: UploadFile = File(...)):
 
 
 @app.get("/api/po/list")
-async def po_list(status: str = "pending"):
-    """List ongoing POs. status = pending | partial | received | cancelled | all"""
+async def po_list(status: str = "open"):
+    """PO lines. status = open (pending+partial) | pending | partial | received | completed |
+    cancelled | superseded | overdue | all. ETA follows the hierarchy expected_date -> order_date + lead time -> unknown."""
+    cfg = get_settings()
+    today = date.today()
+    engine = get_engine()
+    where, params = "", {}
+    if status == "open" or status == "overdue":
+        where = "WHERE po.status IN ('pending','partial')"
+    elif status != "all":
+        where, params = "WHERE po.status = :status", {"status": status}
+    with engine.connect() as conn:
+        rows = conn.execute(text(f"""
+            SELECT po.id, po.sku, p.name, po.qty_ordered, COALESCE(po.qty_received, 0),
+                   po.supplier, po.status, po.order_date, po.expected_date, po.received_date
+            FROM purchase_orders po
+            LEFT JOIN products p ON p.sku = po.sku
+            {where}
+            ORDER BY po.created_at DESC, po.id DESC
+        """), params).fetchall()
+    data = []
+    for r in rows:
+        outstanding = max(0, int(r[3]) - int(r[4])) if r[6] in ("pending", "partial") else 0
+        eta, src = rp.po_eta({"expected_date": r[8], "order_date": r[7]}, cfg["lead_time_weeks"])
+        overdue = bool(outstanding > 0 and eta and eta < today)
+        if status == "overdue" and not overdue:
+            continue
+        data.append({
+            "id": r[0], "sku": r[1], "product": r[2],
+            "qty_ordered": r[3], "qty_received": r[4], "outstanding": outstanding,
+            "supplier": r[5], "status": r[6],
+            "order_date": str(r[7]) if r[7] else None,
+            "expected_date": str(r[8]) if r[8] else None,
+            "received_date": str(r[9]) if r[9] else None,
+            "eta": str(eta) if eta else None, "eta_source": src, "overdue": overdue,
+            "days_overdue": (today - eta).days if overdue else None,
+        })
+    return {"count": len(data), "data": data}
+
+
+@app.get("/api/po/summary")
+async def po_summary():
+    """PO & Supplier page header + delivery performance. Performance figures are only returned when
+    the underlying receipt data exists; otherwise `available: false` with the reason."""
+    cfg = get_settings()
+    today = date.today()
     engine = get_engine()
     with engine.connect() as conn:
-        if status == "all":
-            rows = conn.execute(text("""
-                SELECT po.id, po.sku, p.name, po.qty_ordered, po.qty_received,
-                       po.supplier, po.status, po.order_date, po.expected_date
-                FROM purchase_orders po
-                LEFT JOIN products p ON p.sku = po.sku
-                ORDER BY po.created_at DESC
-            """)).fetchall()
-        else:
-            rows = conn.execute(text("""
-                SELECT po.id, po.sku, p.name, po.qty_ordered, po.qty_received,
-                       po.supplier, po.status, po.order_date, po.expected_date
-                FROM purchase_orders po
-                LEFT JOIN products p ON p.sku = po.sku
-                WHERE po.status = :status
-                ORDER BY po.created_at DESC
-            """), {"status": status}).fetchall()
+        rows = conn.execute(text("""
+            SELECT id, sku, qty_ordered, COALESCE(qty_received,0), status, order_date, expected_date,
+                   received_date, supplier
+            FROM purchase_orders
+        """)).fetchall()
+    open_rows = [r for r in rows if r[4] in ("pending", "partial") and r[2] > r[3]]
+    overdue = unknown = estimated = 0
+    for r in open_rows:
+        eta, src = rp.po_eta({"expected_date": r[6], "order_date": r[5]}, cfg["lead_time_weeks"])
+        unknown += src == "unknown"
+        estimated += src == "estimated"
+        overdue += bool(eta and eta < today)
+    by_status = {}
+    for r in rows:
+        by_status[r[4]] = by_status.get(r[4], 0) + 1
 
+    # Delivery performance (needs order dates + receipts)
+    # Lines that are due: closed lines, plus partial lines whose ETA has passed (still-in-transit lines are excluded)
+    def _due(r):
+        if r[4] in ("received", "completed"):
+            return True
+        if r[4] == "partial":
+            eta, _ = rp.po_eta({"expected_date": r[6], "order_date": r[5]}, cfg["lead_time_weeks"])
+            return bool(eta and eta < today)
+        return False
+    done = [r for r in rows if _due(r) and r[2] > 0]
+    fulfil = {"available": False, "reason": "no_receipts", "required": "qty_received on received/partial POs"}
+    if done and sum(r[3] for r in done) > 0:
+        fulfil = {"available": True, "rate_pct": round(sum(r[3] for r in done) / sum(r[2] for r in done) * 100, 1),
+                  "po_lines": len(done)}
+    lts = [((r[7] - r[5]).days, r[8] or "Unknown supplier") for r in rows if r[5] and r[7]]
+    lead = {"available": False, "reason": "no_order_and_receipt_dates",
+            "required": "order_date and received_date on the same PO line", "deliveries": len(lts)}
+    if lts:
+        import statistics
+        sup = {}
+        for d, s_ in lts:
+            sup.setdefault(s_, []).append(d)
+        lead = {"available": True, "avg_days": round(sum(d for d, _ in lts) / len(lts), 1), "deliveries": len(lts),
+                "by_supplier": [{"supplier": k, "deliveries": len(v), "avg_days": round(sum(v) / len(v), 1),
+                                 "std_days": round(statistics.stdev(v), 1) if len(v) >= 3 else None}
+                                for k, v in sorted(sup.items())]}
     return {
-        "count": len(rows),
-        "data": [
-            {
-                "id": r[0], "sku": r[1], "product": r[2],
-                "qty_ordered": r[3], "qty_received": r[4],
-                "supplier": r[5], "status": r[6],
-                "order_date": str(r[7]) if r[7] else None,
-                "expected_date": str(r[8]) if r[8] else None,
-            }
-            for r in rows
-        ],
+        "open_pos": len(open_rows),
+        "open_qty_ordered": sum(r[2] for r in open_rows),
+        "open_qty_received": sum(r[3] for r in open_rows),
+        "outstanding_qty": sum(r[2] - r[3] for r in open_rows),
+        "overdue": overdue, "eta_unknown": unknown, "eta_estimated": estimated,
+        "by_status": by_status,
+        "suppliers": len({r[8] for r in rows if r[8]}),
+        "default_lead_time_weeks": cfg["lead_time_weeks"],
+        "fulfillment": fulfil, "lead_time": lead,
+        "stockout_rate": _stockout_rate(engine),
     }
+
+
+def _stockout_rate(engine, min_snapshots=4, weeks=12):
+    """SKU-weeks with stock <= 0 / SKU-weeks with stock data, forecasted best sellers, last `weeks` weeks.
+    Not reported until there are at least `min_snapshots` snapshots in that window."""
+    try:
+        best = {r["sku"] for r in get_forecast_light(engine)}
+    except Exception:
+        best = set()
+    with engine.connect() as conn:
+        mx = conn.execute(text("SELECT MAX(snapshot_date) FROM stock_snapshots")).scalar()
+        if not mx:
+            return {"available": False, "reason": "no_snapshots", "snapshots": 0, "required": min_snapshots}
+        rows = conn.execute(text("""
+            SELECT snapshot_date, sku, SUM(quantity) FROM stock_snapshots
+            WHERE snapshot_date > :a GROUP BY snapshot_date, sku
+        """), {"a": mx - timedelta(weeks=weeks)}).fetchall()
+    dates = {r[0] for r in rows}
+    if len(dates) < min_snapshots:
+        return {"available": False, "reason": "needs_weekly_stock_snapshots", "snapshots": len(dates),
+                "required": min_snapshots}
+    obs = [r for r in rows if not best or r[1] in best]
+    if not obs:
+        return {"available": False, "reason": "no_best_seller_stock_rows", "snapshots": len(dates)}
+    oos = sum(1 for r in obs if (r[2] or 0) <= 0)
+    return {"available": True, "rate_pct": round(oos / len(obs) * 100, 1), "sku_weeks": len(obs),
+            "stockout_sku_weeks": oos, "snapshots": len(dates), "weeks": weeks}
 
 
 @app.delete("/api/po/{po_id}")
@@ -1090,90 +1411,48 @@ async def overview_summary(
 
 @app.get("/api/best-sellers-at-risk")
 async def best_sellers_at_risk(product_type: str = "all", limit: int = 50):
-    """Understocked best sellers (Pareto set) with the stock trend vs ~8 weeks ago.
-    The dashboard picks the top 10 by urgency or by revenue."""
+    """Understocked best sellers (Pareto set), same numbers as the inventory pages.
+    The stock comparison vs ~8 weeks ago is only returned when a second, older snapshot exists."""
     engine = get_engine()
-    type_filter = ""
-    if product_type in ("import", "food"):
-        type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
-    with engine.connect() as conn:
-        # Same "last 4 weeks" window as /api/inventory (last 4 sales weeks), so coverage
-        # and status are identical for a SKU on both pages.
-        r4 = sorted(r[0] for r in conn.execute(text(f"""
-            SELECT DISTINCT DATE_TRUNC('week', s.invoice_date)::date AS w
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL {type_filter}
-            ORDER BY w DESC LIMIT 4
-        """)).fetchall())
-        if not r4:
-            return {"results": []}
-        n_weeks = len(r4)
+    inv = build_inventory(engine, product_type, scope="bestseller")
+    best_only = any(r["forecasted"] for r in inv["rows"])
+    res = [r for r in inv["rows"] if r["status"] == "understocked" and r["l4w_qty"] > 0]
 
-        sales = conn.execute(text(f"""
-            SELECT s.sku, p.name, SUM(s.quantity) qty, SUM(s.amount) rev
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date >= :s {type_filter} GROUP BY s.sku, p.name
-        """), {"s": r4[0]}).fetchall()
-
-        # Current stock = latest snapshot. Previous = latest snapshot at least 7 weeks older
-        # (target ~8 weeks); if none that old exists, the oldest snapshot available.
-        stk, prev_stk, snap_now, snap_prev = {}, {}, None, None
-        try:
+    snap_now = date.fromisoformat(inv["stock_date"]) if inv["stock_date"] else None
+    snap_prev, prev_stk = None, {}
+    if snap_now and inv["snapshot_count"] >= 2:
+        with engine.connect() as conn:
             dates = [r[0] for r in conn.execute(text(
-                "SELECT DISTINCT snapshot_date FROM stock_snapshots ORDER BY snapshot_date DESC")).fetchall()]
-            if dates:
-                snap_now = dates[0]
-                older = [d for d in dates[1:] if (snap_now - d).days >= 49]
-                snap_prev = older[0] if older else (dates[-1] if len(dates) > 1 else None)
-                stk = {r[0]: int(r[1]) for r in conn.execute(text(
-                    "SELECT sku, quantity FROM stock_snapshots WHERE snapshot_date = :d"), {"d": snap_now}).fetchall()}
-                if snap_prev:
-                    prev_stk = {r[0]: int(r[1]) for r in conn.execute(text(
-                        "SELECT sku, quantity FROM stock_snapshots WHERE snapshot_date = :d"), {"d": snap_prev}).fetchall()}
-        except Exception:
-            pass
-        try:
-            po = {r[0]: int(r[1]) for r in conn.execute(text("""
-                SELECT sku, SUM(qty_ordered-qty_received) FROM purchase_orders
-                WHERE status IN ('pending','partial') GROUP BY sku
-            """)).fetchall()}
-        except Exception:
-            po = {}
-
-    # Best sellers only (Pareto 80% set = SKUs with a forecast); all SKUs if no forecast exists yet.
-    try:
-        best = {r["sku"] for r in get_forecast_light(engine)}
-    except Exception:
-        best = set()
-
-    weeks_between = round((snap_now - snap_prev).days / 7, 1) if snap_now and snap_prev else None
+                "SELECT DISTINCT snapshot_date FROM stock_snapshots WHERE snapshot_date < :d ORDER BY snapshot_date DESC"),
+                {"d": snap_now}).fetchall()]
+            older = [d for d in dates if (snap_now - d).days >= 49]
+            snap_prev = older[0] if older else (dates[-1] if dates else None)
+            if snap_prev:
+                prev_stk = {r[0]: int(r[1]) for r in conn.execute(text(
+                    "SELECT sku, SUM(quantity) FROM stock_snapshots WHERE snapshot_date = :d GROUP BY sku"),
+                    {"d": snap_prev}).fetchall()}
     results = []
-    for r in sales:
-        sku, name, qty, rev = r[0], r[1], int(r[2]), float(r[3])
-        if qty <= 0 or (best and sku not in best):
-            continue
-        avg_w = round(qty / n_weeks, 1)
-        cs = stk.get(sku, 0)
-        op = po.get(sku, 0)
-        cov = round((cs + op) / avg_w, 1) if avg_w > 0 else None
-        st = coverage_status(cov)
-        if st != "understocked":
-            continue
-        ps = prev_stk.get(sku) if snap_prev else None
-        change = round((cs - ps) / ps * 100, 1) if ps else None
-        results.append({"sku": sku, "name": name, "l4w_qty": qty, "revenue": rev,
-                        "avg_weekly": avg_w, "current_stock": cs, "ongoing_po": op,
-                        "coverage": cov, "status": st,
-                        "prev_stock": ps, "stock_change_pct": change})
-
+    for r in res:
+        ps = prev_stk.get(r["sku"]) if snap_prev else None
+        results.append({"sku": r["sku"], "name": r["product_name"], "l4w_qty": r["l4w_qty"],
+                        "revenue": r["l4w_revenue"], "avg_weekly": r["avg_l4w"],
+                        "current_stock": r["current_stock"], "ongoing_po": r["ongoing_po"],
+                        "coverage": r["coverage"], "days_of_inventory": r["days_of_inventory"],
+                        "status": r["status"], "urgency": r["urgency"], "slack_weeks": r["slack_weeks"],
+                        "stockout_week": r["stockout_week"], "reco_po": r["reco_po"],
+                        "needs_po_check": r["needs_po_check"],
+                        "prev_stock": ps,
+                        "stock_change_pct": round((r["current_stock"] - ps) / ps * 100, 1) if ps else None})
     results.sort(key=lambda x: x["revenue"], reverse=True)
     return {
         "results": results[:limit],
         "total_understocked": len(results),
-        "stock_now_date": str(snap_now) if snap_now else None,
+        "stock_now_date": inv["stock_date"],
         "stock_prev_date": str(snap_prev) if snap_prev else None,
-        "weeks_between": weeks_between,
-        "best_sellers_only": bool(best),
+        "weeks_between": round((snap_now - snap_prev).days / 7, 1) if snap_prev else None,
+        "comparison_available": snap_prev is not None,
+        "best_sellers_only": best_only,
+        "freshness": inv["freshness"],
     }
 
 
@@ -1265,6 +1544,8 @@ async def weekly_analysis(product_type: str = "import", scope: str = "all"):
 
 @app.get("/api/coverage")
 async def coverage_analysis():
+    """DEPRECATED: not used by the dashboard (full sales scan). Kept for any outside caller;
+    use /api/inventory instead."""
     engine = get_engine()
     with engine.connect() as conn:
         wdf = pd.read_sql(text("""
@@ -1314,7 +1595,7 @@ async def coverage_analysis():
         op = int(pr.iloc[0]["ongoing"]) if len(pr) > 0 else 0
 
         cov = round((cs + op) / avg, 1) if avg > 0 else None
-        st = "understocked" if cov is not None and cov < 8 else ("healthy" if cov is not None and cov <= 20 else ("overstocked" if cov is not None else "no_sales"))
+        st = coverage_status(cov, cs)  # same 3-status rule as every other page
 
         results.append({"sku":sku,"product_name":name,"l4w":l4w,"avg_l4w":avg,
                         "current_stock":cs,"ongoing_po":op,"coverage":cov,
@@ -1328,143 +1609,17 @@ async def coverage_analysis():
     }
 
 
-# ── Inventory (merged Coverage + Replenishment) ──────────────
+# ── Inventory ─────────────────────────────────────────────────
 
 @app.get("/api/inventory")
-async def inventory_analysis(sort: str = "priority", product_type: str = "import", scope: str = "all"):
-    """
-    Merged Coverage + Replenishment in one endpoint.
-    Coverage = Avg L4W basis. Replenishment = Holt's DES basis.
-    product_type: 'import' (default), 'food', or 'all'
-    """
+async def inventory_analysis(sort: str = "priority", product_type: str = "import", scope: str = "all",
+                             summary_only: bool = False):
+    """Inventory health per SKU (coverage, status, days of inventory, value, overstock, movement)
+    plus the forecast-based replenishment fields. product_type: import (default) | food | all."""
     engine = get_engine()
-
-    type_filter = ""
-    if product_type in ("import", "food"):
-        type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
-
-    with engine.connect() as conn:
-        # Only the last 4 sales weeks are used below, so only those are fetched week-by-week.
-        r4 = sorted(r[0] for r in conn.execute(text(f"""
-            SELECT DISTINCT DATE_TRUNC('week', s.invoice_date)::date AS w
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL {type_filter}
-            ORDER BY w DESC LIMIT 4
-        """)).fetchall())
-        sku_rows = conn.execute(text(f"""
-            SELECT s.sku, MIN(p.name)
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL {type_filter}
-            GROUP BY s.sku ORDER BY s.sku
-        """)).fetchall() if r4 else []
-        recent = conn.execute(text(f"""
-            SELECT s.sku, DATE_TRUNC('week', s.invoice_date)::date AS w, SUM(s.quantity), SUM(s.amount)
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date >= :w4 {type_filter}
-            GROUP BY s.sku, w
-        """), {"w4": r4[0]}).fetchall() if r4 else []
-
-        # Stock
-        try:
-            stk = {r[0]: int(r[1]) for r in conn.execute(text("""
-                SELECT sku, quantity FROM stock_snapshots
-                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM stock_snapshots)
-            """)).fetchall()}
-        except Exception:
-            stk = {}
-        try:
-            snap_date = conn.execute(text("SELECT MAX(snapshot_date) FROM stock_snapshots")).fetchone()
-            snap_date = str(snap_date[0]) if snap_date and snap_date[0] else None
-        except Exception:
-            snap_date = None
-
-        # Ongoing PO
-        try:
-            po_map = {r[0]: int(r[1]) for r in conn.execute(text("""
-                SELECT sku, SUM(qty_ordered-qty_received) FROM purchase_orders
-                WHERE status IN ('pending','partial') GROUP BY sku
-            """)).fetchall()}
-        except Exception:
-            po_map = {}
-
-    if not sku_rows:
-        return {"results": [], "summary": {}, "stock_date": None}
-
-    qty_by, rev_by = {}, {}
-    for sku, w, q, a in recent:
-        qty_by.setdefault(sku, {})[w] = q
-        rev_by.setdefault(sku, {})[w] = a
-
-    # Forecast quantities only (light version: no actual/fitted history)
-    try:
-        fc_map = {r["sku"]: r for r in get_forecast_light(engine)}
-    except Exception:
-        fc_map = {}
-    if not fc_map:
-        try:
-            fc_data = get_latest_forecast(engine)
-            fc_map = {r["sku"]: r for r in (fc_data or {}).get("results", [])}
-        except Exception:
-            fc_map = {}
-
-    if scope == "bestseller":  # Pareto 80% set = SKUs that have a forecast
-        sku_rows = [r for r in sku_rows if r[0] in fc_map]
-
-    results = []
-    for sku, name in sku_rows:
-        wmap = qty_by.get(sku, {})
-        rmap = rev_by.get(sku, {})
-
-        # L4W metrics
-        l4w_qty = sum(int(wmap.get(w, 0)) for w in r4)
-        l4w_rev = sum(float(rmap.get(w, 0)) for w in r4)
-        avg_l4w = round(l4w_qty / max(len(r4), 1), 1)
-
-        # Stock
-        cs = stk.get(sku, 0)
-        op = po_map.get(sku, 0)
-        available = cs + op
-
-        # Coverage (L4W-based)
-        coverage = round(available / avg_l4w, 1) if avg_l4w > 0 else None
-
-        # Forecast/replenishment (DES-based)
-        fc = fc_map.get(sku)
-        fc_avg = 0; lt6 = 0; lt8 = 0; ss = 0; reco = 0; stockout = None; mape = None; trend_dir = "stable"
-        if fc:
-            fcq = fc["forecast_data"]["quantities"]
-            fc_avg = round(sum(fcq[:8]) / min(len(fcq), 8), 1) if fcq else 0
-            lt6 = sum(fcq[:6]) if len(fcq) >= 6 else sum(fcq)
-            lt8 = sum(fcq[:8]) if len(fcq) >= 8 else sum(fcq)
-            ss = round(lt8 * 0.10, 1)
-            reco = max(0, round(lt8 + ss - available))
-            mape = fc["mape"]
-            trend_dir = fc["trend_direction"]
-            cum = 0
-            for wi, wf in enumerate(fcq):
-                cum += wf
-                if cum >= available:
-                    stockout = wi + 1
-                    break
-
-        # Status: coverage-based, same rule as Best Sellers at Risk
-        status = coverage_status(coverage)
-
-        results.append({
-            "sku": sku, "product_name": name,
-            "l4w_qty": l4w_qty, "l4w_revenue": round(l4w_rev),
-            "avg_l4w": avg_l4w,
-            "current_stock": cs, "ongoing_po": op, "available": available,
-            "coverage": coverage,
-            "fc_avg_weekly": fc_avg,
-            "lt_demand_8w": round(lt8, 1), "safety_stock": ss,
-            "reco_po": reco, "stockout_week": stockout,
-            "mape": mape, "trend_direction": trend_dir,
-            "status": status,
-        })
-
-    # Sort
-    status_order = {"understocked": 0, "healthy": 1, "overstocked": 2, "no_sales": 3}
+    inv = build_inventory(engine, product_type, scope)
+    results = inv["rows"]
+    status_order = {"understocked": 0, "healthy": 1, "overstocked": 2, None: 3}
     if sort == "priority":
         results.sort(key=lambda x: (status_order.get(x["status"], 9), -(x["l4w_revenue"])))
     elif sort == "revenue":
@@ -1473,16 +1628,33 @@ async def inventory_analysis(sort: str = "priority", product_type: str = "import
         results.sort(key=lambda x: x["coverage"] if x["coverage"] is not None else 9999)
     elif sort == "stockout":
         results.sort(key=lambda x: (x["stockout_week"] if x["stockout_week"] else 999, -(x["l4w_revenue"])))
+    elif sort == "value":
+        results.sort(key=lambda x: -(x["inventory_value"] or 0))
+    out = {k: v for k, v in inv.items() if k != "rows"}
+    if not summary_only:
+        out["results"] = results
+    return out
 
-    sm = {
-        "total": len(results),
-        "understocked": len([r for r in results if r["status"] == "understocked"]),
-        "healthy": len([r for r in results if r["status"] == "healthy"]),
-        "overstocked": len([r for r in results if r["status"] == "overstocked"]),
-        "no_sales": len([r for r in results if r["status"] == "no_sales"]),
-    }
 
-    return {"results": results, "summary": sm, "stock_date": snap_date, "has_stock": len(stk) > 0}
+@app.get("/api/inventory/summary")
+async def inventory_summary(product_type: str = "import", scope: str = "all"):
+    """Overview: totals, status distribution, value, freshness, turnover availability."""
+    engine = get_engine()
+    inv = build_inventory(engine, product_type, scope)
+    cfg = get_settings()
+    try:
+        with engine.connect() as conn:
+            costs = mt.unit_costs(conn, cfg)
+            turnover = mt.inventory_turnover(conn, costs, {r["sku"] for r in inv["rows"]})
+    except Exception as e:
+        turnover = {"available": False, "reason": f"error: {e}"}
+    top_reorder = sorted([r for r in inv["rows"] if (r["reco_po"] or 0) > 0],
+                         key=lambda r: (rp.URGENCY_ORDER.get(r["urgency"], 9), -(r["l4w_revenue"])))[:5]
+    out = {k: v for k, v in inv.items() if k != "rows"}
+    out["turnover"] = turnover
+    out["top_reorder"] = [{k: r[k] for k in ("sku", "product_name", "urgency", "reco_po", "stockout_week",
+                                             "est_purchase_cost", "needs_po_check")} for r in top_reorder]
+    return out
 
 
 # ── Forecast API ──────────────────────────────────────────────
@@ -1496,7 +1668,7 @@ async def forecast_run():
         raise HTTPException(400, result["error"])
     saved = save_forecast_to_db(engine, result)
     forecast_cache["latest"] = result
-    forecast_cache.pop("light", None)
+    forecast_cache.pop("light", None); forecast_cache.pop("light_calc_at", None)
     return {"status": "success", "summary": result["summary"], "saved_to_db": saved}
 
 
@@ -1543,20 +1715,106 @@ async def forecast_sku(sku: str):
 # ── Replenishment API ─────────────────────────────────────────
 
 @app.get("/api/replenishment")
-async def replenishment():
-    """
-    Replenishment recommendations based on Holt's DES forecast.
-    Lead time: 6w (optimistic) / 8w (conservative). Safety stock: 10%.
-    """
+async def replenishment(product_type: str = "import", only_reorder: bool = False, urgency: str = "all"):
+    """Purchase recommendations for forecasted best sellers. The system recommends; purchasing decides
+    and places orders. Primary qty = thesis formula; order-up-to is returned as a comparison."""
     engine = get_engine()
+    inv = build_inventory(engine, product_type, scope="bestseller")
+    rows = [r for r in inv["rows"] if r["forecasted"]]
+    if only_reorder:
+        rows = [r for r in rows if (r["reco_po"] or 0) > 0]
+    if urgency in ("critical", "high", "medium", "low"):
+        rows = [r for r in rows if r["urgency"] == urgency]
+    rows.sort(key=lambda r: (rp.URGENCY_ORDER.get(r["urgency"], 9),
+                             r["slack_weeks"] if r["slack_weeks"] is not None else 99, -(r["l4w_revenue"])))
+    s = inv["summary"]
+    return {
+        "results": rows,
+        "summary": {"forecasted": s["forecasted"], "reorder_skus": s["reorder_skus"], "reorder_qty": s["reorder_qty"],
+                    "reorder_qty_order_up_to": sum(r["reco_order_up_to"] or 0 for r in rows),
+                    "est_purchase_cost": s["est_purchase_cost"], "cost_verified": s["cost_verified"],
+                    "urgency": s["urgency"], "needs_po_check": s["needs_po_check"]},
+        "freshness": inv["freshness"], "settings": inv["settings"], "stock_date": inv["stock_date"],
+    }
 
-    # Ensure forecast is available
-    data = get_latest_forecast(engine)
-    if "error" in data:
-        return {"results": [], "summary": {"error": data["error"]}}
 
-    result = calculate_replenishment(engine, data)
-    return result
+@app.get("/api/replenishment/sku/{sku}")
+async def replenishment_sku(sku: str):
+    """Week-by-week projection for one SKU + PO lines + safety-stock comparisons (simulation only)."""
+    engine = get_engine()
+    cfg = get_settings()
+    fc = next((r for r in get_forecast_light(engine) if r["sku"] == sku), None)
+    if not fc:
+        raise HTTPException(404, f"SKU {sku} has no forecast (not a forecasted best seller)")
+    with engine.connect() as conn:
+        snap = conn.execute(text("SELECT MAX(snapshot_date) FROM stock_snapshots")).scalar()
+        cs = conn.execute(text("SELECT COALESCE(SUM(quantity),0) FROM stock_snapshots WHERE sku=:s AND snapshot_date=:d"),
+                          {"s": sku, "d": snap}).scalar() if snap else 0
+        lines = _fetch_po_lines(conn, sku).get(sku, [])
+        cost = mt.unit_costs(conn, cfg, [sku]).get(sku)
+        last_sale = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).scalar()
+    fq, fw = fc["forecast_data"]["quantities"], fc["forecast_data"].get("weeks", [])
+    plan = rp.plan_sku(int(cs or 0), lines, fq, fw, cfg)
+    scen = []
+    for pct in (0.05, 0.10, 0.15):
+        p2 = rp.plan_sku(int(cs or 0), lines, fq, fw, {**cfg, "ss_pct": pct})
+        scen.append({"ss_pct": pct, "safety_stock": p2["safety_stock"], "reco_qty": p2["reco_qty"],
+                     "stockout_week": p2["stockout_week"], "is_default": abs(pct - cfg["ss_pct"]) < 1e-9})
+    hist = None
+    try:
+        one = load_forecast_from_db(engine, sku=sku)
+        hist = one["results"][0]["actual_data"]["quantities"] if one else None
+    except Exception:
+        pass
+    stat_ss = rp.statistical_safety_stock(hist, plan["lead_time_weeks"])
+    return {"sku": sku, "product_name": fc["product_name"], "current_stock": int(cs or 0),
+            "stock_date": str(snap) if snap else None, "unit_cost": cost,
+            "forecast": {"weeks": fw, "quantities": fq, "fc_avg_8w": fc["fc_avg_8w"],
+                         "trend_pct": fc["trend_pct"], "trend_class": fc["trend_class"]},
+            "plan": plan,
+            "safety_stock_comparison": {
+                "policy": {"method": f"{round(cfg['ss_pct']*100)}% x forecast {cfg['ss_basis_weeks']} weeks",
+                           "value": plan["safety_stock"], "used_in_recommendation": True},
+                "statistical": {"method": "z x sigma_d x sqrt(L), z=1.65 (~95% service level), sigma_d = std dev of weekly demand, last 26 weeks",
+                                "value": stat_ss, "used_in_recommendation": False,
+                                "note": None if stat_ss is not None else "needs at least 8 weeks of history"},
+                "sensitivity": scen},
+            "freshness": mt.freshness(snap, last_sale, cfg)}
+
+
+@app.get("/api/product/{sku}/history")
+async def product_history(sku: str, weeks: int = 52):
+    """Product Analysis drill-down: weekly sales, stock snapshots and PO lines for one SKU."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        name = conn.execute(text("SELECT name FROM products WHERE sku=:s"), {"s": sku}).scalar()
+        if name is None:
+            raise HTTPException(404, f"SKU {sku} not found")
+        mx = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).scalar()
+        sales = conn.execute(text("""
+            SELECT DATE_TRUNC('week', invoice_date)::date w, SUM(quantity), SUM(amount)
+            FROM sales WHERE sku=:s AND invoice_date > :a GROUP BY w ORDER BY w
+        """), {"s": sku, "a": (mx - timedelta(weeks=weeks)) if mx else date(1900, 1, 1)}).fetchall()
+        snaps = conn.execute(text("""
+            SELECT snapshot_date, SUM(quantity) FROM stock_snapshots WHERE sku=:s GROUP BY snapshot_date ORDER BY snapshot_date
+        """), {"s": sku}).fetchall()
+        pos = conn.execute(text("""
+            SELECT id, qty_ordered, COALESCE(qty_received,0), status, order_date, expected_date, received_date, supplier
+            FROM purchase_orders WHERE sku=:s ORDER BY COALESCE(order_date, created_at::date) DESC, id DESC
+        """), {"s": sku}).fetchall()
+    return {"sku": sku, "product_name": name,
+            "weekly_sales": [{"week": str(w), "qty": int(q or 0), "revenue": float(a or 0)} for w, q, a in sales],
+            "stock_snapshots": [{"date": str(d), "qty": int(q)} for d, q in snaps],
+            "stock_movement_available": len(snaps) >= 2,
+            "purchase_orders": [{"id": r[0], "qty_ordered": r[1], "qty_received": r[2], "status": r[3],
+                                 "order_date": str(r[4]) if r[4] else None, "expected_date": str(r[5]) if r[5] else None,
+                                 "received_date": str(r[6]) if r[6] else None, "supplier": r[7]} for r in pos]}
+
+
+@app.get("/api/settings")
+async def get_planning_settings():
+    """Planning parameters in use (read-only here; set via environment variables for now)."""
+    return get_settings()
 
 
 if __name__ == "__main__":

@@ -87,6 +87,35 @@ def grid_search_holts(series: list, forecast_periods: int = 12) -> dict:
     return best
 
 
+HOLDOUT_WEEKS = 8
+MIN_TRAIN_WEEKS = 12
+
+
+def holdout_wmape(series: list, holdout: int = HOLDOUT_WEEKS, min_train: int = MIN_TRAIN_WEEKS) -> dict:
+    """Out-of-sample accuracy without data leakage.
+    1) Split chronologically: train = all weeks except the last `holdout`, test = the last `holdout`.
+    2) Choose alpha/beta with the same 81-combination grid search, on the TRAIN weeks only.
+    3) Forecast `holdout` weeks ahead from the end of train (no refit on test actuals).
+    4) WMAPE = sum|actual - forecast| / sum(actual) x 100 (defined when test weeks have any sales).
+    The in-sample MAPE stays the thesis metric; this one is reported next to it, never instead of it."""
+    n = len(series)
+    if n < holdout + min_train:
+        return {"wmape": None, "reason": "insufficient_history", "train_weeks": max(0, n - holdout),
+                "required_weeks": holdout + min_train}
+    train, test = series[:-holdout], series[-holdout:]
+    best = grid_search_holts(train, holdout)
+    if best is None:
+        return {"wmape": None, "reason": "fit_failed"}
+    preds = best["forecasts"][:holdout]
+    total = sum(test)
+    if total <= 0:
+        return {"wmape": None, "reason": "no_sales_in_holdout", "train_weeks": len(train)}
+    err = sum(abs(a - f) for a, f in zip(test, preds))
+    return {"wmape": round(err / total * 100, 2), "alpha": best["alpha"], "beta": best["beta"],
+            "train_weeks": len(train), "holdout_weeks": holdout,
+            "holdout_actual": [round(x, 1) for x in test], "holdout_forecast": [round(x, 1) for x in preds]}
+
+
 def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict:
     """
     Run Holt's DES forecast for all SKUs — WEEKLY aggregation.
@@ -265,6 +294,7 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
                 "weeks": forecast_weeks,
                 "quantities": [max(0, round(x, 1)) for x in best["forecasts"]],
             },
+            "holdout": holdout_wmape(series),
         }
         results.append(result)
 
@@ -284,6 +314,7 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
         "good_forecast_count": len([m for m in mapes if m < 25]),
         "moderate_forecast_count": len([m for m in mapes if 25 <= m < 50]),
         "poor_forecast_count": len([m for m in mapes if m >= 50]),
+        "holdout": _holdout_summary(results),
         "forecast_periods": forecast_periods,
         "data_range": {
             "start": df["week_start"].min().strftime("%Y-%m-%d"),
@@ -435,6 +466,21 @@ def calculate_replenishment(engine, forecast_data: dict) -> dict:
     return {"results": replenishment, "summary": summary}
 
 
+def _holdout_summary(results):
+    """Portfolio WMAPE over all evaluable SKUs = total abs error / total actual (volume-weighted)."""
+    err = act = 0.0
+    n = 0
+    for r in results:
+        h = r.get("holdout") or {}
+        if h.get("wmape") is None:
+            continue
+        n += 1
+        err += sum(abs(a - f) for a, f in zip(h["holdout_actual"], h["holdout_forecast"]))
+        act += sum(h["holdout_actual"])
+    return {"wmape": round(err / act * 100, 2) if act else None, "evaluated_skus": n,
+            "not_evaluated": len(results) - n, "holdout_weeks": HOLDOUT_WEEKS}
+
+
 def save_forecast_to_db(engine, forecast_data: dict):
     """Save forecast results to database."""
     from sqlalchemy import text
@@ -467,6 +513,7 @@ def save_forecast_to_db(engine, forecast_data: dict):
                             "actual": r["actual_data"],
                             "fitted": r["fitted_data"],
                             "forecast": r["forecast_data"],
+                            "holdout": r.get("holdout"),
                         }
                     ),
                     "training_months": r["training_weeks"],
