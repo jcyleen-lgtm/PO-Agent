@@ -5,7 +5,7 @@ Pure functions, no database access, so every page and every test uses exactly th
 
 Definitions (see the audit document):
 - Stock status: coverage = (stock + outstanding PO) / avg weekly sales of the last 4 weeks.
-    < 8 weeks Understocked · 8–20 Healthy · > 20 Overstocked.
+    <= 8 weeks Understocked · > 8–20 Healthy · > 20 Overstocked.
     No sales in 4 weeks: stock > 0 -> Overstocked (stock not moving); stock <= 0 -> not classified.
 - Safety stock (thesis policy): 10% x forecast demand of the next 8 weeks.
 - Reorder point: forecast demand during the lead time + safety stock.
@@ -36,7 +36,7 @@ def stock_status(coverage, stock, cfg):
     """Exactly 3 statuses. Returns None when a SKU cannot be classified (no sales and no stock)."""
     if coverage is None:
         return "overstocked" if stock > 0 else None
-    if coverage < cfg["understock_weeks"]:
+    if coverage <= cfg["understock_weeks"]:
         return "understocked"
     if coverage <= cfg["overstock_weeks"]:
         return "healthy"
@@ -189,6 +189,13 @@ def plan_sku(stock, pos, forecast_qty, forecast_weeks, cfg, lead_time_weeks=None
 
     urgency, slack = urgency_for(stockout, lt, r_weeks)
 
+    # "Order by" date: the order must be placed lead-time weeks before the week stock runs out,
+    # otherwise it arrives after the stockout. No stockout in the horizon -> earliest date it could matter.
+    order_by = None
+    if weeks and all(weeks):
+        anchor = weeks[stockout - 1] if stockout else weeks[-1] + timedelta(days=7)
+        order_by = anchor - timedelta(weeks=lt)
+
     return {
         "lead_time_weeks": lt, "review_period_weeks": round(r_weeks, 2),
         "safety_stock": ss, "lt_demand": round(lt_demand, 1), "rop": rop,
@@ -199,6 +206,10 @@ def plan_sku(stock, pos, forecast_qty, forecast_weeks, cfg, lead_time_weeks=None
         "reco_order_up_to": reco_out, "protection_weeks": prot,
         "stockout_week": stockout, "stockout_week_if_unconfirmed_arrives": stockout_opt,
         "slack_weeks": slack, "urgency": urgency,
+        "stockout_date": str(weeks[stockout - 1]) if (stockout and weeks and weeks[stockout - 1]) else None,
+        "order_by": str(order_by) if order_by else None,
+        "order_by_days": (order_by - today).days if order_by else None,
+        "order_by_is_estimate": stockout is None,
         "needs_po_check": unconfirmed_total > 0,
         "po_lines": lines, "projection": proj, "flags": flags,
     }

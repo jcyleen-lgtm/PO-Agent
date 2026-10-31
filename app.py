@@ -458,6 +458,7 @@ def build_inventory(engine, product_type="import", scope="all", today=None):
             "reco_po": None, "reco_order_up_to": None, "reco_if_unconfirmed_arrives": None,
             "stockout_week": None, "stockout_week_if_unconfirmed_arrives": None,
             "urgency": None, "slack_weeks": None, "needs_po_check": False, "est_purchase_cost": None,
+            "order_by": None, "order_by_days": None, "order_by_is_estimate": None,
         }
         fc = fc_map.get(sku)
         if fc:
@@ -476,6 +477,8 @@ def build_inventory(engine, product_type="import", scope="all", today=None):
                 "stockout_week": plan["stockout_week"],
                 "stockout_week_if_unconfirmed_arrives": plan["stockout_week_if_unconfirmed_arrives"],
                 "urgency": plan["urgency"], "slack_weeks": plan["slack_weeks"],
+                "order_by": plan["order_by"], "order_by_days": plan["order_by_days"],
+                "order_by_is_estimate": plan["order_by_is_estimate"],
                 "needs_po_check": plan["needs_po_check"],
                 "est_purchase_cost": round(plan["reco_qty"] * c["cost"]) if (c and plan["reco_qty"]) else (0 if not plan["reco_qty"] else None),
                 "flags": plan["flags"],
@@ -1649,11 +1652,16 @@ async def inventory_summary(product_type: str = "import", scope: str = "all"):
     except Exception as e:
         turnover = {"available": False, "reason": f"error: {e}"}
     top_reorder = sorted([r for r in inv["rows"] if (r["reco_po"] or 0) > 0],
-                         key=lambda r: (rp.URGENCY_ORDER.get(r["urgency"], 9), -(r["l4w_revenue"])))[:5]
+                         key=lambda r: (r["order_by"] or "9999-12-31", -(r["l4w_revenue"])))[:5]
     out = {k: v for k, v in inv.items() if k != "rows"}
     out["turnover"] = turnover
     out["top_reorder"] = [{k: r[k] for k in ("sku", "product_name", "urgency", "reco_po", "stockout_week",
-                                             "est_purchase_cost", "needs_po_check")} for r in top_reorder]
+                                             "est_purchase_cost", "needs_po_check", "order_by", "order_by_days",
+                                             "order_by_is_estimate", "status")} for r in top_reorder]
+    out["order_soon"] = sum(1 for r in inv["rows"] if r["order_by_days"] is not None
+                            and not r["order_by_is_estimate"] and r["order_by_days"] <= 14)
+    out["order_overdue"] = sum(1 for r in inv["rows"] if r["order_by_days"] is not None
+                               and not r["order_by_is_estimate"] and r["order_by_days"] < 0)
     return out
 
 
@@ -1725,8 +1733,7 @@ async def replenishment(product_type: str = "import", only_reorder: bool = False
         rows = [r for r in rows if (r["reco_po"] or 0) > 0]
     if urgency in ("critical", "high", "medium", "low"):
         rows = [r for r in rows if r["urgency"] == urgency]
-    rows.sort(key=lambda r: (rp.URGENCY_ORDER.get(r["urgency"], 9),
-                             r["slack_weeks"] if r["slack_weeks"] is not None else 99, -(r["l4w_revenue"])))
+    rows.sort(key=lambda r: (r["order_by"] or "9999-12-31", rp.URGENCY_ORDER.get(r["urgency"], 9), -(r["l4w_revenue"])))
     s = inv["summary"]
     return {
         "results": rows,
@@ -1736,6 +1743,59 @@ async def replenishment(product_type: str = "import", only_reorder: bool = False
                     "urgency": s["urgency"], "needs_po_check": s["needs_po_check"]},
         "freshness": inv["freshness"], "settings": inv["settings"], "stock_date": inv["stock_date"],
     }
+
+
+@app.get("/api/forecast/plan")
+async def forecast_plan(product_type: str = "import"):
+    """Demand Plan page: per forecasted SKU, the weekly forecast, the 8 holdout weeks (plan from a model
+    trained without them vs actual) and the model parameters behind every number. Months are built in the browser."""
+    engine = get_engine()
+    tf = _type_filter(product_type)
+    with engine.connect() as conn:
+        rows = conn.execute(text(f"""
+            SELECT f.sku, COALESCE(p.name, f.sku), f.alpha, f.beta, f.mape, f.training_months,
+                   f.forecast_data::jsonb -> 'forecast',
+                   f.forecast_data::jsonb -> 'actual',
+                   f.forecast_data::jsonb -> 'holdout',
+                   f.forecast_data::jsonb ->> 'level', f.forecast_data::jsonb ->> 'trend',
+                   f.calculated_at
+            FROM forecast_results f LEFT JOIN products p ON p.sku = f.sku
+            WHERE 1=1 {tf}
+            ORDER BY f.id
+        """)).fetchall()
+        price = {r[0]: float(r[1]) for r in conn.execute(text("""
+            WITH mx AS (SELECT MAX(invoice_date) d FROM sales)
+            SELECT sku, SUM(amount) / NULLIF(SUM(quantity), 0) FROM sales, mx
+            WHERE invoice_date > mx.d - 84 AND quantity > 0 GROUP BY sku
+        """)).fetchall() if r[1] is not None}
+    light = {r["sku"]: r for r in get_forecast_light(engine)}
+    out, calc = [], None
+    for sku, name, a, b, mape, tw, fc, act, ho, level, trend, calc_at in rows:
+        fc = fc if isinstance(fc, dict) else json.loads(fc or "{}")
+        act = act if isinstance(act, dict) else json.loads(act or "{}")
+        ho = ho if (isinstance(ho, dict) or ho is None) else json.loads(ho)
+        aw, aq = act.get("weeks", []), act.get("quantities", [])
+        h = ho or {}
+        hw = aw[-len(h["holdout_actual"]):] if h.get("holdout_actual") else []
+        lf = light.get(sku, {})
+        calc = calc_at or calc
+        out.append({
+            "sku": sku, "product_name": name,
+            "forecast": {"weeks": fc.get("weeks", []), "quantities": fc.get("quantities", [])},
+            "holdout": {"weeks": hw, "actual": h.get("holdout_actual"), "forecast": h.get("holdout_forecast"),
+                        "wmape": h.get("wmape"), "alpha": h.get("alpha"), "beta": h.get("beta"),
+                        "train_weeks": h.get("train_weeks"), "reason": h.get("reason") if ho else "not_computed"},
+            "model": {"alpha": float(a) if a is not None else None, "beta": float(b) if b is not None else None,
+                      "mape": float(mape) if mape is not None else None, "training_weeks": tw,
+                      "level": float(level) if level is not None else None,
+                      "trend": float(trend) if trend is not None else None,
+                      "history_start": aw[0] if aw else None, "history_end": aw[-1] if aw else None},
+            "trend_pct": lf.get("trend_pct"), "trend_class": lf.get("trend_class"),
+            "avg_price": round(price[sku]) if sku in price else None,
+            "l4w_avg": round(sum(aq[-4:]) / max(len(aq[-4:]), 1), 1) if aq else None,
+        })
+    return {"results": out, "calculated_at": calc.isoformat() if hasattr(calc, "isoformat") else calc,
+            "holdout_weeks": 8, "horizon_weeks": 12}
 
 
 @app.get("/api/replenishment/sku/{sku}")

@@ -437,6 +437,76 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
   .toast{max-width:none}
 }
 /* ═══ STOCKWISE additions ═══ */
+.info{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--text3);color:var(--text3);font:700 11px/1 Georgia,serif;font-style:italic;cursor:help;vertical-align:middle;margin-left:6px;flex-shrink:0;user-select:none;transition:color 120ms,border-color 120ms}
+.info:hover,.info:focus-visible,.info.on{color:var(--link);border-color:var(--link);outline:none}
+h1 .info{width:20px;height:20px;font-size:12px;margin-left:10px;vertical-align:4px}
+#tipBox{position:fixed;z-index:500;max-width:340px;padding:11px 14px;border-radius:12px;background:var(--panel);color:#fff;font-size:13px;line-height:1.5;box-shadow:0 10px 32px rgba(10,16,26,.28);pointer-events:none;opacity:0;transform:translateY(-2px);transition:opacity 110ms,transform 110ms;white-space:pre-line}
+#tipBox.show{opacity:1;transform:none}
+.fresh-line{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:12px;margin-bottom:16px;font-size:13.5px;color:var(--text2);width:fit-content;max-width:100%}
+.fresh-line.warn{background:var(--amber-bg)}.fresh-line.crit{background:var(--red-bg)}
+.fresh-line b{color:var(--text)}
+.fresh-line .b-ico{width:16px;height:16px;flex-shrink:0}
+.tabs-count{display:inline-flex;gap:4px;background:var(--seg);border-radius:14px;padding:4px}
+.tabs-count button{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;border:none;background:transparent;font:600 14px var(--font);color:var(--text3);cursor:pointer}
+.tabs-count button.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(16,24,40,.12)}
+.tabs-count .cnt{font-size:12px;font-weight:700;padding:1px 7px;border-radius:7px;background:var(--surface2);color:var(--text3)}
+.tabs-count button[data-v="reorder"] .cnt{background:var(--red-bg);color:var(--red)}
+.ro-table{width:100%;border-collapse:collapse;font-size:14px}
+.ro-table th{font-size:12.5px;font-weight:600;color:var(--text3);text-align:left;padding:12px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface2);position:sticky;top:0;z-index:1}
+.ro-table td{padding:12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.ro-table tbody tr{cursor:pointer;transition:background 120ms}
+.ro-table tbody tr:hover{background:var(--surface2)}
+.ro-table tbody tr.sel{background:var(--blue-bg)}
+.ro-table .r{text-align:right}
+.p-name{font-weight:600;color:var(--text);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-sku{font-size:12px;color:var(--text3);font-family:ui-monospace,Menlo,monospace}
+.stk-main{font-weight:600;color:var(--text);white-space:nowrap}
+.stk-sub{font-size:12px;color:var(--text3);white-space:nowrap}
+.stk-sub .unk{color:var(--amber);font-weight:600}
+.ob-date{font-weight:700;white-space:nowrap}
+.ob-sub{font-size:12px;font-weight:600;white-space:nowrap}
+.ob-late{color:var(--red)}.ob-soon{color:var(--amber)}.ob-ok{color:var(--text)}.ob-none{color:var(--text3)}
+.qty-in{width:88px;padding:7px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--surface);color:var(--text);font:600 14px var(--font);text-align:right}
+.qty-in.edited{border-color:var(--link);box-shadow:0 0 0 3px var(--blue-bg)}
+.qty-hint{font-size:11.5px;color:var(--text3);text-align:right;margin-top:3px;min-height:14px;white-space:nowrap}
+.reset-btn{border:none;background:none;color:var(--link);cursor:pointer;font:600 11.5px var(--font);padding:0}
+.cb{width:17px;height:17px;accent-color:var(--navy);cursor:pointer}
+.sel-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:14px 20px;border-radius:16px;background:var(--panel);color:#fff;margin-top:18px;box-shadow:0 8px 32px rgba(38,63,96,.25)}
+.sel-bar .sb-v{font-size:18px;font-weight:700}
+.sel-bar .sb-l{font-size:12px;opacity:.75}
+.sel-bar .btn{margin-left:auto}
+.dp-table{border-collapse:separate;border-spacing:0;font-size:14px;min-width:100%}
+.dp-table th,.dp-table td{padding:11px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+.dp-table thead th{background:var(--surface2);font-size:12.5px;color:var(--text3);font-weight:600;text-align:center}
+.dp-table thead th.mo{color:var(--text);font-weight:700}
+.dp-table thead th.mo.next{color:var(--link)}
+.dp-table th.sub{font-size:11px;padding-top:0}
+.dp-table td.prod{position:sticky;left:0;background:var(--surface);z-index:1;min-width:220px;max-width:280px;border-right:1px solid var(--border)}
+.dp-table thead th:first-child{position:sticky;left:0;z-index:2;text-align:left;border-right:1px solid var(--border)}
+.dp-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.dp-table td.plan{color:var(--text2);cursor:pointer}
+.dp-table td.plan:hover{background:var(--blue-bg);color:var(--link)}
+.dp-table td.plan.active{background:var(--blue-bg);color:var(--link);font-weight:700;box-shadow:inset 0 0 0 2px var(--link)}
+.dp-table td.act{font-weight:700;color:var(--text)}
+.dp-table td.var{font-size:12px;font-weight:600}
+.dp-table tr.total td{font-weight:700;background:var(--surface2)}
+.dp-table .sep{border-left:1px solid var(--border)}
+.dp-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-items:start}
+.dp-layout.open{grid-template-columns:minmax(0,1fr) 360px}
+.why{position:sticky;top:24px;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow-pop);overflow:hidden}
+.why-h{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;color:var(--text)}
+.why-h span{font-size:12px;color:var(--text3);font-weight:600;margin-left:auto}
+.why-b{padding:16px 18px}
+.why-big{font-size:30px;font-weight:800;color:var(--text);letter-spacing:-.02em}
+.why-big small{font-size:13px;font-weight:600;color:var(--text3);margin-left:6px;letter-spacing:0}
+.why-list{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:11px}
+.why-list li{display:flex;gap:10px;font-size:13.5px;color:var(--text2);line-height:1.4}
+.why-list svg{width:16px;height:16px;flex-shrink:0;margin-top:2px;color:var(--text3)}
+.why-list b{color:var(--text)}
+.why-not{margin-top:14px;padding:10px 12px;border-radius:10px;background:var(--surface2);font-size:12.5px;color:var(--text3);line-height:1.45}
+.why-x{border:none;background:none;cursor:pointer;color:var(--text3);font-size:20px;line-height:1}
+@media(max-width:1100px){.dp-layout.open{grid-template-columns:minmax(0,1fr)}.why{position:static}}
+@media(max-width:768px){#rpStatus,#dpMetric,#dpView{flex-wrap:wrap;max-width:100%}#rpStatus button{padding:8px 11px}.sel-bar .btn{margin-left:0}}
 .kpi-strip.k6{grid-template-columns:repeat(6,1fr)}
 .kpi-help{font-size:12px;color:var(--text3);margin-top:4px;line-height:1.35}
 .tag{display:inline-block;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:.01em;vertical-align:middle}
@@ -561,7 +631,7 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
   </div>
   <div class="db-bar glass"><div class="dot"></div><span id="dbInfo">Connecting...</span><span style="margin-left:auto;font-size:12px;color:var(--text3)">Updated: <strong id="lastUpdate" style="color:var(--text)">--</strong></span></div>
 
-  <div class="banner warn" id="ovFresh" hidden></div>
+  <div class="fresh-line" id="ovFresh" hidden></div>
 
   <!-- Stock health KPIs -->
   <div class="card kpi-strip k6" id="invKpiStrip" style="margin-bottom:18px">
@@ -569,20 +639,18 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
     <div class="kpi-cell"><div class="kpi-label">Stock on Hand</div><div class="kpi-value skel" id="ivSoh">--</div><div class="kpi-help" id="ivSohSub">units, physical</div></div>
     <div class="kpi-cell"><div class="kpi-label" title="Physical stock x unit cost (weighted average COGS, last 12 weeks)">Inventory Value</div><div class="kpi-value skel" id="ivValue">--</div><div class="kpi-help" id="ivValueSub"></div></div>
     <div class="kpi-cell"><div class="kpi-label" title="Stock on hand is 0 or below">Out of Stock</div><div class="kpi-value skel" id="ivOos" style="color:var(--red)">--</div><div class="kpi-help">SKUs with stock ≤ 0</div></div>
-    <div class="kpi-cell"><div class="kpi-label" title="Coverage below 8 weeks">Understocked</div><div class="kpi-value skel" id="ivUnder" style="color:var(--red)">--</div><div class="kpi-help">&lt; 8 weeks coverage</div></div>
+    <div class="kpi-cell"><div class="kpi-label" title="Coverage of 8 weeks or less">Understocked</div><div class="kpi-value skel" id="ivUnder" style="color:var(--red)">--</div><div class="kpi-help">≤ 8 weeks coverage</div></div>
     <div class="kpi-cell"><div class="kpi-label" title="Coverage above 20 weeks, or stock with no sales in 4 weeks">Overstocked</div><div class="kpi-value skel" id="ivOver">--</div><div class="kpi-help">&gt; 20 weeks coverage</div></div>
   </div>
 
   <div class="ov-row3">
     <div class="card">
-      <div class="section-label">Stock Health Distribution</div>
-      <div class="section-meta" id="healthMeta">Coverage = (stock + open PO) ÷ avg weekly sales, last 4 weeks</div>
+      <div style="display:flex;align-items:center"><div class="section-label">Stock Health Distribution</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ avg weekly sales of the last 4 weeks. ≤ 8 weeks Understocked · > 8–20 Healthy · > 20 Overstocked. Not classified = no sales in 4 weeks and no stock.">i</span></div>
       <div class="hbar" id="healthBar"></div>
       <div class="hlegend" id="healthLegend"></div>
     </div>
     <div class="card">
-      <div class="section-label">Financial Metrics</div>
-      <div class="section-meta" id="finMeta">Valued at unit cost, not selling price</div>
+      <div style="display:flex;align-items:center"><div class="section-label">Financial Metrics</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Valued at unit cost (weighted average COGS from Accurate, last 12 weeks), never at selling price. Marked Unverified until finance confirms the cost equals HPP.">i</span></div>
       <div style="margin-top:8px" id="finRows"><div class="empty-state">Loading...</div></div>
     </div>
     <div class="card">
@@ -615,7 +683,7 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
 
   <!-- Best sellers at risk (moved up) -->
   <div class="card" id="riskSection" style="display:none">
-    <div class="card-header"><div><div class="section-label">Best Sellers at Risk</div><div class="section-meta" id="riskMeta">Understocked best sellers (&lt; 8 weeks of stock) · marker = 8-week lead time</div></div><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="seg" id="riskSort" role="group" aria-label="Sort"><button data-v="urgent" class="active">Most urgent</button><button data-v="revenue">Highest revenue</button></div><button class="link-btn" onclick="switchTab('replenishment')">Open Replenishment →</button></div></div>
+    <div class="card-header"><div><div style="display:flex;align-items:center"><div class="section-label">Best Sellers at Risk</div><span class="info" id="riskTip" tabindex="0" role="button" aria-label="More info" data-tip="Best sellers (Pareto 80% import revenue) with ≤ 8 weeks of coverage. Most urgent = earliest Order by date. The bar marker is the 8-week lead time.">i</span></div><div class="section-meta" id="riskMeta">Understocked best sellers</div></div><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="seg" id="riskSort" role="group" aria-label="Sort"><button data-v="urgent" class="active">Most urgent</button><button data-v="revenue">Highest revenue</button></div><button class="link-btn" onclick="switchTab('replenishment')">Open Replenishment →</button></div></div>
     <div class="risk-grid" id="riskGrid"></div>
     <div style="text-align:center;margin-top:14px"><button class="btn btn-ghost" id="riskMore" onclick="toggleRiskAll()" hidden></button></div>
   </div>
@@ -650,46 +718,53 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
 <!-- ═══ TAB 2: REPLENISHMENT PLANNING ═══ -->
 <div id="tab-replenishment" class="tab-content">
   <div class="page-head">
-    <div><h1>Replenishment Planning</h1><p class="page-sub" id="rpSub">What to buy, how much, and how urgently · forecasted best sellers · the system recommends, purchasing decides</p></div>
+    <div><h1>Replenishment Planning<span class="info" id="rpSub" tabindex="0" role="button" aria-label="More info" data-tip="What to buy, by when, and how much. Follow the Order by date: it is the projected stockout date minus the supplier lead time, so the goods arrive before stock runs out. The system recommends; purchasing decides.">i</span></h1></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><div class="seg type-seg" role="group" aria-label="Product type"><button data-v="import" class="active">Import</button><button data-v="food">Food</button><button data-v="all">All</button></div>
       <button class="btn btn-brand" onclick="exportReplenishment()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
     </div>
   </div>
-  <div class="banner warn fresh-banner" hidden></div>
-  <div class="card kpi-strip k6" style="margin-bottom:18px">
-    <div class="kpi-cell"><div class="kpi-label">SKUs to Reorder</div><div class="kpi-value skel" id="rpCount">--</div><div class="kpi-help" id="rpCountSub">of forecasted best sellers</div></div>
-    <div class="kpi-cell"><div class="kpi-label" title="Sum of Recommended Order Qty (thesis formula)">Recommended Qty</div><div class="kpi-value skel" id="rpQty">--</div><div class="kpi-help" id="rpQtySub">units</div></div>
-    <div class="kpi-cell"><div class="kpi-label" title="Recommended qty x unit cost">Est. Purchase Cost</div><div class="kpi-value skel" id="rpCost">--</div><div class="kpi-help" id="rpCostSub"></div></div>
-    <div class="kpi-cell"><div class="kpi-label" title="Even if ordered today, the order arrives after the projected stockout">Critical</div><div class="kpi-value skel" id="rpCrit" style="color:var(--red)">--</div><div class="kpi-help">order now, already late</div></div>
-    <div class="kpi-cell"><div class="kpi-label" title="Must be ordered at this review (cannot wait for the next one)">High</div><div class="kpi-value skel" id="rpHigh" style="color:var(--amber)">--</div><div class="kpi-help" id="rpHighSub">order at this review</div></div>
-    <div class="kpi-cell"><div class="kpi-label" title="Open PO without an ETA is not counted as incoming">Check PO first</div><div class="kpi-value skel" id="rpCheck">--</div><div class="kpi-help">open PO has no ETA</div></div>
-  </div>
+  <div class="fresh-line fresh-banner" hidden></div>
   <div class="card">
-    <div class="filter-bar">
-      <input class="search-box" id="rpSearch" placeholder="Search SKU or product  ( / )" oninput="renderRepl()">
-      <div class="seg" id="rpUrg" role="group" aria-label="Urgency"><button data-v="" class="active">All</button><button data-v="critical">Critical</button><button data-v="high">High</button><button data-v="medium">Medium</button><button data-v="low">Low</button></div>
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer;margin-left:auto"><input type="checkbox" id="rpReorderOnly" checked onchange="renderRepl()" style="accent-color:var(--navy)"> Reorder only</label>
+    <div class="filter-bar" style="flex-wrap:wrap">
+      <div class="tabs-count" id="rpTabs"><button data-v="all">All <span class="cnt" id="rpCntAll">0</span></button><button data-v="reorder" class="active">Order now <span class="cnt" id="rpCntRe">0</span></button></div>
+      <input class="search-box" id="rpSearch" placeholder="Search SKU or product  ( / )" oninput="replPage=0;renderRepl()">
+      <div class="seg" id="rpStatus" role="group" aria-label="Status"><button data-v="" class="active">All status</button><button data-v="understocked">Understocked</button><button data-v="healthy">Healthy</button><button data-v="overstocked">Overstocked</button></div>
+      <span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Order now = the system recommends a quantity, OR the stock is Understocked, OR the Order by date is within 14 days (one review period).">i</span>
     </div>
     <div class="tbl-wrap tbl-scroll" id="rpTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading...</div></div>
     <div class="paging" id="rpPaging"></div>
-    <p class="section-meta" style="margin-top:12px;font-size:12.5px" id="rpNote"></p>
   </div>
-  <div class="card" id="rpDetail" style="display:none"></div>
+  <div class="sel-bar" id="rpSelBar">
+    <div><div class="sb-v" id="sbCount">0 SKUs</div><div class="sb-l">selected</div></div>
+    <div><div class="sb-v" id="sbUnits">0</div><div class="sb-l">units to order</div></div>
+    <div><div class="sb-v" id="sbCost">Rp 0</div><div class="sb-l" id="sbCostL">estimated cost</div></div>
+    <button class="btn btn-ghost" onclick="exportReplenishment(true)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export selected</button>
+  </div>
+  <div class="card" id="rpDetail" style="display:none;margin-top:18px"></div>
 </div>
 
 <!-- ═══ TAB 3: PRODUCT ANALYSIS ═══ -->
 <div id="tab-analysis" class="tab-content">
   <div class="page-head">
-    <div><h1>Product Analysis</h1><p class="page-sub" id="anSub">Stock coverage, days of inventory, movement and demand forecast per SKU · click a row for detail</p></div>
+    <div><h1>Product Analysis<span class="info" id="anSub" tabindex="0" role="button" aria-label="More info" data-tip="Stock & Coverage: condition of every SKU today (coverage, days of inventory, value, movement). Demand Plan: Holt's DES forecast per month and how accurate it was. Click a row or a number for detail.">i</span></h1></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><div class="seg type-seg" role="group" aria-label="Product type"><button data-v="import" class="active">Import</button><button data-v="food">Food</button><button data-v="all">All</button></div>
       <button class="btn btn-ghost" onclick="refreshForecast()" id="btnRefresh"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6M3 22v-6h6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>Refresh forecast</button>
       <button class="btn btn-brand" onclick="exportInventory()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
     </div>
   </div>
-  <div class="banner warn fresh-banner" hidden></div>
-  <div class="seg sub-seg" id="anSeg" role="group" aria-label="View"><button data-v="stock" class="active">Stock &amp; Coverage</button><button data-v="forecast">Demand Forecast</button></div>
+  <div class="fresh-line fresh-banner" hidden></div>
+  <div class="seg sub-seg" id="anSeg" role="group" aria-label="View"><button data-v="stock" class="active">Stock &amp; Coverage</button><button data-v="forecast">Demand Plan</button></div>
 
   <div id="sub-forecast" class="subpage">
+  <div class="card" style="margin-bottom:18px">
+    <div class="card-header" style="margin-bottom:12px;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center"><div class="section-label">Demand Plan</div><span class="info" id="dpTip" tabindex="0" role="button" aria-label="More info" data-tip="Plan = Holt's DES forecast, summed per month. Months before the forecast start show the plan from a model trained WITHOUT those 8 weeks (holdout) next to the actual sales, so you can see how accurate it was. Variance = (actual − plan) ÷ plan. Click a plan number to see where it comes from.">i</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><div class="seg" id="dpMetric"><button data-v="units" class="active">Units</button><button data-v="sales">Sales (Rp)</button></div><div class="seg" id="dpView"><button data-v="plan" class="active">Monthly plan</button><button data-v="weekly">Weekly table</button></div></div>
+    </div>
+    <div id="dpPlanWrap"><div class="filter-bar"><input class="search-box" id="dpSearch" placeholder="Search SKU or product" oninput="renderPlan()"></div>
+    <div class="dp-layout" id="dpLayout"><div style="min-width:0"><div class="tbl-wrap tbl-scroll" id="dpTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading...</div></div></div><div class="why" id="why" hidden></div></div></div>
+  </div>
+  <div id="wkWrap" hidden>
   <div class="card">
     <div class="filter-bar"><input class="search-box" id="weeklySearch" placeholder="Search SKU or product  ( / )" oninput="filterWeekly()">
       <label class="bs-label" title="Best seller = SKU yang termasuk Pareto 80% revenue import (yang di-forecast)"><input type="checkbox" class="bs-only" checked onchange="setBestSellerOnly(this.checked)"> Best sellers only</label>
@@ -705,16 +780,16 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
     <div class="mini-strip" id="skuFcKpis"></div>
   </div>
   </div>
+  </div>
 
   <div id="sub-stock" class="subpage active">
-  <p class="section-meta" id="invSub" style="margin:-6px 0 14px">Status from coverage: &lt; 8 wks understocked · 8–20 healthy · &gt; 20 overstocked</p>
   <div class="card" id="invKpis" style="display:none">
-    <div class="section-label" style="margin-bottom:14px">Stock Status Distribution</div>
+    <div style="display:flex;align-items:center;margin-bottom:14px"><div class="section-label">Stock Status Distribution</div><span class="info" id="invSub" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ avg weekly sales of the last 4 weeks. ≤ 8 weeks Understocked · > 8–20 Healthy · > 20 Overstocked. Days of inventory = coverage × 7.">i</span></div>
     <div class="inv-status">
       <div id="invRings"></div>
       <div class="inv-legend">
-        <button class="lg" data-status="understocked" onclick="legendFilter('understocked')"><div class="lg-l"><span class="sw" style="background:var(--red)"></span>Understocked</div><div class="lg-v" id="ikUnder">--</div><div class="lg-h">&lt; 8 weeks of stock</div></button>
-        <button class="lg" data-status="healthy" onclick="legendFilter('healthy')"><div class="lg-l"><span class="sw" style="background:var(--green)"></span>Healthy</div><div class="lg-v" id="ikHealthy">--</div><div class="lg-h">8–20 weeks of stock</div></button>
+        <button class="lg" data-status="understocked" onclick="legendFilter('understocked')"><div class="lg-l"><span class="sw" style="background:var(--red)"></span>Understocked</div><div class="lg-v" id="ikUnder">--</div><div class="lg-h">≤ 8 weeks of stock</div></button>
+        <button class="lg" data-status="healthy" onclick="legendFilter('healthy')"><div class="lg-l"><span class="sw" style="background:var(--green)"></span>Healthy</div><div class="lg-v" id="ikHealthy">--</div><div class="lg-h">&gt; 8–20 weeks of stock</div></button>
         <button class="lg" data-status="overstocked" onclick="legendFilter('overstocked')"><div class="lg-l"><span class="sw" style="background:var(--slate)"></span>Overstocked</div><div class="lg-v" id="ikOver">--</div><div class="lg-h">&gt; 20 weeks of stock</div></button>
       </div>
     </div>
@@ -736,7 +811,7 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
 
 <!-- ═══ TAB 4: PO & SUPPLIER ═══ -->
 <div id="tab-po" class="tab-content">
-  <div class="page-head"><div><h1>Purchase Orders &amp; Suppliers</h1><p class="page-sub">Open orders, incoming stock, overdue deliveries and supplier performance</p></div>
+  <div class="page-head"><div><h1>Purchase Orders &amp; Suppliers<span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Open orders, incoming stock, overdue deliveries and supplier performance. ETA = expected date; if missing, order date + default lead time (est.); if both are missing the PO is not counted as incoming.">i</span></h1></div>
     <button class="btn btn-ghost" onclick="downloadPoTemplate()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>PO template</button></div>
   <div class="card kpi-strip" style="margin-bottom:18px">
     <div class="kpi-cell"><div class="kpi-label">Open POs</div><div class="kpi-value skel" id="poOpen">--</div><div class="kpi-help">pending + partial lines</div></div>
@@ -758,18 +833,16 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
     <div class="paging" id="poPaging"></div>
   </div>
   <div class="card">
-    <div class="section-label">Delivery Performance</div>
-    <div class="section-meta" style="margin-bottom:14px">Shown only when enough receipt and stock history exists — never estimated</div>
+    <div style="display:flex;align-items:center;margin-bottom:14px"><div class="section-label">Delivery Performance</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Shown only when enough receipt and weekly stock history exists — these numbers are never estimated.">i</span></div>
     <div class="perf-grid" id="perfGrid"><div class="empty-state">Loading...</div></div>
   </div>
 </div>
 
 <!-- ═══ TAB 5: UPLOAD DATA ═══ -->
 <div id="tab-upload" class="tab-content">
-  <div class="page-head"><div><h1>Upload Data</h1><p class="page-sub">Every import runs through parse → validate → preview → confirm (ETL) before it reaches the database</p></div></div>
+  <div class="page-head"><div><h1>Upload Data<span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Every import runs through parse → validate → preview → confirm (ETL) before it reaches the database. Upload the stock report weekly with its report date.">i</span></h1></div></div>
   <div class="card" style="margin-bottom:18px">
-    <div class="section-label">Data Status</div>
-    <div class="section-meta" style="margin-bottom:14px">How current the data behind every recommendation is</div>
+    <div style="display:flex;align-items:center;margin-bottom:14px"><div class="section-label">Data Status</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="How current the data behind every recommendation is.">i</span></div>
     <div class="status-list" id="dataStatus"><div class="empty-state">Loading...</div></div>
   </div>
   <div class="upload-grid">
@@ -813,6 +886,7 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
   </div>
 </div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
+<div id="tipBox" role="tooltip"></div>
 
 <script>
 /* ═══ HELPERS ═══ */
@@ -834,8 +908,8 @@ function switchTab(tab){if(tab==='forecast'||tab==='inventory'){anSub=tab==='for
 document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.getElementById('tab-'+tab).classList.add('active');const ni=document.querySelector(`.nav-item[data-tab="${tab}"]`);if(ni)ni.classList.add('active');
 if(tab==='analysis')setSub(anSub);if(tab==='replenishment')loadReplenishment();if(tab==='po')loadPoPage();if(tab==='upload')loadDataStatus();
 window.scrollTo(0,0);closeAllCdrops();if(tab==='overview')requestAnimationFrame(applyRiskLimit)}
-function setSub(v){anSub=v;markSeg('anSeg',v);document.getElementById('sub-stock').classList.toggle('active',v==='stock');document.getElementById('sub-forecast').classList.toggle('active',v==='forecast');if(v==='forecast')loadWeekly();else loadInventory()}
-function reloadActive(){const t=activeTab();if(t==='analysis'){if(anSub==='forecast')loadWeekly();else loadInventory()}if(t==='replenishment')loadReplenishment()}
+function setSub(v){anSub=v;markSeg('anSeg',v);document.getElementById('sub-stock').classList.toggle('active',v==='stock');document.getElementById('sub-forecast').classList.toggle('active',v==='forecast');if(v==='forecast'){if(dpView==='weekly')loadWeekly();else loadPlan()}else loadInventory()}
+function reloadActive(){const t=activeTab();if(t==='analysis'){if(anSub==='forecast'){if(dpView==='weekly')loadWeekly();else loadPlan()}else loadInventory()}if(t==='replenishment')loadReplenishment()}
 function sparklineSvg(d,w=80,h=22,color='var(--chart-2)'){if(!d||d.length<2)return'';const mx=Math.max(...d,1);const pts=d.map((v,i)=>`${((i/(d.length-1))*w).toFixed(1)},${(h-1-(v/mx)*(h-2)).toFixed(1)}`).join(' ');return`<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" style="stroke:${color}" stroke-width="1.5" stroke-linejoin="round"/></svg>`}
 function trendBadge(t){return t==='up'?'<span class="trend-up" title="Rising">&#9650;</span>':t==='down'?'<span class="trend-down" title="Falling">&#9660;</span>':'<span class="trend-stable" title="Stable">&#9654;</span>'}
 function statusBadge(s){if(s==null)return'<span class="badge badge-gray" title="No sales in 4 weeks and no stock: not one of the 3 statuses">Not classified</span>';const m={understocked:'badge-red',healthy:'badge-green',overstocked:'badge-slate'};const l={understocked:'Understocked',healthy:'Healthy',overstocked:'Overstocked'};return`<span class="badge ${m[s]||'badge-gray'}">${l[s]||s}</span>`}
@@ -845,10 +919,23 @@ function moveBadge(m){const c={fast:'badge-green',medium:'badge-blue',slow:'badg
 const fmtRpS=n=>{if(n==null)return'--';const a=Math.abs(n);return a>=1e9?'Rp '+(n/1e9).toFixed(2).replace('.',',')+' M':a>=1e6?'Rp '+(n/1e6).toFixed(1).replace('.',',')+' jt':fmtRp(n)};
 function costTag(verified){return verified?'':' <span class="tag tag-warn" title="Unit cost from cogs_accurate, not yet confirmed by finance as HPP">Unverified</span>'}
 function trendClassBadge(c,p){const m={increasing:['trend-up','▲','Increasing'],decreasing:['trend-down','▼','Decreasing'],stable:['trend-stable','▶','Stable'],new_demand:['trend-up','★','New demand'],insufficient_baseline:['text-dim','–','No baseline']}[c];if(!m)return'<span class="text-dim">--</span>';return`<span class="${m[0]}" title="${m[2]}${p!=null?' ('+(p>0?'+':'')+p+'% vs last 8 weeks)':''}">${m[1]} ${p!=null?(p>0?'+':'')+p+'%':m[2]}</span>`}
-function renderFresh(f){const els=document.querySelectorAll('.fresh-banner,#ovFresh');if(!f){els.forEach(e=>e.hidden=true);return}const lvl=f.stock_level;let html='',cls='warn';
-if(!f.stock_date){html='<b>No stock snapshot yet.</b> Upload a stock report on the Upload Data page — stock, coverage and recommendations need it.';cls='crit'}
-else if(lvl==='stale'||lvl==='very_stale'){cls=lvl==='very_stale'?'crit':'warn';html=`<b>Stock data is ${f.stock_age_days} days old</b> (snapshot ${f.stock_date}). Stock on hand is not real-time${lvl==='very_stale'?' — upload a new stock report before acting on purchase recommendations':''}.${f.sales_age_days!=null&&f.sales_age_days>f.warn_days?` Latest sales: ${f.last_sale_date} (${f.sales_age_days} days ago).`:''}`}
-els.forEach(e=>{if(!html){e.hidden=true;return}e.hidden=false;e.className=(e.id==='ovFresh'?'banner ':'banner fresh-banner ')+cls;e.innerHTML=ICON.alert.replace('<svg','<svg class="b-ico"')+'<div>'+html+'</div>'})}
+const MON_S=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const dfmt=iso=>{if(!iso)return'--';const d=new Date(iso+'T00:00:00');return`${d.getDate()} ${MON_S[d.getMonth()]} ${d.getFullYear()}`};
+function info(tip){return`<span class="info" tabindex="0" role="button" aria-label="More info" data-tip="${esc(tip)}">i</span>`}
+function renderFresh(f){const els=document.querySelectorAll('.fresh-banner,#ovFresh');let html='',tip='',cls='warn';
+if(f&&!f.stock_date){cls='crit';html='<b>No stock snapshot yet</b>';tip='Upload a stock report on the Upload Data page — stock, coverage and recommendations need it.'}
+else if(f&&(f.stock_level==='stale'||f.stock_level==='very_stale')){cls=f.stock_level==='very_stale'?'crit':'warn';html=`<b>Stock data is ${f.stock_age_days} days old</b> · snapshot ${dfmt(f.stock_date)}`;tip=`Stock on hand is not real-time.${f.stock_level==='very_stale'?' Upload a new stock report before acting on purchase recommendations.':''}${f.last_sale_date?` Latest sales: ${dfmt(f.last_sale_date)} (${f.sales_age_days} days ago).`:''}`}
+els.forEach(e=>{if(!html){e.hidden=true;return}e.hidden=false;e.className=(e.id==='ovFresh'?'fresh-line ':'fresh-line fresh-banner ')+cls;e.innerHTML=ICON.alert.replace('<svg','<svg class="b-ico"')+'<span>'+html+'</span>'+info(tip)})}
+/* hover / focus / tap tooltips for every .info icon */
+(function(){const box=()=>document.getElementById('tipBox');let cur=null;
+function show(el){const t=el.getAttribute('data-tip');if(!t)return;const b=box();if(!b)return;cur=el;document.querySelectorAll('.info.on').forEach(x=>x.classList.remove('on'));el.classList.add('on');b.textContent=t;b.classList.add('show');const r=el.getBoundingClientRect(),bw=b.offsetWidth,bh=b.offsetHeight;let x=r.left+r.width/2-bw/2;x=Math.max(10,Math.min(x,innerWidth-bw-10));let y=r.bottom+8;if(y+bh>innerHeight-10)y=r.top-bh-8;b.style.left=x+'px';b.style.top=Math.max(10,y)+'px'}
+function hide(){const b=box();if(b)b.classList.remove('show');if(cur)cur.classList.remove('on');cur=null}
+document.addEventListener('mouseover',e=>{const el=e.target.closest&&e.target.closest('.info');if(el)show(el)});
+document.addEventListener('mouseout',e=>{const el=e.target.closest&&e.target.closest('.info');if(el&&!el.contains(e.relatedTarget))hide()});
+document.addEventListener('focusin',e=>{if(e.target.classList&&e.target.classList.contains('info'))show(e.target)});
+document.addEventListener('focusout',e=>{if(e.target.classList&&e.target.classList.contains('info'))hide()});
+document.addEventListener('click',e=>{const el=e.target.closest&&e.target.closest('.info');if(el){e.stopPropagation();if(cur===el)hide();else show(el)}else hide()},true);
+addEventListener('scroll',hide,true);addEventListener('resize',hide)})();
 function renderPaging(id,pg,total,fn){const pages=Math.ceil(total/PAGE_SIZE);if(pages<=1){document.getElementById(id).innerHTML=`<span>${total} products</span>`;return}document.getElementById(id).innerHTML=`<button onclick="${fn}(${pg-1})" ${pg===0?'disabled':''}>&#8249;</button><span class="current">${pg+1}</span>/${pages}<button onclick="${fn}(${pg+1})" ${pg>=pages-1?'disabled':''}>&#8250;</button> <span>${total} products</span>`}
 
 /* Ring gauge */
@@ -880,14 +967,14 @@ function areaFill(ctx,hex){const g=ctx.createLinearGradient(0,0,0,ctx.canvas.cli
 
 /* ═══ TAB 1: OVERVIEW ═══ */
 let invOv=null;
-async function fetchInvSummary(){if(invSummaryCache)return invSummaryCache;const forPT=PT;try{const r=await fetch(`/api/inventory/summary?product_type=${PT}`);const d=await r.json();if(forPT!==PT)return null;invOv=d;invSummaryCache=d.summary||null;renderInvOverview(d)}catch(e){}return invSummaryCache}
+async function fetchInvSummary(){if(invSummaryCache)return invSummaryCache;const forPT=PT;try{const r=await fetch(`/api/inventory/summary?product_type=${PT}`);const d=await r.json();if(forPT!==PT)return null;invOv=d;invSummaryCache=d.summary||null;renderInvOverview(d)}catch(e){console.error('Inventory summary:',e)}return invSummaryCache}
 function renderInvOverview(d){const sm=d.summary||{};renderFresh(d.freshness);
 countUp('ivTotal',sm.total||0,fmt);countUp('ivSoh',sm.stock_on_hand||0,fmt);countUp('ivOos',sm.out_of_stock||0,fmt);countUp('ivUnder',sm.understocked||0,fmt);countUp('ivOver',sm.overstocked||0,fmt);
 const v=document.getElementById('ivValue');v.classList.remove('skel');v.innerHTML=sm.valued_skus?fmtRpS(sm.inventory_value):'--';
 document.getElementById('ivValueSub').innerHTML=(sm.valued_skus?`${fmt(sm.valued_skus)} SKUs valued${sm.no_cost_skus?` · ${fmt(sm.no_cost_skus)} no cost`:''}`:'No unit cost available')+costTag(sm.cost_verified);
 document.getElementById('ivSohSub').textContent=d.stock_date?`units, snapshot ${d.stock_date}`:'no stock snapshot';
 document.getElementById('ivTotalSub').textContent=`${ptWord()}SKUs with sales history`;
-const tot=sm.total||0,parts=[['understocked','Understocked','var(--red)','< 8 weeks'],['healthy','Healthy','var(--green)','8–20 weeks'],['overstocked','Overstocked','var(--slate)','> 20 weeks'],['unclassified','Not classified','var(--border2)','no sales, no stock']];
+const tot=sm.total||0,parts=[['understocked','Understocked','var(--red)','≤ 8 weeks'],['healthy','Healthy','var(--green)','> 8–20 weeks'],['overstocked','Overstocked','var(--slate)','> 20 weeks'],['unclassified','Not classified','var(--border2)','no sales, no stock']];
 document.getElementById('healthBar').innerHTML=parts.map(([k,,c])=>sm[k]?`<span style="width:${(sm[k]/Math.max(tot,1)*100).toFixed(2)}%;background:${c}" title="${k}: ${sm[k]}"></span>`:'').join('');
 document.getElementById('healthLegend').innerHTML=parts.map(([k,l,c,h])=>`<button onclick="${k==='unclassified'?'':`goStatus('${k}')`}"><span class="hl-l"><span class="sw" style="background:${c}"></span>${l}</span><span class="hl-v">${fmt(sm[k]||0)} <span style="font-size:13px;font-weight:500;color:var(--text3)">${tot?Math.round((sm[k]||0)/tot*100):0}%</span></span><span class="kpi-help" style="margin-top:0">${h}</span></button>`).join('');
 const t=d.turnover||{};const tv=t.available?`${t.turnover}×<div class="f-s">per year · ${t.period_start} – ${t.period_end}</div>`:`<span class="tag tag-mute">Insufficient data</span><div class="f-s">needs ≥ 2 full stock snapshots (have ${t.snapshots||0})</div>`;
@@ -896,15 +983,15 @@ document.getElementById('finRows').innerHTML=`<div class="fin-row"><span class="
 <div class="fin-row"><span class="f-l" title="Units above 20 weeks of coverage x unit cost">Overstock value</span><span class="f-v">${fmtRpS(sm.overstock_value||0)}<div class="f-s">${fmt(sm.overstock_qty||0)} units above target</div></span></div>
 <div class="fin-row"><span class="f-l" title="Recommended order qty x unit cost">Est. purchase cost</span><span class="f-v">${fmtRpS(sm.est_purchase_cost||0)}<div class="f-s">${fmt(sm.reorder_skus||0)} SKUs to reorder</div></span></div>
 <div class="fin-row"><span class="f-l" title="COGS x 52 / weeks ÷ average inventory value">Inventory turnover</span><span class="f-v">${tv}</span></div>`;
-document.getElementById('finMeta').innerHTML='Valued at unit cost (weighted avg COGS, 12 weeks), not selling price';
-const rl=d.top_reorder||[];document.getElementById('recoMeta').textContent=sm.reorder_skus?`${fmt(sm.reorder_skus)} SKUs to reorder · ${fmt(sm.urgency?.critical||0)} critical`:'Forecasted best sellers';
-document.getElementById('recoList').innerHTML=rl.length?rl.map(r=>`<li>${urgBadge(r.urgency)}<div class="ml-main"><div class="ml-t" title="${esc(r.product_name||'')}">${esc(r.product_name||r.sku)}</div><div class="ml-s">${esc(r.sku)} · stockout ${r.stockout_week?'W'+r.stockout_week:'not in 12 wks'}${r.needs_po_check?' · <span style="color:var(--amber)">check PO</span>':''}</div></div><div style="text-align:right"><div class="t-strong">${fmt(r.reco_po)}</div><div class="ml-s">units</div></div></li>`).join(''):'<li><span class="text-dim">No reorder needed right now.</span></li>'}
+
+const rl=d.top_reorder||[];document.getElementById('recoMeta').textContent=sm.reorder_skus?`${fmt(sm.reorder_skus)} SKUs to reorder · ${fmt(d.order_overdue||0)} past their order date`:'Forecasted best sellers';
+document.getElementById('recoList').innerHTML=rl.length?rl.map(r=>`<li><div style="min-width:86px">${orderByCell(r,true)}</div><div class="ml-main"><div class="ml-t" title="${esc(r.product_name||'')}">${esc(r.product_name||r.sku)}</div><div class="ml-s">${esc(r.sku)}${r.needs_po_check?' · <span style="color:var(--amber)">check PO</span>':''}</div></div><div style="text-align:right"><div class="t-strong">${fmt(r.reco_po)}</div><div class="ml-s">units</div></div></li>`).join(''):'<li><span class="text-dim">No reorder needed right now.</span></li>'}
 function goStatus(st){switchTab('inventory');setTimeout(()=>{const opt=document.querySelector(`.cdrop[data-id="invStatus"] .cdrop-opt[data-val="${st}"]`);if(st!=='understocked')document.getElementById('invActionOnly').checked=false;if(opt)selectCdrop(opt)},0)}
 let PT='import',BS=true;
 const bsScope=()=>BS?'bestseller':'all';
 function setBestSellerOnly(v){BS=v;document.querySelectorAll('.bs-only').forEach(c=>c.checked=v);weeklyShownCat=null;reloadActive()}
 const ptWord=()=>PT==='all'?'':PT+' ';
-function setProductType(v){if(v===PT)return;PT=v;document.querySelectorAll('.type-seg button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));invSummaryCache=null;invOv=null;lastRisk=[];replData=null;document.getElementById('ringHealthSub').textContent='Share of '+ptWord()+'SKUs in healthy status';loadOverview();reloadActive()}
+function setProductType(v){if(v===PT)return;PT=v;document.querySelectorAll('.type-seg button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));invSummaryCache=null;invOv=null;lastRisk=[];replData=null;planData=null;closeWhy();document.getElementById('ringHealthSub').textContent='Share of '+ptWord()+'SKUs in healthy status';loadOverview();reloadActive()}
 document.querySelectorAll('.type-seg button').forEach(b=>b.addEventListener('click',()=>setProductType(b.dataset.v)));
 document.querySelectorAll('#anSeg button').forEach(b=>b.addEventListener('click',()=>setSub(b.dataset.v)));
 let ovSeq=0,lastOv=null,lastRisk=[];
@@ -939,7 +1026,7 @@ document.getElementById('ringHealth').innerHTML=ringSvg(health,'var(--chart-2)')
 
 function renderInsights(ov,risk,inv){const out=[];const cmp=ov.comparison||{};
 const fr=invOv&&invOv.freshness;if(fr&&(fr.stock_level==='stale'||fr.stock_level==='very_stale'))out.push({c:'var(--amber)',h:`Stock snapshot is <b>${fr.stock_age_days} days old</b> — upload a new stock report before ordering.`,a:'upload'});
-if(inv&&inv.urgency&&inv.urgency.critical)out.push({c:'var(--red)',h:`<b>${fmt(inv.urgency.critical)} best sellers</b> are critical: an order placed today arrives after the projected stockout.`,a:'replenishment'});
+if(invOv&&invOv.order_overdue)out.push({c:'var(--red)',h:`<b>${fmt(invOv.order_overdue)} best sellers</b> are past their order date — an order placed today arrives after the projected stockout.`,a:'replenishment'});else if(invOv&&invOv.order_soon)out.push({c:'var(--amber)',h:`<b>${fmt(invOv.order_soon)} best sellers</b> must be ordered within 14 days.`,a:'replenishment'});
 if(inv&&inv.needs_po_check)out.push({c:'var(--amber)',h:`<b>${fmt(inv.needs_po_check)} SKUs</b> have open POs without an ETA — confirm them before reordering.`,a:'po'});
 if(risk.length){const n=riskInfo.total_understocked||risk.length;const w=risk.filter(r=>r.coverage!=null).sort((a,b)=>a.coverage-b.coverage)[0];out.push({c:'var(--red)',h:`<b>${n} best seller${n>1?'s':''}</b> at risk of stockout${w?` — lowest coverage: <b>${w.sku}</b> (${w.coverage.toFixed(1)} weeks)`:''}.`,a:'inventory'})}
 if(inv&&(inv.understocked||0)>0)out.push({c:'var(--red)',h:`<b>${fmt(inv.understocked)} ${ptWord()}SKUs</b> are understocked (less than 8 weeks of stock).`,a:'inventory'});
@@ -968,19 +1055,19 @@ const LEAD_WEEKS=8,BAR_WEEKS=12;
 function renderRisk(data,rt='all'){const sec=document.getElementById('riskSection');if(!data.length){if(rt==='all'){sec.style.display='none';return}sec.style.display='block';document.getElementById('riskGrid').innerHTML=`<div class="empty-state" style="grid-column:1/-1">No ${rt} best sellers at risk.</div>`;document.getElementById('riskMore').hidden=true;return}sec.style.display='block';
 const rows=sortRisk(data).slice(0,10);
 document.getElementById('riskGrid').innerHTML=rows.map(r=>{const cov=r.coverage;const col=cov==null?'var(--slate)':cov<8?'var(--red)':cov<=20?'var(--green)':'var(--slate)';const pct=cov==null?0:Math.min(100,cov/BAR_WEEKS*100);const name=esc(r.name||'');
-return`<article class="risk-card"><div class="rc-top"><span class="rc-sku" title="${esc(r.sku)}">${esc(r.sku)}</span>${r.urgency?urgBadge(r.urgency):statusBadge(r.status)}</div>
+return`<article class="risk-card"><div class="rc-top"><span class="rc-sku" title="${esc(r.sku)}">${esc(r.sku)}</span>${statusBadge(r.status)}</div>
 <div class="rc-name" title="${name}">${name}</div>
 <div class="rc-cov"><span class="rc-cov-v" style="color:${col}">${cov!=null?cov.toFixed(1):'--'}</span><span class="rc-cov-l">weeks of stock</span></div>
 <div class="rc-bar" title="${cov!=null?cov.toFixed(1):'--'} of ${LEAD_WEEKS} weeks lead time"><span style="width:${pct}%;background:${col}"></span><i style="left:${LEAD_WEEKS/BAR_WEEKS*100}%"></i></div>
-<div class="rc-meta"><div><div class="l">${riskInfo.comparison_available?'Stock '+riskWeeksAgo():'Stock now'}</div><div class="v" title="${riskInfo.comparison_available?'Stock then → now':'Only one stock snapshot: no comparison yet'}">${riskInfo.comparison_available&&r.prev_stock!=null?fmt(r.prev_stock)+' → '+fmt(r.current_stock):fmt(r.current_stock)}${riskInfo.comparison_available&&r.stock_change_pct!=null?` <span class="${r.stock_change_pct<0?'num-neg':'num-pos'}">(${r.stock_change_pct>0?'+':''}${r.stock_change_pct}%)</span>`:''}</div></div><div><div class="l">Stockout</div><div class="v">${r.stockout_week?'Week '+r.stockout_week:'> 12 wks'}</div></div><div><div class="l">L4W sales</div><div class="v">${fmt(r.l4w_qty)}</div></div><div><div class="l">Revenue L4W</div><div class="v" title="${fmtRp(r.revenue)}">${fmtRp(r.revenue)}</div></div></div>
+<div class="rc-meta"><div><div class="l">${riskInfo.comparison_available?'Stock '+riskWeeksAgo():'Stock now'}</div><div class="v" title="${riskInfo.comparison_available?'Stock then → now':'Only one stock snapshot: no comparison yet'}">${riskInfo.comparison_available&&r.prev_stock!=null?fmt(r.prev_stock)+' → '+fmt(r.current_stock):fmt(r.current_stock)}${riskInfo.comparison_available&&r.stock_change_pct!=null?` <span class="${r.stock_change_pct<0?'num-neg':'num-pos'}">(${r.stock_change_pct>0?'+':''}${r.stock_change_pct}%)</span>`:''}</div></div><div><div class="l">Order by</div><div class="v">${r.order_by?`<span class="${r.order_by_days<0?'num-neg':r.order_by_days<=14?'':'text-dim'}">${dfmt(r.order_by)}</span>`:'--'}</div></div><div><div class="l">L4W sales</div><div class="v">${fmt(r.l4w_qty)}</div></div><div><div class="l">Revenue L4W</div><div class="v" title="${fmtRp(r.revenue)}">${fmtRp(r.revenue)}</div></div></div>
 <button class="btn btn-ghost rc-btn" onclick="reviewSku('${String(r.sku).replace(/'/g,"\\'")}')">Plan order</button></article>`}).join('');applyRiskLimit()}
 let riskShowAll=false,riskMode='urgent',riskInfo={};
 // Most urgent: purchase urgency (projected stockout vs lead time), then fewest weeks of stock,
 // then the biggest stock drop vs ~8 weeks ago (only when a second snapshot exists), then revenue.
 const URG_O={critical:0,high:1,medium:2,low:3};
-function sortRisk(d){const a=[...d];if(riskMode==='revenue')return a.sort((x,y)=>(y.revenue||0)-(x.revenue||0));const cov=v=>v==null?1e9:v,chg=v=>v==null?1e9:v,u=v=>v in URG_O?URG_O[v]:9;return a.sort((x,y)=>u(x.urgency)-u(y.urgency)||cov(x.coverage)-cov(y.coverage)||chg(x.stock_change_pct)-chg(y.stock_change_pct)||(y.revenue||0)-(x.revenue||0))}
+function sortRisk(d){const a=[...d];if(riskMode==='revenue')return a.sort((x,y)=>(y.revenue||0)-(x.revenue||0));const ob=v=>v||'9999-12-31',cov=v=>v==null?1e9:v,chg=v=>v==null?1e9:v;return a.sort((x,y)=>ob(x.order_by).localeCompare(ob(y.order_by))||cov(x.coverage)-cov(y.coverage)||chg(x.stock_change_pct)-chg(y.stock_change_pct)||(y.revenue||0)-(x.revenue||0))}
 function riskWeeksAgo(){return riskInfo.weeks_between?`(${Math.round(riskInfo.weeks_between)} wks ago → now)`:'now'}
-function updateRiskMeta(){const el=document.getElementById('riskMeta');if(!el)return;const order=riskMode==='urgent'?'most urgent purchase first':'highest revenue first';const cmp=riskInfo.comparison_available?` · stock compared with ${riskInfo.stock_prev_date}`:' · only one stock snapshot, no comparison yet';el.innerHTML=`${riskInfo.total_understocked!=null?fmt(riskInfo.total_understocked)+' ':''}understocked best sellers (&lt; 8 weeks of stock), ${order}${cmp} · marker = 8-week lead time`}
+function updateRiskMeta(){const el=document.getElementById('riskMeta');if(!el)return;const order=riskMode==='urgent'?'earliest order date first':'highest revenue first';el.innerHTML=`${riskInfo.total_understocked!=null?fmt(riskInfo.total_understocked)+' ':''}understocked best sellers · ${order}`;const t=document.getElementById('riskTip');if(t)t.setAttribute('data-tip',`Best sellers (Pareto 80% import revenue) with ≤ 8 weeks of coverage. Most urgent = earliest Order by date. ${riskInfo.comparison_available?'Stock compared with the snapshot of '+riskInfo.stock_prev_date+'.':'Only one stock snapshot so far, so there is no stock comparison yet.'} The bar marker is the 8-week lead time.`)}
 document.querySelectorAll('#riskSort button').forEach(b=>b.addEventListener('click',()=>{riskMode=b.dataset.v;document.querySelectorAll('#riskSort button').forEach(x=>x.classList.toggle('active',x===b));updateRiskMeta();renderRisk(lastRisk,PT)}));
 function applyRiskLimit(){const btn=document.getElementById('riskMore');if(btn)btn.hidden=true}
 function toggleRiskAll(){riskShowAll=!riskShowAll;applyRiskLimit()}
@@ -1023,21 +1110,21 @@ let invSeq=0;
 async function loadInventory(){const sort=cDropVal('invSort')||'priority',cat=PT,seq=++invSeq;try{const r=await fetch(`/api/inventory?sort=${sort}&product_type=${cat}&scope=${bsScope()}`);const d=await r.json();if(seq!==invSeq)return;invData=d.results||[];const sm=d.summary||{};if(!BS)invSummaryCache=d.summary||invSummaryCache;
 if(invData.length){document.getElementById('invKpis').style.display='block';countUp('ikUnder',sm.understocked||0,fmt);countUp('ikHealthy',sm.healthy||0,fmt);countUp('ikOver',sm.overstocked||0,fmt);
 const items=[{v:sm.understocked||0,color:'var(--red)'},{v:sm.healthy||0,color:'var(--green)'},{v:sm.overstocked||0,color:'var(--slate)'}];document.getElementById('invRings').innerHTML=concentricSvg(items,items.reduce((a,b)=>a+b.v,0))}
-document.getElementById('invSub').textContent=(BS?'Best sellers (Pareto 80% revenue) · ':'All products · ')+(d.stock_date?'Stock as of '+d.stock_date+' · ':'No stock data · ')+'Coverage = (stock + open PO) ÷ avg weekly sales L4W: < 8 wks understocked · 8–20 healthy · > 20 overstocked · Days of inventory = coverage × 7';renderFresh(d.freshness);invPage=0;filterInv()}catch(e){document.getElementById('invTableWrap').innerHTML='<div class="empty-state">'+e.message+'</div>'}}
+document.getElementById('invSub').setAttribute('data-tip',(BS?'Best sellers (Pareto 80% revenue). ':'All products. ')+(d.stock_date?'Stock as of '+dfmt(d.stock_date)+'. ':'No stock data. ')+'Coverage = (stock + open PO) ÷ avg weekly sales of the last 4 weeks: ≤ 8 weeks Understocked · > 8–20 Healthy · > 20 Overstocked. Days of inventory = coverage × 7.');renderFresh(d.freshness);invPage=0;filterInv()}catch(e){document.getElementById('invTableWrap').innerHTML='<div class="empty-state">'+e.message+'</div>'}}
 function invFiltered(){const q=(document.getElementById('invSearch').value||'').toLowerCase(),s=cDropVal('invStatus'),ao=document.getElementById('invActionOnly').checked;let f=invData;if(q)f=f.filter(r=>r.sku.toLowerCase().includes(q)||r.product_name.toLowerCase().includes(q));if(s)f=f.filter(r=>r.status===s);if(ao)f=f.filter(r=>r.status==='understocked');const mv=cDropVal('invMove');if(mv)f=f.filter(r=>r.movement===mv);return f}
 function filterInv(){invPage=0;const st=cDropVal('invStatus');document.querySelectorAll('.inv-legend .lg').forEach(b=>b.classList.toggle('on',b.dataset.status===st));renderInvTable(invFiltered())}
 function invGoPage(p){invPage=p;renderInvTable(invFiltered());document.getElementById('invTableWrap').scrollTop=0}
 function renderInvTable(data){const s=invPage*PAGE_SIZE,pg=data.slice(s,s+PAGE_SIZE);
 let h=`<table class="tbl-sticky"><thead><tr><th><div class="w-trend"></div></th><th><div class="w-sku">SKU</div></th><th><div class="w-prod">Product</div></th><th class="r" title="Revenue over the last 4 weeks">L4W Revenue</th><th class="r" title="Average weekly sales over the last 4 weeks">Avg/Wk L4W</th><th class="r" title="Physical stock, latest snapshot">Stock</th><th class="r" title="Outstanding quantity on open purchase orders">Open PO</th><th class="r" title="(Stock + open PO) ÷ avg weekly sales L4W">Coverage</th><th class="r" title="Coverage × 7">Days Inv.</th><th class="r" title="Stock × unit cost (weighted avg COGS, 12 weeks)">Value</th><th class="r" title="Units above 20 weeks of coverage">Overstock</th><th title="Rank of avg weekly units, last 12 weeks: top 20% fast, next 50% medium, rest slow">Movement</th><th class="r" title="Average forecast per week, next 8 weeks (Holt's DES)">Forecast/Wk</th><th class="r" title="First week the projected stock reaches 0 (open PO counted in its ETA week)">Stockout</th><th class="r col-reco" title="Recommended order quantity (see Replenishment)">Reco PO</th><th>Status</th></tr></thead><tbody>`;
 pg.forEach(r=>{const tc=r.trend_class;const td=tc==='increasing'||tc==='new_demand'?'trend-up':tc==='decreasing'?'trend-down':'trend-stable';const ta=tc==='increasing'||tc==='new_demand'?'▲':tc==='decreasing'?'▼':tc?'▶':'';const so=r.stockout_week?`W${r.stockout_week}`:(r.forecasted?'> 12':'--');const soC=r.stockout_week&&r.stockout_week<=8?'num-neg':'';const covC=r.status==='understocked'?'num-neg':r.status==='overstocked'?'text-dim':'';const val=r.inventory_value!=null?fmtRpS(r.inventory_value):'<span class="text-dim" title="No unit cost">No cost</span>';
-h+=`<tr class="clickable" onclick="openSkuDrawer('${String(r.sku).replace(/'/g,"\\'")}')"><td><div class="w-trend"><span class="${td}" title="${tc||'not forecasted'}">${ta}</span></div></td><td><div class="w-sku trunc t-strong">${esc(r.sku)}</div></td><td><div class="w-prod trunc t-strong" style="font-weight:500" title="${esc(r.product_name)}">${esc(r.product_name)}</div></td><td class="r">${fmtRp(r.l4w_revenue)}</td><td class="r t-strong">${r.avg_l4w}</td><td class="r ${r.current_stock<0?'num-neg':''}">${fmt(r.current_stock)}</td><td class="r">${r.ongoing_po?fmt(r.ongoing_po):'--'}</td><td class="r t-strong ${covC}">${r.coverage!=null?r.coverage.toFixed(1)+' w':'--'}</td><td class="r">${r.days_of_inventory!=null?fmt(r.days_of_inventory)+' d':'--'}</td><td class="r">${val}</td><td class="r">${r.overstock_qty?fmt(r.overstock_qty):'--'}</td><td>${moveBadge(r.movement)}</td><td class="r">${r.fc_avg_weekly!=null?r.fc_avg_weekly:'--'}</td><td class="r t-strong ${soC}">${so}</td><td class="r col-reco">${r.reco_po>0?fmt(r.reco_po):'--'}</td><td>${statusBadge(r.status)}</td></tr>`});
+h+=`<tr class="clickable" onclick="openSkuDrawer('${String(r.sku).replace(/'/g,"\\'")}')"><td><div class="w-trend"><span class="${td}" title="${tc||'not forecasted'}">${ta}</span></div></td><td><div class="w-sku trunc t-strong">${esc(r.sku)}</div></td><td><div class="w-prod trunc t-strong" style="font-weight:500" title="${esc(r.product_name)}">${esc(r.product_name)}</div></td><td class="r">${fmtRp(r.l4w_revenue)}</td><td class="r t-strong">${r.avg_l4w}</td><td class="r ${r.current_stock<0?'num-neg':''}">${fmt(r.current_stock)}</td><td class="r">${r.ongoing_po?fmt(r.ongoing_po):'--'}</td><td class="r t-strong ${covC}">${r.coverage!=null?r.coverage.toFixed(1)+' w':'--'}</td><td class="r">${r.days_of_inventory!=null?fmt(Math.max(0,r.days_of_inventory))+' d':'--'}</td><td class="r">${val}</td><td class="r">${r.overstock_qty?fmt(r.overstock_qty):'--'}</td><td>${moveBadge(r.movement)}</td><td class="r">${r.fc_avg_weekly!=null?r.fc_avg_weekly:'--'}</td><td class="r t-strong ${soC}">${so}</td><td class="r col-reco">${r.reco_po>0?fmt(r.reco_po):'--'}</td><td>${statusBadge(r.status)}</td></tr>`});
 h+='</tbody></table>';if(!pg.length)h='<div class="empty-state">No products match the filter.</div>';document.getElementById('invTableWrap').innerHTML=h;renderPaging('invPaging',invPage,data.length,'invGoPage')}
 
 const csvCell=v=>v==null?'':(typeof v==='string'?`"${v.replace(/"/g,'""')}"`:v);
 function downloadCsv(name,hdr,rows){const csv=hdr.join(',')+'\n'+rows.map(r=>r.map(csvCell).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${name}_${new Date().toISOString().slice(0,10)}.csv`;a.click()}
 function exportInventory(){if(!invData.length)return;const hdr=['SKU','Product','L4W Revenue','Avg L4W/W','Stock','Open PO','Coverage (W)','Days of Inventory','Unit Cost','Cost Verified','Inventory Value','Overstock Qty','Overstock Value','Movement','Fc Avg/W','LT Demand 8W','Safety Stock','ROP','Stockout Week','Reco PO','Urgency','Status'];downloadCsv('inventory',hdr,invData.map(r=>[r.sku,r.product_name,r.l4w_revenue,r.avg_l4w,r.current_stock,r.ongoing_po,r.coverage,r.days_of_inventory,r.unit_cost,r.cost_verified?'yes':'no',r.inventory_value,r.overstock_qty,r.overstock_value,r.movement,r.fc_avg_weekly,r.lt_demand_8w,r.safety_stock,r.rop,r.stockout_week,r.reco_po,r.urgency,r.status||'not classified']))}
 const REFRESH_HTML=document.getElementById('btnRefresh').innerHTML;
-async function refreshForecast(){const btn=document.getElementById('btnRefresh');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span> Refreshing...';try{const rr=await fetch('/api/forecast/run',{method:'POST'});if(!rr.ok)throw new Error('Server returned '+rr.status);weeklyData=[];weeklyByCat={};weeklyShownCat=null;fcDataMap={};invSummaryCache=null;invOv=null;replData=null;await loadFcMap();if(anSub==='forecast')loadWeekly();else await loadInventory();toast('Forecast refreshed','success')}catch(e){toast('Refresh failed: '+e.message,'error')}btn.disabled=false;btn.innerHTML=REFRESH_HTML}
+async function refreshForecast(){const btn=document.getElementById('btnRefresh');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span> Refreshing...';try{const rr=await fetch('/api/forecast/run',{method:'POST'});if(!rr.ok)throw new Error('Server returned '+rr.status);weeklyData=[];weeklyByCat={};weeklyShownCat=null;fcDataMap={};invSummaryCache=null;invOv=null;replData=null;planData=null;await loadFcMap();if(anSub==='forecast'){if(dpView==='weekly')loadWeekly();else loadPlan()}else await loadInventory();toast('Forecast refreshed','success')}catch(e){toast('Refresh failed: '+e.message,'error')}btn.disabled=false;btn.innerHTML=REFRESH_HTML}
 
 /* ═══ TAB 4: ETL ═══ */
 let etlFileId=null;
@@ -1082,38 +1169,95 @@ function downloadPoTemplate(){const csv='Product Name,Qty Ordered,Supplier,Order
 
 
 /* ═══ REPLENISHMENT ═══ */
-let replData=null,replPage=0,replUrg='',replSeq=0;
-async function loadReplenishment(){const seq=++replSeq,pt=PT;if(replData&&replData._pt===pt){renderRepl();return}document.getElementById('rpTableWrap').innerHTML='<div class="loader-full"><span class="loading-spinner"></span> Loading...</div>';try{const r=await fetch(`/api/replenishment?product_type=${pt}`);if(!r.ok)throw new Error('Replenishment request failed ('+r.status+')');const d=await r.json();if(seq!==replSeq)return;d._pt=pt;replData=d;renderFresh(d.freshness);
-const sm=d.summary||{},st=d.settings||{};countUp('rpCount',sm.reorder_skus||0,fmt);countUp('rpQty',sm.reorder_qty||0,fmt);countUp('rpCrit',(sm.urgency||{}).critical||0,fmt);countUp('rpHigh',(sm.urgency||{}).high||0,fmt);countUp('rpCheck',sm.needs_po_check||0,fmt);
-const c=document.getElementById('rpCost');c.classList.remove('skel');c.textContent=fmtRpS(sm.est_purchase_cost||0);document.getElementById('rpCostSub').innerHTML='qty × unit cost'+costTag(sm.cost_verified);
-document.getElementById('rpCountSub').textContent=`of ${fmt(sm.forecasted||0)} forecasted best sellers`;document.getElementById('rpQtySub').textContent=`units · order-up-to: ${fmt(sm.reorder_qty_order_up_to||0)}`;
-const rw=Math.round((st.review_period_days||14)/7);document.getElementById('rpHighSub').textContent=`cannot wait ${rw} wks for the next review`;
-document.getElementById('rpSub').textContent=`${d.stock_date?'Stock as of '+d.stock_date+' · ':''}Lead time ${st.lead_time_weeks} wks (default) · review every ${st.review_period_days} days · safety stock ${Math.round((st.ss_pct||0)*100)}% of ${st.ss_basis_weeks}-week forecast · the system recommends, purchasing decides`;
-document.getElementById('rpNote').innerHTML=`<b>Reco Qty</b> = forecast over lead time + safety stock − inventory position (thesis formula). <b>Order-up-to</b> adds one review period of demand and is shown for comparison only. <b>Inventory position</b> counts stock + open PO that has an ETA inside the lead time; PO without any ETA is not counted (shown as “check PO”). <b>Urgency</b>: slack = projected stockout week − lead time; ≤ 0 critical · ≤ ${rw} wks high · ≤ ${rw*2} wks medium · otherwise low.`;
+let replData=null,replPage=0,replStatus='',replTab='reorder',replSeq=0;
+const needOrder=r=>(r.reco_po||0)>0||r.status==='understocked'||(r.order_by_days!=null&&!r.order_by_is_estimate&&r.order_by_days<=14);
+function orderByCell(r,compact){if(!r.order_by)return'<span class="text-dim">--</span>';const d=r.order_by_days;
+if(r.order_by_is_estimate)return`<div class="ob-date ob-none">${compact?'':'not before '}${dfmt(r.order_by)}</div><div class="ob-sub ob-none">stock lasts &gt; 12 wks</div>`;
+const cls=d<0?'ob-late':d<=14?'ob-soon':'ob-ok';const sub=d<0?`${-d} days overdue`:d===0?'today':`in ${d} days`;return`<div class="ob-date ${cls}">${dfmt(r.order_by)}</div><div class="ob-sub ${cls}">${sub}</div>`}
+async function loadReplenishment(){const seq=++replSeq,pt=PT;if(replData&&replData._pt===pt){renderRepl();return}document.getElementById('rpTableWrap').innerHTML='<div class="loader-full"><span class="loading-spinner"></span> Loading...</div>';try{const r=await fetch(`/api/replenishment?product_type=${pt}`);if(!r.ok)throw new Error('Replenishment request failed ('+r.status+')');const d=await r.json();if(seq!==replSeq)return;d._pt=pt;
+(d.results||[]).forEach(x=>{x.qty=x.reco_po||0;x.sel=needOrder(x)&&(x.reco_po||0)>0});replData=d;renderFresh(d.freshness);const st=d.settings||{};
+document.getElementById('rpSub').setAttribute('data-tip',`What to buy, by when, and how much. Follow the Order by date: projected stockout date minus the ${st.lead_time_weeks}-week supplier lead time (default), so the goods arrive before stock runs out.\n\nUnits to order starts at the system recommendation: forecast over the lead time + safety stock (${Math.round((st.ss_pct||0)*100)}% of the ${st.ss_basis_weeks}-week forecast) − (stock + open PO with an ETA). You can change it; the recommendation stays visible.\n\n${d.stock_date?'Stock as of '+dfmt(d.stock_date)+'. ':''}Review every ${st.review_period_days} days. The system recommends; purchasing decides.`);
+document.getElementById('sbCostL').innerHTML='estimated cost'+((d.summary||{}).cost_verified?'':' · <span title="Unit cost from cogs_accurate, not yet confirmed by finance">unverified</span>');
 replPage=0;renderRepl()}catch(e){document.getElementById('rpTableWrap').innerHTML='<div class="empty-state">'+esc(e.message)+'</div>'}}
-document.querySelectorAll('#rpUrg button').forEach(b=>b.addEventListener('click',()=>{replUrg=b.dataset.v;markSeg('rpUrg',replUrg);replPage=0;renderRepl()}));
-function replFiltered(){if(!replData)return[];const q=(document.getElementById('rpSearch').value||'').toLowerCase(),ro=document.getElementById('rpReorderOnly').checked;let f=replData.results||[];if(ro)f=f.filter(r=>(r.reco_po||0)>0);if(replUrg)f=f.filter(r=>r.urgency===replUrg);if(q)f=f.filter(r=>r.sku.toLowerCase().includes(q)||r.product_name.toLowerCase().includes(q));return f}
+document.querySelectorAll('#rpStatus button').forEach(b=>b.addEventListener('click',()=>{replStatus=b.dataset.v;markSeg('rpStatus',replStatus);replPage=0;renderRepl()}));
+document.querySelectorAll('#rpTabs button').forEach(b=>b.addEventListener('click',()=>{replTab=b.dataset.v;document.querySelectorAll('#rpTabs button').forEach(x=>x.classList.toggle('active',x===b));replPage=0;renderRepl()}));
+function replFiltered(){if(!replData)return[];const q=(document.getElementById('rpSearch').value||'').toLowerCase();let f=replData.results||[];if(replTab==='reorder')f=f.filter(needOrder);if(replStatus)f=f.filter(r=>r.status===replStatus);if(q)f=f.filter(r=>r.sku.toLowerCase().includes(q)||r.product_name.toLowerCase().includes(q));return f}
 function replGoPage(p){replPage=p;renderRepl()}
-function renderRepl(){const data=replFiltered(),st=replPage*PAGE_SIZE,pg=data.slice(st,st+PAGE_SIZE);
-let h=`<table class="tbl-sticky"><thead><tr><th>Urgency</th><th><div class="w-sku">SKU</div></th><th><div class="w-prod">Product</div></th><th class="r" title="Physical stock">Stock</th><th class="r" title="Open PO with an ETA inside the lead time">Incoming</th><th class="r" title="Stock + incoming counted">Position</th><th class="r" title="Average forecast per week, next 8 weeks">Fc/Wk</th><th class="r" title="Safety stock = 10% of 8-week forecast">SS</th><th class="r" title="Reorder point = forecast over lead time + SS">ROP</th><th class="r" title="First week projected stock reaches 0">Stockout</th><th class="r" title="Stockout week − lead time">Slack</th><th class="r col-reco" title="Recommended order quantity (thesis formula)">Reco Qty</th><th class="r col-dim" title="Comparison only: adds one review period of demand">Order-up-to</th><th class="r" title="Reco qty × unit cost">Est. Cost</th><th></th></tr></thead><tbody>`;
-pg.forEach(r=>{const sk=String(r.sku).replace(/'/g,"\\'");h+=`<tr class="clickable" onclick="openReplDetail('${sk}',this)"><td>${urgBadge(r.urgency)}</td><td><div class="w-sku trunc t-strong">${esc(r.sku)}</div></td><td><div class="w-prod trunc t-strong" style="font-weight:500" title="${esc(r.product_name)}">${esc(r.product_name)}</div></td><td class="r ${r.current_stock<=0?'num-neg':''}">${fmt(r.current_stock)}</td><td class="r">${r.confirmed_incoming?fmt(r.confirmed_incoming):'--'}${r.unconfirmed_incoming?` <span class="tag tag-warn" title="${fmt(r.unconfirmed_incoming)} units on PO without ETA — not counted">+${fmt(r.unconfirmed_incoming)}?</span>`:''}</td><td class="r">${fmt(Math.round(r.inventory_position))}</td><td class="r">${r.fc_avg_weekly}</td><td class="r">${fmt(Math.round(r.safety_stock))}</td><td class="r">${fmt(Math.round(r.rop))}</td><td class="r t-strong ${r.stockout_week&&r.stockout_week<=8?'num-neg':''}">${r.stockout_week?'W'+r.stockout_week:'> 12'}</td><td class="r">${r.slack_weeks!=null?(r.slack_weeks>0?'+':'')+r.slack_weeks+' w':'--'}</td><td class="r col-reco">${r.reco_po>0?fmt(r.reco_po):'--'}</td><td class="r col-dim">${r.reco_order_up_to>0?fmt(r.reco_order_up_to):'--'}</td><td class="r">${r.est_purchase_cost!=null?(r.est_purchase_cost?fmtRpS(r.est_purchase_cost):'--'):'<span class="text-dim">No cost</span>'}</td><td>${ICON.chev}</td></tr>`});
-h+='</tbody></table>';if(!replData)h='<div class="empty-state">Loading...</div>';else if(!(replData.results||[]).length)h='<div class="empty-state">No forecasted best sellers yet. Upload sales data and run Refresh forecast.</div>';else if(!pg.length)h='<div class="empty-state">No SKUs match the filter.</div>';
-document.getElementById('rpTableWrap').innerHTML=h;renderPaging('rpPaging',replPage,data.length,'replGoPage')}
-function exportReplenishment(){const d=replFiltered();if(!d.length)return;downloadCsv('purchase_recommendations',['Urgency','SKU','Product','Stock','Confirmed Incoming','Unconfirmed Incoming','Inventory Position','Fc Avg/W','Safety Stock','ROP','Stockout Week','Slack (W)','Reco Qty','Order-up-to (comparison)','Unit Cost','Cost Verified','Est. Purchase Cost','Check PO'],d.map(r=>[r.urgency,r.sku,r.product_name,r.current_stock,r.confirmed_incoming,r.unconfirmed_incoming,r.inventory_position,r.fc_avg_weekly,r.safety_stock,r.rop,r.stockout_week,r.slack_weeks,r.reco_po,r.reco_order_up_to,r.unit_cost,r.cost_verified?'yes':'no',r.est_purchase_cost,r.needs_po_check?'yes':'no']))}
+function replRow(sku){return(replData&&replData.results||[]).find(x=>x.sku===sku)}
+function setReplQty(sku,v){const r=replRow(sku);if(!r)return;r.qty=Math.max(0,Math.round(Number(v)||0));if(r.qty>0)r.sel=true;renderRepl()}
+function setReplSel(sku,v){const r=replRow(sku);if(r){r.sel=v;renderRepl()}}
+function setReplAll(v){replFiltered().forEach(r=>r.sel=v);renderRepl()}
+function renderRepl(){const all=replData?replData.results||[]:[];document.getElementById('rpCntAll').textContent=fmt(all.length);document.getElementById('rpCntRe').textContent=fmt(all.filter(needOrder).length);
+const data=replFiltered(),st=replPage*PAGE_SIZE,pg=data.slice(st,st+PAGE_SIZE);
+let h=`<table class="ro-table"><thead><tr><th style="width:34px"><input type="checkbox" class="cb" ${data.length&&data.every(r=>r.sel)?'checked':''} onclick="event.stopPropagation();setReplAll(this.checked)" aria-label="Select all"></th><th>Product</th><th title="Physical stock; below it the open PO quantity on the way">Total stock</th><th class="r" title="Coverage × 7 · coverage = (stock + open PO) ÷ avg weekly sales, last 4 weeks">Days of cover</th><th title="Projected stockout date − supplier lead time. After this date the order arrives after stock runs out.">Order by</th><th title="≤ 8 weeks Understocked · > 8–20 Healthy · > 20 Overstocked">Status</th><th class="r" title="Starts at the system recommendation; you can change it">Units to order</th></tr></thead><tbody>`;
+pg.forEach(r=>{const sk=String(r.sku).replace(/'/g,"\\'");const edited=r.qty!==(r.reco_po||0);const reco=r.reco_po||0;
+const hint=edited?`system ${fmt(reco)} · <button class="reset-btn" onclick="event.stopPropagation();setReplQty('${sk}',${reco})">reset</button>`:(reco?'system recommendation':((r.reco_order_up_to||0)>0&&r.order_by_days!=null&&!r.order_by_is_estimate&&r.order_by_days<=28?`<span style="color:var(--amber)" title="The thesis formula only covers the lead time. With the next review in 2 weeks, order-up-to suggests ${fmt(r.reco_order_up_to)}.">system 0 · order-up-to ${fmt(r.reco_order_up_to)}</span>`:'no order needed'));
+h+=`<tr class="${r.sel?'sel':''}" onclick="openReplDetail('${sk}',this)"><td onclick="event.stopPropagation()"><input type="checkbox" class="cb" ${r.sel?'checked':''} onchange="setReplSel('${sk}',this.checked)" aria-label="Select ${esc(r.product_name)}"></td>
+<td><div class="p-name" title="${esc(r.product_name)}">${esc(r.product_name)}</div><div class="p-sku">${esc(r.sku)}</div></td>
+<td><div class="stk-main ${r.current_stock<=0?'num-neg':''}">${fmt(r.current_stock)} available</div><div class="stk-sub">${fmt(r.confirmed_incoming||0)} in transit${r.unconfirmed_incoming?` · <span class="unk" title="Open PO without ETA — not counted until confirmed">+${fmt(r.unconfirmed_incoming)} ETA ?</span>`:''}</div></td>
+<td class="r"><b>${r.days_of_inventory!=null?fmt(Math.max(0,r.days_of_inventory))+' days':'--'}</b></td>
+<td>${orderByCell(r)}</td><td>${statusBadge(r.status)}</td>
+<td class="r" onclick="event.stopPropagation()"><input class="qty-in ${edited?'edited':''}" type="number" min="0" step="10" value="${r.qty}" onchange="setReplQty('${sk}',this.value)" aria-label="Units to order"><div class="qty-hint">${hint}</div></td></tr>`});
+h+='</tbody></table>';if(!replData)h='<div class="empty-state">Loading...</div>';else if(!all.length)h='<div class="empty-state">No forecasted best sellers yet. Upload sales data and run Refresh forecast.</div>';else if(!pg.length)h='<div class="empty-state">No SKUs match the filter.</div>';
+document.getElementById('rpTableWrap').innerHTML=h;renderPaging('rpPaging',replPage,data.length,'replGoPage');
+const sel=all.filter(r=>r.sel);document.getElementById('sbCount').textContent=`${fmt(sel.length)} SKU${sel.length===1?'':'s'}`;document.getElementById('sbUnits').textContent=fmt(sel.reduce((a,r)=>a+r.qty,0));const noc=sel.filter(r=>r.qty>0&&r.unit_cost==null).length;document.getElementById('sbCost').textContent=fmtRpS(sel.reduce((a,r)=>a+(r.unit_cost?r.qty*r.unit_cost:0),0))+(noc?` +${noc} no cost`:'')}
+function exportReplenishment(selectedOnly){const d=selectedOnly?(replData&&replData.results||[]).filter(r=>r.sel&&r.qty>0):replFiltered();if(!d.length){toast(selectedOnly?'Select at least one SKU with units to order':'Nothing to export','info');return}
+downloadCsv(selectedOnly?'order_plan':'replenishment',['SKU','Product','Status','Stock','In transit (ETA known)','Open PO without ETA','Days of cover','Order by','Order by is estimate','System recommendation','Units to order','Changed manually','Order-up-to (comparison)','Unit cost','Cost verified','Estimated cost'],d.map(r=>[r.sku,r.product_name,r.status||'not classified',r.current_stock,r.confirmed_incoming,r.unconfirmed_incoming,r.days_of_inventory,r.order_by,r.order_by_is_estimate?'yes':'no',r.reco_po,r.qty,r.qty!==(r.reco_po||0)?'yes':'no',r.reco_order_up_to,r.unit_cost,r.cost_verified?'yes':'no',r.unit_cost!=null?Math.round(r.qty*r.unit_cost):'']))}
 async function openReplDetail(sku,row){document.querySelectorAll('#rpTableWrap tr.row-selected').forEach(t=>t.classList.remove('row-selected'));if(row)row.classList.add('row-selected');const box=document.getElementById('rpDetail');box.style.display='block';box.innerHTML='<div class="loader-full"><span class="loading-spinner"></span> Loading...</div>';
 try{const r=await fetch(`/api/replenishment/sku/${encodeURIComponent(sku)}`);const d=await r.json();if(!r.ok)throw new Error(d.detail||'Not found');const p=d.plan,uc=d.unit_cost;
 const cell=(l,v,sub='')=>`<div><div class="d-l">${l}</div><div class="d-v">${v}</div>${sub?`<div class="d-s">${sub}</div>`:''}</div>`;
 const pr=p.projection||[];const row=(l,k,cls)=>`<tr><td>${l}</td>${pr.map(w=>{const v=w[k];const c=cls?cls(w):'';return`<td class="${c}">${v?fmt(Math.round(v)):(k==='closing'||k==='opening'?'0':'')}</td>`}).join('')}</tr>`;
 const pol=(p.po_lines||[]);const sc=d.safety_stock_comparison||{};
-box.innerHTML=`<div class="card-header"><div><div class="section-label">${esc(d.product_name)}</div><div class="section-meta">${esc(d.sku)} · stock ${fmt(d.current_stock)} as of ${d.stock_date||'--'} · forecast trend ${trendClassBadge(d.forecast.trend_class,d.forecast.trend_pct)}</div></div><div style="display:flex;gap:8px;align-items:center">${urgBadge(p.urgency)}<button class="btn btn-ghost" onclick="document.getElementById('rpDetail').style.display='none'">Close</button></div></div>
-<div class="detail-grid">${cell('Recommended order',fmt(p.reco_qty)+' units',uc?`≈ ${fmtRpS(p.reco_qty*uc.cost)}${uc.verified?'':' (cost unverified)'}`:'no unit cost')}${cell('Order-up-to (comparison)',fmt(p.reco_order_up_to)+' units',`covers lead time + review = ${p.protection_weeks} wks`)}${cell('Projected stockout',p.stockout_week?'Week '+p.stockout_week:'Not within 12 wks',p.unconfirmed_incoming?`if PO without ETA arrives: ${p.stockout_week_if_unconfirmed_arrives?'week '+p.stockout_week_if_unconfirmed_arrives:'none'}`:`slack ${p.slack_weeks!=null?p.slack_weeks+' wks':'--'} vs ${p.lead_time_weeks}-wk lead time`)}${cell('Inventory position',fmt(Math.round(p.inventory_position)),`stock ${fmt(d.current_stock)} + incoming ${fmt(p.inventory_position-d.current_stock)}`)}
-${cell('Reorder point',fmt(Math.round(p.rop)),`lead-time demand ${fmt(Math.round(p.lt_demand))} + SS ${fmt(Math.round(p.safety_stock))}`)}${cell('Safety stock',fmt(Math.round(p.safety_stock)),'10% × 8-week forecast (policy)')}${cell('Confirmed incoming',fmt(p.confirmed_incoming),'PO with ETA')}${cell('Unconfirmed incoming',p.unconfirmed_incoming?`<span style="color:var(--amber)">${fmt(p.unconfirmed_incoming)}</span>`:'0',p.unconfirmed_incoming?`if it arrives: reco ${fmt(p.reco_if_unconfirmed_arrives)}`:'no PO without ETA')}</div>
+box.innerHTML=`<div class="card-header"><div><div class="section-label">${esc(d.product_name)}</div><div class="section-meta">${esc(d.sku)} · stock ${fmt(d.current_stock)} as of ${d.stock_date||'--'} · forecast trend ${trendClassBadge(d.forecast.trend_class,d.forecast.trend_pct)}</div></div><div style="display:flex;gap:8px;align-items:center">${statusBadge((replRow(d.sku)||{}).status)}<button class="btn btn-ghost" onclick="document.getElementById('rpDetail').style.display='none'">Close</button></div></div>
+<div class="detail-grid">${cell('Recommended order',fmt(p.reco_qty)+' units',uc?`≈ ${fmtRpS(p.reco_qty*uc.cost)}${uc.verified?'':' (cost unverified)'}`:'no unit cost')}${cell('Order-up-to (comparison)',fmt(p.reco_order_up_to)+' units',`covers lead time + review = ${p.protection_weeks} wks`)}${cell('Order by',p.order_by?(p.order_by_is_estimate?'not before ':'')+dfmt(p.order_by):'--',p.stockout_week?`stockout week ${p.stockout_week} (${dfmt(p.stockout_date)}) − ${p.lead_time_weeks}-week lead time`:'no stockout within 12 weeks')}${cell('Inventory position',fmt(Math.round(p.inventory_position)),`stock ${fmt(d.current_stock)} + incoming ${fmt(p.inventory_position-d.current_stock)}`)}
+${cell('Reorder point',fmt(Math.round(p.rop)),`lead-time demand ${fmt(Math.round(p.lt_demand))} + SS ${fmt(Math.round(p.safety_stock))}`)}${cell('Safety stock',fmt(Math.round(p.safety_stock)),'10% × 8-week forecast (policy)')}${cell('Confirmed incoming',fmt(p.confirmed_incoming),'PO with ETA')}${cell('Unconfirmed incoming',p.unconfirmed_incoming?`<span style="color:var(--amber)">${fmt(p.unconfirmed_incoming)}</span>`:'0',p.unconfirmed_incoming?`if it arrives: reco ${fmt(p.reco_if_unconfirmed_arrives)}, stockout ${p.stockout_week_if_unconfirmed_arrives?'week '+p.stockout_week_if_unconfirmed_arrives:'none'}`:'no PO without ETA')}</div>
 ${p.flags&&p.flags.length?`<div class="banner warn" style="margin-bottom:14px">${ICON.alert.replace('<svg','<svg class="b-ico"')}<div>${p.flags.map(f=>({negative_stock:'Book stock is negative: projection starts at 0, the deficit is included in the order.',lead_time_beyond_horizon:'Lead time is longer than the 12-week forecast horizon: demand is capped at 12 weeks.',protection_beyond_horizon:'Lead time + review period exceeds the 12-week forecast: order-up-to is capped at 12 weeks.'}[f]||f)).join('<br>')}</div></div>`:''}
 <div class="section-label" style="font-size:16px;margin-bottom:8px">Weekly stock projection <span class="section-meta" style="font-size:13px">conservative: PO without ETA never arrives · forecast is an estimate</span></div>
 <div class="proj-wrap"><table class="proj-table"><thead><tr><th>Week</th>${pr.map(w=>`<th title="${w.week_start||''}">W${w.week}<br><span style="font-weight:400">${(w.week_start||'').slice(5)}</span></th>`).join('')}</tr></thead><tbody>${row('Opening stock','opening')}${row('Forecast demand','demand')}${row('Incoming PO','incoming',w=>w.incoming?'inc':'')}${row('Closing stock','closing',w=>w.closing<=0&&w.demand>0?'neg':'')}${row('Unmet demand','shortage',w=>w.shortage?'neg':'')}</tbody></table></div>
 <div class="two-col" style="margin-top:18px"><div><div class="section-label" style="font-size:16px;margin-bottom:8px">Open PO lines</div>${pol.length?`<div class="tbl-wrap"><table><thead><tr><th>Status</th><th class="r">Outstanding</th><th>ETA</th><th>Supplier</th></tr></thead><tbody>${pol.map(l=>`<tr><td>${poBadge(l.status||'pending')}</td><td class="r t-strong">${fmt(l.qty)}</td><td>${l.eta_source==='unknown'?'<span class="tag tag-warn">Unknown</span>':l.eta+(l.eta_source==='estimated'?' <span class="tag tag-info">est.</span>':'')+(l.overdue?' <span class="tag" style="background:var(--red-bg);color:var(--red)">overdue</span>':'')}${l.eta_week?` <span class="text-dim">(W${l.eta_week})</span>`:''}</td><td>${esc(l.supplier||'-')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state" style="padding:16px">No open PO for this SKU.</div>'}</div>
 <div><div class="section-label" style="font-size:16px;margin-bottom:8px">Safety stock comparison <span class="section-meta" style="font-size:13px">simulation only</span></div><div class="tbl-wrap"><table><thead><tr><th>Scenario</th><th class="r">Safety stock</th><th class="r">Reco qty</th><th class="r">Stockout</th></tr></thead><tbody>${(sc.sensitivity||[]).map(x=>`<tr${x.is_default?' style="font-weight:700"':''}><td>${Math.round(x.ss_pct*100)}% of 8-wk forecast${x.is_default?' <span class="tag tag-info">used</span>':''}</td><td class="r">${fmt(Math.round(x.safety_stock))}</td><td class="r">${fmt(x.reco_qty)}</td><td class="r">${x.stockout_week?'W'+x.stockout_week:'> 12'}</td></tr>`).join('')}<tr><td title="${esc(sc.statistical?.method||'')}">Statistical z·σ·√L (95%)</td><td class="r">${sc.statistical?.value!=null?fmt(Math.round(sc.statistical.value)):'--'}</td><td class="r col-dim" colspan="2">not used in the recommendation</td></tr></tbody></table></div></div></div>`;
 box.scrollIntoView({behavior:'smooth',block:'nearest'})}catch(e){box.innerHTML=`<div class="empty-state">${esc(e.message)}</div>`}}
+
+/* ═══ DEMAND PLAN ═══ */
+let planData=null,planSeq=0,dpMetric='units',dpView='plan',whyKey=null;
+async function loadPlan(){const seq=++planSeq,pt=PT;if(planData&&planData._pt===pt){renderPlan();return}document.getElementById('dpTableWrap').innerHTML='<div class="loader-full"><span class="loading-spinner"></span> Loading...</div>';
+try{const r=await fetch(`/api/forecast/plan?product_type=${pt}`);if(!r.ok)throw new Error('Demand plan request failed ('+r.status+')');const d=await r.json();if(seq!==planSeq)return;d._pt=pt;planData=d;buildMonths();renderPlan()}catch(e){document.getElementById('dpTableWrap').innerHTML='<div class="empty-state">'+esc(e.message)+'</div>'}}
+const mkey=w=>String(w).slice(0,7);
+function buildMonths(){const past=new Set(),fut=new Set();(planData.results||[]).forEach(p=>{(p.holdout.weeks||[]).forEach(w=>past.add(mkey(w)));(p.forecast.weeks||[]).forEach(w=>fut.add(mkey(w)))});
+planData._months=[...[...past].sort().map(k=>({k,past:true})),...[...fut].sort().map(k=>({k,past:false}))]}
+function mLabel(k){const [y,m]=k.split('-');return`${MON_S[+m-1]} ${y}`}
+function monthAgg(p,mo){const price=p.avg_price;const conv=q=>dpMetric==='units'?q:(price!=null?q*price:null);
+if(mo.past){const h=p.holdout;if(!h.actual||!h.forecast)return{none:true};let pl=0,ac=0,n=0;const wk=[];h.weeks.forEach((w,i)=>{if(mkey(w)===mo.k){pl+=h.forecast[i];ac+=h.actual[i];n++;wk.push(w)}});if(!n)return{empty:true};return{plan:conv(pl),act:conv(ac),n,weeks:wk}}
+let pl=0,n=0;const wk=[];p.forecast.weeks.forEach((w,i)=>{if(mkey(w)===mo.k){pl+=p.forecast.quantities[i];n++;wk.push(w)}});if(!n)return{empty:true};return{plan:conv(pl),n,weeks:wk}}
+function fmtV(v){return v==null?'--':(dpMetric==='units'?fmt(Math.round(v)):fmtRpS(v))}
+function renderPlan(){if(!planData)return;const months=planData._months||[];const q=(document.getElementById('dpSearch').value||'').toLowerCase();let rows=planData.results||[];if(q)rows=rows.filter(p=>p.sku.toLowerCase().includes(q)||p.product_name.toLowerCase().includes(q));
+if(!(planData.results||[]).length){document.getElementById('dpTableWrap').innerHTML='<div class="empty-state">No forecast yet. Upload sales data and run Refresh forecast.</div>';return}
+const firstFut=months.findIndex(m=>!m.past);
+let h='<table class="dp-table"><thead><tr><th rowspan="2">Product</th>'+months.map((mo,i)=>`<th class="mo ${i===firstFut?'next':''} sep" colspan="${mo.past?3:1}">${mLabel(mo.k)}${mo.past?' <span class="tag tag-info" title="Plan from a model trained without these weeks">holdout</span>':''}</th>`).join('')+'</tr><tr>'+months.map(mo=>mo.past?'<th class="sub sep">Plan</th><th class="sub">Actual</th><th class="sub">Var.</th>':'<th class="sub sep">Plan</th>').join('')+'</tr></thead><tbody>';
+const tot=months.map(()=>({plan:0,act:0,ok:true}));
+rows.forEach(p=>{const w=p.holdout.wmape;h+=`<tr><td class="prod"><div class="p-name" title="${esc(p.product_name)}">${esc(p.product_name)}</div><div class="p-sku">${esc(p.sku)}${w!=null?` · WMAPE ${w}%`:''}</div></td>`;
+months.forEach((mo,i)=>{const a=monthAgg(p,mo);const key=p.sku+'|'+mo.k+'|'+(mo.past?'h':'f');const act=whyKey===key?'active':'';const sk=String(p.sku).replace(/'/g,"\\'");
+if(a.none||a.empty){if(a.plan==null)tot[i].ok=tot[i].ok;h+=mo.past?`<td class="num sep text-dim" colspan="3" title="${a.none?'Holdout not computed yet — run Refresh forecast':''}">${a.none?'refresh':'--'}</td>`:'<td class="num sep text-dim">--</td>';return}
+if(a.plan!=null)tot[i].plan+=a.plan;if(a.act!=null)tot[i].act+=a.act;
+if(mo.past){const v=a.plan?(a.act-a.plan)/a.plan*100:null;const vc=v==null?'':Math.abs(v)<=10?'var(--green)':Math.abs(v)<=25?'var(--amber)':'var(--red)';h+=`<td class="num plan sep ${act}" onclick="openWhy('${sk}','${mo.k}',true)">${fmtV(a.plan)}</td><td class="num act">${fmtV(a.act)}</td><td class="num var" style="color:${vc}">${v==null?'--':(v>0?'+':'')+v.toFixed(0)+'%'}</td>`}
+else h+=`<td class="num plan sep ${act}" onclick="openWhy('${sk}','${mo.k}',false)">${fmtV(a.plan)}</td>`});h+='</tr>'});
+h+='<tr class="total"><td class="prod">Total · '+fmt(rows.length)+' products</td>'+months.map((mo,i)=>{const t=tot[i];if(mo.past){const v=t.plan?(t.act-t.plan)/t.plan*100:null;return`<td class="num sep">${fmtV(t.plan)}</td><td class="num">${fmtV(t.act)}</td><td class="num var">${v==null?'--':(v>0?'+':'')+v.toFixed(0)+'%'}</td>`}return`<td class="num sep">${fmtV(t.plan)}</td>`}).join('')+'</tr></tbody></table>';
+if(!rows.length)h='<div class="empty-state">No products match.</div>';document.getElementById('dpTableWrap').innerHTML=h}
+const WIC={hist:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>',par:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/></svg>',lvl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/></svg>',acc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',cmp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>'};
+function openWhy(sku,mk,past){const p=(planData.results||[]).find(x=>x.sku===sku);if(!p)return;whyKey=sku+'|'+mk+'|'+(past?'h':'f');renderPlan();const a=monthAgg(p,{k:mk,past});const m=p.model,h=p.holdout;const w=document.getElementById('why');w.hidden=false;document.getElementById('dpLayout').classList.add('open');
+const wk=(a.weeks||[]).map(x=>{const d=new Date(x+'T00:00:00');return`${d.getDate()} ${MON_S[d.getMonth()]}`}).join(', ');const v=past&&a.plan?(a.act-a.plan)/a.plan*100:null;
+w.innerHTML=`<div class="why-h">Why this number <span>${mLabel(mk)} · ${esc(sku)}</span><button class="why-x" onclick="closeWhy()" aria-label="Close">×</button></div><div class="why-b">
+<div class="why-big">${fmtV(a.plan)}<small>${dpMetric==='units'?'units · ':''}Holt's DES${past?' (holdout)':''}</small></div>
+<ul class="why-list">
+<li>${WIC.hist}<span>Sum of <b>${a.n} weekly forecast${a.n>1?'s':''}</b> in this month (${wk}).</span></li>
+${past?`<li>${WIC.hist}<span>Model trained on <b>${h.train_weeks} weeks</b> of sales, <b>without</b> the last 8 weeks, so this month is a fair test.</span></li><li>${WIC.par}<span><b>α = ${h.alpha}, β = ${h.beta}</b> — chosen by the 81-combination grid search on the training weeks only.</span></li><li>${WIC.acc}<span>Actual <b>${fmtV(a.act)}</b> (${v==null?'--':(v>0?'+':'')+v.toFixed(0)+'%'} vs plan) · WMAPE over all 8 holdout weeks <b>${h.wmape}%</b>.</span></li>`
+:`<li>${WIC.hist}<span>Model trained on <b>${m.training_weeks} weeks</b> of sales (${dfmt(m.history_start)} – ${dfmt(m.history_end)}).</span></li><li>${WIC.par}<span><b>α = ${m.alpha}, β = ${m.beta}</b> — chosen by the 81-combination grid search with the lowest MAPE.</span></li>${m.level!=null?`<li>${WIC.lvl}<span>Final level <b>${fmt(m.level)}/week</b>, trend <b>${m.trend>0?'+':''}${Number(m.trend).toFixed(1)}/week</b>. Forecast for week m = level + m × trend (never below 0).</span></li>`:''}<li>${WIC.acc}<span>Accuracy: MAPE in-sample <b>${m.mape!=null?m.mape.toFixed(1)+'%':'--'}</b> · WMAPE holdout <b>${h.wmape!=null?h.wmape+'%':'not computed'}</b>.</span></li>${p.trend_pct!=null?`<li>${WIC.cmp}<span>Next 8 weeks average is <b>${p.trend_pct>0?'+':''}${p.trend_pct}%</b> vs the last 8 weeks of actual sales${p.l4w_avg!=null?` (last 4 weeks: ${fmt(p.l4w_avg)}/week)`:''}.</span></li>`:''}`}
+</ul>${dpMetric==='sales'?`<div class="why-not" style="margin-top:12px">Sales (Rp) = units × average selling price of the last 12 weeks (${p.avg_price!=null?fmtRp(p.avg_price):'n/a'}).</div>`:''}
+<div class="why-not">Holt's DES models only <b>level and trend</b>. Seasonality, promotions and past stockouts are <b>not</b> taken into account — this is an estimate, not a certainty.</div></div>`;
+if(innerWidth<=1100)setTimeout(()=>w.scrollIntoView({behavior:'smooth',block:'nearest'}),50)}
+function closeWhy(){const w=document.getElementById('why');if(!w)return;w.hidden=true;document.getElementById('dpLayout').classList.remove('open');whyKey=null;renderPlan()}
+document.querySelectorAll('#dpMetric button').forEach(b=>b.addEventListener('click',()=>{dpMetric=b.dataset.v;markSeg('dpMetric',dpMetric);if(whyKey){const [sk,mk,t]=whyKey.split('|');renderPlan();openWhy(sk,mk,t==='h')}else renderPlan()}));
+document.querySelectorAll('#dpView button').forEach(b=>b.addEventListener('click',()=>{dpView=b.dataset.v;markSeg('dpView',dpView);document.getElementById('dpPlanWrap').hidden=dpView!=='plan';document.getElementById('wkWrap').hidden=dpView!=='weekly';if(dpView==='weekly')loadWeekly();else loadPlan()}));
 
 /* ═══ SKU DRAWER (Product Analysis / PO) ═══ */
 let sdChartObj=null;
@@ -1188,7 +1332,7 @@ card.addEventListener('drop',e=>{e.preventDefault();card.classList.remove('drag'
 
 /* ═══ KEYBOARD SHORTCUTS ═══ */
 document.addEventListener('keydown',e=>{const tag=(e.target.tagName||'').toLowerCase();const typing=(tag==='input'&&!['checkbox','radio','button','submit'].includes(e.target.type))||tag==='textarea'||tag==='select'||e.target.isContentEditable;const modalOpen=!document.getElementById('settingsModal').hidden;const loginOpen=!document.getElementById('loginOverlay').classList.contains('hidden');
-if(e.key==='Escape'){if(!document.getElementById('skuDrawer').hidden){closeSkuDrawer();return}if(modalOpen){closeSettings();return}closeAllCdrops();document.getElementById('customRange').classList.remove('show');document.getElementById('monthGrid').classList.remove('show');if(document.getElementById('sub-forecast').classList.contains('active'))closeSkuDetail();if(typing)e.target.blur();return}
+if(e.key==='Escape'){if(!document.getElementById('skuDrawer').hidden){closeSkuDrawer();return}if(whyKey){closeWhy();return}if(modalOpen){closeSettings();return}closeAllCdrops();document.getElementById('customRange').classList.remove('show');document.getElementById('monthGrid').classList.remove('show');if(document.getElementById('sub-forecast').classList.contains('active'))closeSkuDetail();if(typing)e.target.blur();return}
 if(typing||modalOpen||loginOpen||e.metaKey||e.ctrlKey||e.altKey)return;
 const map={'1':'overview','2':'replenishment','3':'analysis','4':'po','5':'upload'};if(map[e.key]){switchTab(map[e.key]);return}
 if(e.key==='/'){const sb=document.querySelector('.tab-content.active .search-box');if(sb){e.preventDefault();sb.focus()}}});
@@ -1208,7 +1352,7 @@ async function startApp(username){sessionExpiredShown=false;const s=getSettings(
   const t0=Date.now();
   const capped=pr=>Promise.race([pr,new Promise(r=>setTimeout(r,3000))]);
   if(!appStarted){appStarted=true;renderMonthGrid();loadPoList();await capped(loadOverview())}
-  else{invSummaryCache=null;invOv=null;replData=null;weeklyData=[];weeklyByCat={};weeklyShownCat=null;fcDataMap={};loadPoList();await capped(loadOverview());reloadActive();if(activeTab()==='po')loadPoPage();if(activeTab()==='upload')loadDataStatus()}
+  else{invSummaryCache=null;invOv=null;replData=null;planData=null;weeklyData=[];weeklyByCat={};weeklyShownCat=null;fcDataMap={};loadPoList();await capped(loadOverview());reloadActive();if(activeTab()==='po')loadPoPage();if(activeTab()==='upload')loadDataStatus()}
   setTimeout(()=>ws.classList.remove('active'),Math.max(0,600-(Date.now()-t0)))}
 async function doLogin(){const btn=document.getElementById('loginBtn'),status=document.getElementById('loginStatus');
   const username=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPass').value;

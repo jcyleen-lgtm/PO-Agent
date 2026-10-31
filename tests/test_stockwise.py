@@ -36,7 +36,8 @@ def test_zero_sales_status():
 
 def test_three_statuses_boundaries():
     assert rp.stock_status(7.9, 10, CFG) == "understocked"
-    assert rp.stock_status(8.0, 10, CFG) == "healthy"
+    assert rp.stock_status(8.0, 10, CFG) == "understocked"     # <= 8 weeks
+    assert rp.stock_status(8.1, 10, CFG) == "healthy"
     assert rp.stock_status(20.0, 10, CFG) == "healthy"
     assert rp.stock_status(20.1, 10, CFG) == "overstocked"
 
@@ -205,3 +206,13 @@ def test_movement_classes_split():
     assert sum(v == "medium" for v in m.values()) == 5
     assert sum(v == "slow" for v in m.values()) == 3
     assert m["z"] == "non_moving"
+
+
+def test_order_by_date():
+    p = plan(30)                                     # stockout in week 3 (16 Nov 2026)
+    assert p["stockout_date"] == WEEKS[2]
+    ob = date(2026, 11, 16) - timedelta(weeks=8)
+    assert p["order_by"] == str(ob) and p["order_by_days"] == (ob - TODAY).days
+    big = plan(10_000)                               # no stockout within 12 weeks
+    assert big["stockout_week"] is None and big["order_by_is_estimate"] is True
+    assert big["order_by"] == str(date(2027, 1, 25) - timedelta(weeks=8))
