@@ -60,9 +60,25 @@ def get_engine():
 
 
 def get_raw_conn():
+    """psycopg2 connection built from the SAME parsed URL as get_engine().
+    Passing the raw URL string to psycopg2 breaks when the password contains / # ? (libpq then reads
+    part of the password as the port: 'invalid integer value ... for connection option "port"')."""
     if not DB_URL:
         raise HTTPException(500, "SUPABASE_DB_URL not configured")
-    return psycopg2.connect(DB_URL)
+    from sqlalchemy.engine import make_url
+    u = make_url(DB_URL)
+    kw = {k: (v[0] if isinstance(v, tuple) else v) for k, v in u.query.items()}
+    if u.host and "host" not in kw:
+        kw["host"] = u.host
+    if u.port and "port" not in kw:
+        kw["port"] = u.port
+    if u.username:
+        kw["user"] = u.username
+    if u.password is not None:
+        kw["password"] = u.password
+    if u.database:
+        kw["dbname"] = u.database
+    return psycopg2.connect(**kw)
 
 
 def _run_auto_forecast(engine):
