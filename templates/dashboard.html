@@ -276,20 +276,23 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
 .sw{width:9px;height:9px;border-radius:50%;display:inline-block}
 
 /* ═══ RISK CARDS ═══ */
-.risk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.risk-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+@media(max-width:1100px){.risk-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.risk-grid{grid-template-columns:1fr}}
 .risk-card{border:1px solid var(--border2);border-radius:16px;padding:16px;background:var(--glass-bg);display:flex;flex-direction:column;gap:10px;transition:border-color 150ms,transform 150ms;min-width:0}
 .risk-card:hover{border-color:var(--navy);transform:translateY(-2px)}
 .rc-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .rc-sku{font-size:13px;color:var(--text3);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rc-name{font-size:15px;font-weight:600;color:var(--text);line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em}
 .rc-cov{display:flex;align-items:baseline;gap:6px}
-.rc-cov-v{font-size:28px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.rc-cov-v{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .rc-cov-l{font-size:13px;color:var(--text3)}
 .rc-bar{position:relative;height:8px;border-radius:4px;background:var(--seg)}
 .rc-bar span{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
 .rc-bar i{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--text2);border-radius:1px}
 .rc-lt{font-size:12px;color:var(--text3)}
-.rc-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:10px;border-top:1px solid var(--border)}
+.rc-meta{display:grid;grid-template-columns:1fr;gap:4px;padding-top:10px;border-top:1px solid var(--border)}
+.rc-meta>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .rc-meta .l{font-size:12px;color:var(--text3)}
 .rc-meta .v{font-size:15px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rc-btn{justify-content:center;width:100%;padding:8px 12px;font-size:14px}
@@ -511,7 +514,7 @@ tr.clickable:hover .chev{color:var(--navy);transform:translateX(2px)}
 
   <!-- Best sellers at risk (moved up) -->
   <div class="card" id="riskSection" style="display:none">
-    <div class="card-header"><div><div class="section-label">Best Sellers at Risk</div><div class="section-meta">Top sellers, fewest weeks of stock first · marker = 8-week lead time</div></div><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="link-btn" onclick="switchTab('inventory')">Open Inventory →</button></div></div>
+    <div class="card-header"><div><div class="section-label">Best Sellers at Risk</div><div class="section-meta" id="riskMeta">Understocked best sellers (&lt; 8 weeks of stock) · marker = 8-week lead time</div></div><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="seg" id="riskSort" role="group" aria-label="Sort"><button data-v="urgent" class="active">Most urgent</button><button data-v="revenue">Highest revenue</button></div><button class="link-btn" onclick="switchTab('inventory')">Open Inventory →</button></div></div>
     <div class="risk-grid" id="riskGrid"></div>
     <div style="text-align:center;margin-top:14px"><button class="btn btn-ghost" id="riskMore" onclick="toggleRiskAll()" hidden></button></div>
   </div>
@@ -698,7 +701,7 @@ function setProductType(v){if(v===PT)return;PT=v;document.querySelectorAll('.typ
 document.querySelectorAll('.type-seg button').forEach(b=>b.addEventListener('click',()=>setProductType(b.dataset.v)));
 let ovSeq=0,lastOv=null,lastRisk=[];
 let riskSeq=0;
-function loadRiskOnly(){const seq=++riskSeq,rt=PT;return fetch(`/api/best-sellers-at-risk?product_type=${rt}`).then(r=>r.ok?r.json():{results:[]}).then(risk=>{if(seq!==riskSeq)return;lastRisk=risk.results||[];renderRisk(lastRisk,rt);refreshInsights()}).catch(()=>{})}
+function loadRiskOnly(){const seq=++riskSeq,rt=PT;return fetch(`/api/best-sellers-at-risk?product_type=${rt}`).then(r=>r.ok?r.json():{results:[]}).then(risk=>{if(seq!==riskSeq)return;lastRisk=risk.results||[];riskInfo=risk;updateRiskMeta();renderRisk(lastRisk,rt);refreshInsights()}).catch(()=>{})}
 function refreshInsights(){if(lastOv)renderInsights(lastOv,lastRisk,invSummaryCache)}
 async function loadOverview(){const seq=++ovSeq;try{const ts=cDropVal('topSortSelect')||'revenue',tt=PT;let url;const s=document.getElementById('dateStart').value,e=document.getElementById('dateEnd').value;if(currentPreset==='custom'&&s&&e){url=`/api/overview?start=${s}&end=${e}&top_sort=${ts}&product_type=${tt}`}else{url=`/api/overview?preset=${currentPreset==='custom'?'l4w':currentPreset}&top_sort=${ts}&product_type=${tt}`}
 // Slow/secondary requests start now but nothing waits for them.
@@ -727,7 +730,7 @@ let health=null,tot=0;if(inv){tot=(inv.understocked||0)+(inv.healthy||0)+(inv.ov
 document.getElementById('ringHealth').innerHTML=ringSvg(health,'var(--chart-2)');document.getElementById('ringHealthVal').textContent=health!=null?health.toFixed(1)+'%':'--';document.getElementById('ringHealthSub').textContent=tot?`${fmt(inv.healthy||0)} of ${fmt(tot)} ${ptWord()}SKUs healthy`:'Share of '+ptWord()+'SKUs in healthy status'}
 
 function renderInsights(ov,risk,inv){const out=[];const cmp=ov.comparison||{};
-if(risk.length){const w=risk.filter(r=>r.coverage!=null).sort((a,b)=>a.coverage-b.coverage)[0];out.push({c:'var(--red)',h:`<b>${risk.length} best seller${risk.length>1?'s':''}</b> at risk of stockout${w?` — lowest coverage: <b>${w.sku}</b> (${w.coverage.toFixed(1)} weeks)`:''}.`,a:'inventory'})}
+if(risk.length){const n=riskInfo.total_understocked||risk.length;const w=risk.filter(r=>r.coverage!=null).sort((a,b)=>a.coverage-b.coverage)[0];out.push({c:'var(--red)',h:`<b>${n} best seller${n>1?'s':''}</b> at risk of stockout${w?` — lowest coverage: <b>${w.sku}</b> (${w.coverage.toFixed(1)} weeks)`:''}.`,a:'inventory'})}
 if(inv&&(inv.understocked||0)>0)out.push({c:'var(--red)',h:`<b>${fmt(inv.understocked)} ${ptWord()}SKUs</b> are understocked (less than 8 weeks of stock).`,a:'inventory'});
 if(cmp.revenue!=null)out.push({c:cmp.revenue>=0?'var(--green)':'var(--red)',h:`Revenue ${cmp.revenue>=0?'up':'down'} <b>${Math.abs(cmp.revenue)}%</b> vs the previous period.`});
 const f=ov.forecast_summary;if(f&&f.avg_mape!=null)out.push({c:'var(--blue)',h:`Average forecast MAPE is <b>${f.avg_mape}%</b>${f.trending_down?`; <b>${fmt(f.trending_down)} SKUs</b> are forecast to decline`:''}.`,a:'forecast'});
@@ -752,16 +755,21 @@ projChartObj=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Actual',d
 function renderTopTable(data){let h='<thead><tr><th>SKU</th><th>Product</th><th class="r">Sales</th><th class="r">Revenue</th><th class="r">Growth</th></tr></thead><tbody>';data.forEach(r=>{let gt,gc='';if(r.is_new){gt='<span class="badge badge-blue">New</span>'}else if(r.growth!=null){gc=r.growth>0?'num-pos':r.growth<0?'num-neg':'';gt=fmtPct(r.growth)}else{gt='<span class="text-dim">No prev</span>'}h+=`<tr><td class="t-strong">${r.sku}</td><td class="t-strong" style="font-weight:500">${(r.name||'').substring(0,45)}</td><td class="r t-strong">${fmt(r.qty)}</td><td class="r">${fmtRp(r.revenue)}</td><td class="r ${gc}">${gt}</td></tr>`});h+='</tbody>';document.getElementById('topTable').innerHTML=h}
 const LEAD_WEEKS=8,BAR_WEEKS=12;
 function renderRisk(data,rt='all'){const sec=document.getElementById('riskSection');if(!data.length){if(rt==='all'){sec.style.display='none';return}sec.style.display='block';document.getElementById('riskGrid').innerHTML=`<div class="empty-state" style="grid-column:1/-1">No ${rt} best sellers at risk.</div>`;document.getElementById('riskMore').hidden=true;return}sec.style.display='block';
-const rows=[...data].sort((a,b)=>(a.coverage==null?1e9:a.coverage)-(b.coverage==null?1e9:b.coverage));
+const rows=sortRisk(data).slice(0,10);
 document.getElementById('riskGrid').innerHTML=rows.map(r=>{const cov=r.coverage;const col=cov==null?'var(--slate)':cov<8?'var(--red)':cov<=20?'var(--green)':'var(--slate)';const pct=cov==null?0:Math.min(100,cov/BAR_WEEKS*100);const name=esc(r.name||'');
 return`<article class="risk-card"><div class="rc-top"><span class="rc-sku" title="${esc(r.sku)}">${esc(r.sku)}</span>${statusBadge(r.status)}</div>
 <div class="rc-name" title="${name}">${name}</div>
 <div class="rc-cov"><span class="rc-cov-v" style="color:${col}">${cov!=null?cov.toFixed(1):'--'}</span><span class="rc-cov-l">weeks of stock</span></div>
 <div class="rc-bar" title="${cov!=null?cov.toFixed(1):'--'} of ${LEAD_WEEKS} weeks lead time"><span style="width:${pct}%;background:${col}"></span><i style="left:${LEAD_WEEKS/BAR_WEEKS*100}%"></i></div>
-<div class="rc-meta"><div><div class="l">L4W sales</div><div class="v">${fmt(r.l4w_qty)}</div></div><div><div class="l">Revenue L4W</div><div class="v" title="${fmtRp(r.revenue)}">${fmtRp(r.revenue)}</div></div></div>
+<div class="rc-meta"><div><div class="l">Stock ${riskWeeksAgo()}</div><div class="v" title="Stock then → now">${r.prev_stock!=null?fmt(r.prev_stock)+' → '+fmt(r.current_stock):fmt(r.current_stock)}${r.stock_change_pct!=null?` <span class="${r.stock_change_pct<0?'num-neg':'num-pos'}">(${r.stock_change_pct>0?'+':''}${r.stock_change_pct}%)</span>`:''}</div></div><div><div class="l">L4W sales</div><div class="v">${fmt(r.l4w_qty)}</div></div><div><div class="l">Revenue L4W</div><div class="v" title="${fmtRp(r.revenue)}">${fmtRp(r.revenue)}</div></div></div>
 <button class="btn btn-ghost rc-btn" onclick="reviewSku('${String(r.sku).replace(/'/g,"\\'")}')">Review PO</button></article>`}).join('');applyRiskLimit()}
-let riskShowAll=false;
-function applyRiskLimit(){const g=document.getElementById('riskGrid'),btn=document.getElementById('riskMore');const cards=[...g.children];if(!cards.length)return;if(g.offsetParent===null)return;const cols=Math.max(1,getComputedStyle(g).gridTemplateColumns.split(' ').length);cards.forEach((c,i)=>c.classList.toggle('extra',i>=cols));g.classList.toggle('all',riskShowAll);const hiddenN=Math.max(0,cards.length-cols);btn.hidden=hiddenN===0;btn.textContent=riskShowAll?'Show less':`Show all ${cards.length}`}
+let riskShowAll=false,riskMode='urgent',riskInfo={};
+// Most urgent: fewest weeks of stock first; ties -> biggest stock drop vs ~8 weeks ago; then revenue.
+function sortRisk(d){const a=[...d];if(riskMode==='revenue')return a.sort((x,y)=>(y.revenue||0)-(x.revenue||0));const cov=v=>v==null?1e9:v,chg=v=>v==null?1e9:v;return a.sort((x,y)=>cov(x.coverage)-cov(y.coverage)||chg(x.stock_change_pct)-chg(y.stock_change_pct)||(y.revenue||0)-(x.revenue||0))}
+function riskWeeksAgo(){return riskInfo.weeks_between?`(${Math.round(riskInfo.weeks_between)} wks ago → now)`:'now'}
+function updateRiskMeta(){const el=document.getElementById('riskMeta');if(!el)return;const order=riskMode==='urgent'?'fewest weeks of stock first':'highest revenue first';const cmp=riskInfo.stock_prev_date?` · stock compared with ${riskInfo.stock_prev_date}`:' · no older stock snapshot to compare yet';el.innerHTML=`${riskInfo.total_understocked!=null?fmt(riskInfo.total_understocked)+' ':''}understocked best sellers (&lt; 8 weeks of stock), ${order}${cmp} · marker = 8-week lead time`}
+document.querySelectorAll('#riskSort button').forEach(b=>b.addEventListener('click',()=>{riskMode=b.dataset.v;document.querySelectorAll('#riskSort button').forEach(x=>x.classList.toggle('active',x===b));updateRiskMeta();renderRisk(lastRisk,PT)}));
+function applyRiskLimit(){const btn=document.getElementById('riskMore');if(btn)btn.hidden=true}
 function toggleRiskAll(){riskShowAll=!riskShowAll;applyRiskLimit()}
 let riskRaf=0;window.addEventListener('resize',()=>{cancelAnimationFrame(riskRaf);riskRaf=requestAnimationFrame(applyRiskLimit)});
 function reviewSku(sku){document.getElementById('invSearch').value=sku;document.getElementById('invActionOnly').checked=false;const all=document.querySelector('.cdrop[data-id="invStatus"] .cdrop-opt[data-val=""]');if(all&&cDropVal('invStatus')){all.parentElement.querySelectorAll('.cdrop-opt').forEach(o=>o.classList.remove('active'));all.classList.add('active');all.closest('.cdrop').querySelector('.cdrop-label').textContent='All Status'}switchTab('inventory')}

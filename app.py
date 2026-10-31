@@ -1089,8 +1089,9 @@ async def overview_summary(
 
 
 @app.get("/api/best-sellers-at-risk")
-async def best_sellers_at_risk(product_type: str = "all"):
-    """Top sellers with low stock coverage — decision support."""
+async def best_sellers_at_risk(product_type: str = "all", limit: int = 50):
+    """Understocked best sellers (Pareto set) with the stock trend vs ~8 weeks ago.
+    The dashboard picks the top 10 by urgency or by revenue."""
     engine = get_engine()
     type_filter = ""
     if product_type in ("import", "food"):
@@ -1114,13 +1115,23 @@ async def best_sellers_at_risk(product_type: str = "all"):
             WHERE s.invoice_date >= :s {type_filter} GROUP BY s.sku, p.name
         """), {"s": r4[0]}).fetchall()
 
+        # Current stock = latest snapshot. Previous = latest snapshot at least 7 weeks older
+        # (target ~8 weeks); if none that old exists, the oldest snapshot available.
+        stk, prev_stk, snap_now, snap_prev = {}, {}, None, None
         try:
-            stk = {r[0]: int(r[1]) for r in conn.execute(text("""
-                SELECT sku, quantity FROM stock_snapshots
-                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM stock_snapshots)
-            """)).fetchall()}
+            dates = [r[0] for r in conn.execute(text(
+                "SELECT DISTINCT snapshot_date FROM stock_snapshots ORDER BY snapshot_date DESC")).fetchall()]
+            if dates:
+                snap_now = dates[0]
+                older = [d for d in dates[1:] if (snap_now - d).days >= 49]
+                snap_prev = older[0] if older else (dates[-1] if len(dates) > 1 else None)
+                stk = {r[0]: int(r[1]) for r in conn.execute(text(
+                    "SELECT sku, quantity FROM stock_snapshots WHERE snapshot_date = :d"), {"d": snap_now}).fetchall()}
+                if snap_prev:
+                    prev_stk = {r[0]: int(r[1]) for r in conn.execute(text(
+                        "SELECT sku, quantity FROM stock_snapshots WHERE snapshot_date = :d"), {"d": snap_prev}).fetchall()}
         except Exception:
-            stk = {}
+            pass
         try:
             po = {r[0]: int(r[1]) for r in conn.execute(text("""
                 SELECT sku, SUM(qty_ordered-qty_received) FROM purchase_orders
@@ -1129,23 +1140,41 @@ async def best_sellers_at_risk(product_type: str = "all"):
         except Exception:
             po = {}
 
-        results = []
-        for r in sales:
-            sku, name, qty, rev = r[0], r[1], int(r[2]), float(r[3])
-            if qty <= 0:
-                continue
-            avg_w = round(qty / n_weeks, 1)
-            cs = stk.get(sku, 0)
-            op = po.get(sku, 0)
-            cov = round((cs + op) / avg_w, 1) if avg_w > 0 else None
-            st = coverage_status(cov)
-            if st == "understocked":
-                results.append({"sku": sku, "name": name, "l4w_qty": qty, "revenue": rev,
-                                "avg_weekly": avg_w, "current_stock": cs, "ongoing_po": op,
-                                "coverage": cov, "status": st})
+    # Best sellers only (Pareto 80% set = SKUs with a forecast); all SKUs if no forecast exists yet.
+    try:
+        best = {r["sku"] for r in get_forecast_light(engine)}
+    except Exception:
+        best = set()
 
-        results.sort(key=lambda x: x["revenue"], reverse=True)
-        return {"results": results[:10]}
+    weeks_between = round((snap_now - snap_prev).days / 7, 1) if snap_now and snap_prev else None
+    results = []
+    for r in sales:
+        sku, name, qty, rev = r[0], r[1], int(r[2]), float(r[3])
+        if qty <= 0 or (best and sku not in best):
+            continue
+        avg_w = round(qty / n_weeks, 1)
+        cs = stk.get(sku, 0)
+        op = po.get(sku, 0)
+        cov = round((cs + op) / avg_w, 1) if avg_w > 0 else None
+        st = coverage_status(cov)
+        if st != "understocked":
+            continue
+        ps = prev_stk.get(sku) if snap_prev else None
+        change = round((cs - ps) / ps * 100, 1) if ps else None
+        results.append({"sku": sku, "name": name, "l4w_qty": qty, "revenue": rev,
+                        "avg_weekly": avg_w, "current_stock": cs, "ongoing_po": op,
+                        "coverage": cov, "status": st,
+                        "prev_stock": ps, "stock_change_pct": change})
+
+    results.sort(key=lambda x: x["revenue"], reverse=True)
+    return {
+        "results": results[:limit],
+        "total_understocked": len(results),
+        "stock_now_date": str(snap_now) if snap_now else None,
+        "stock_prev_date": str(snap_prev) if snap_prev else None,
+        "weeks_between": weeks_between,
+        "best_sellers_only": bool(best),
+    }
 
 
 @app.get("/api/weekly-analysis")
