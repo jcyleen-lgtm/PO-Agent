@@ -675,12 +675,20 @@ async def etl_confirm(file_id: str):
             food_codes, food_names = load_food_rules(c)
         has_food_rules = bool(food_codes or food_names)
         sales = df.copy()
+        # Newer Accurate exports carry both "Invoice Date" and "Date". Renaming "date" too would create two
+        # "invoice_date" columns ("cannot assemble with duplicate keys"), so the Invoice Date column wins.
+        if "invoice_date" in sales.columns and "date" in sales.columns:
+            sales = sales.drop(columns=["date"])
         sales = sales.rename(columns={
             "SKU": "sku", "date": "invoice_date", "quantity": "quantity",
             "amount": "amount", "COGS": "cogs_accurate", "GPAO": "gpao_accurate",
             "GPAO (%)": "gpao_pct_acc", "week": "week_label", "month": "month_label",
             "quarter": "quarter_label", "year": "year_val",
         })
+        dup = sales.columns[sales.columns.duplicated()].tolist()
+        if dup:  # any other repeated header: keep the first occurrence
+            print(f"[etl_confirm] duplicate columns dropped: {dup}")
+            sales = sales.loc[:, ~sales.columns.duplicated()]
         sales["sku"] = sales["sku"].astype(str)
         if "invoice_date" in sales.columns:
             sales["invoice_date"] = pd.to_datetime(sales["invoice_date"]).dt.date
