@@ -982,6 +982,156 @@ def map_po_columns(columns):
     return col_map, warnings
 
 
+_PO_COLS_READY = False
+
+
+def ensure_po_columns(conn):
+    """Additive, idempotent: extra PO fields used by the PO master import (existing rows untouched).
+    ALTER TABLE takes an exclusive lock even when nothing changes, so it only runs when a column is
+    actually missing (checked once per server instance)."""
+    global _PO_COLS_READY
+    if _PO_COLS_READY:
+        return
+    have = {r[0] for r in conn.execute(text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'purchase_orders'"))}
+    idx = conn.execute(text("SELECT 1 FROM pg_indexes WHERE indexname = 'ux_po_line_key'")).fetchone()
+    if {"po_number", "line_key", "description", "courier"} <= have and idx:
+        _PO_COLS_READY = True
+        return
+    conn.execute(text("""
+        ALTER TABLE purchase_orders
+            ADD COLUMN IF NOT EXISTS po_number VARCHAR(60),
+            ADD COLUMN IF NOT EXISTS line_key VARCHAR(160),
+            ADD COLUMN IF NOT EXISTS description TEXT,
+            ADD COLUMN IF NOT EXISTS courier VARCHAR(60)"""))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_po_line_key ON purchase_orders (line_key) WHERE line_key IS NOT NULL"))
+    _PO_COLS_READY = True
+
+
+def _is_po_master(cols):
+    n = {" ".join(str(c).lower().split()) for c in cols}
+    return "po number" in n and "item" in n and ("received" in n or "remaining (pcs)" in n)
+
+
+def _parse_po_master(df):
+    """The purchasing team's 'Master List' sheet: one row per PO line, history + ongoing.
+    Columns used: Tgl PO, PO Number, Item (= SKU), Description, QTY, Received, Tgl Terima Barang,
+    Ekspedisi, Note, ETA Date. Returns (lines, warnings)."""
+    norm = {" ".join(str(c).lower().split()): c for c in df.columns}
+    g = lambda *names: next((norm[k] for k in names if k in norm), None)
+    c_date, c_po, c_sku, c_desc = g("tgl po", "po date"), g("po number"), g("item", "item code", "sku"), g("description")
+    c_qty, c_rec, c_rdate = g("qty"), g("received"), g("tgl terima barang", "received date")
+    c_cour, c_note, c_eta = g("ekspedisi"), g("note"), g("eta date", "eta")
+    if not (c_po and c_sku and c_qty):
+        raise HTTPException(400, "Kolom PO Number, Item dan QTY wajib ada.")
+    warnings, lines, seen = [], [], {}
+    bad_dates = bad_qty = 0
+
+    def to_date(v):
+        if v is None or (isinstance(v, float) and pd.isna(v)) or str(v).strip() in ("", "-", "#REF!"):
+            return None
+        iso = isinstance(v, (datetime, date, pd.Timestamp)) or str(v).strip()[:4].isdigit()
+        d = pd.to_datetime(v, errors="coerce", dayfirst=not iso)
+        if pd.isna(d) or d.year < 2000 or d.year > 2100:
+            return "bad"
+        return d.date()
+
+    for _, r in df.iterrows():
+        sku = str(r[c_sku]).strip() if pd.notna(r[c_sku]) else ""
+        po = str(r[c_po]).strip() if pd.notna(r[c_po]) else ""
+        if not sku or sku.lower() in ("nan", "item") or not po:
+            continue
+        qty = pd.to_numeric(r[c_qty], errors="coerce")
+        if pd.isna(qty) or qty <= 0:
+            bad_qty += 1
+            continue
+        rec = pd.to_numeric(r[c_rec], errors="coerce") if c_rec else None
+        rec = 0 if rec is None or pd.isna(rec) else max(0, int(rec))
+        od, rd, eta = (to_date(r[c]) if c else None for c in (c_date, c_rdate, c_eta))
+        for v in (od, rd, eta):
+            bad_dates += v == "bad"
+        od, rd, eta = (None if v == "bad" else v for v in (od, rd, eta))
+        n = seen.get((po, sku), 0)
+        seen[(po, sku)] = n + 1
+        qty = int(qty)
+        status = "completed" if rec >= qty else ("partial" if rec > 0 else "pending")
+        lines.append({
+            "line_key": f"{po}|{sku}|{n + 1}", "po_number": po, "sku": sku,
+            "description": str(r[c_desc]).strip() if c_desc and pd.notna(r[c_desc]) else None,
+            "qty_ordered": qty, "qty_received": rec, "order_date": od, "expected_date": eta,
+            "received_date": rd if rec > 0 else None, "status": status,
+            "courier": str(r[c_cour]).strip() if c_cour and pd.notna(r[c_cour]) and str(r[c_cour]).strip() not in ("-", "#REF!") else None,
+            "notes": str(r[c_note]).strip() if c_note and pd.notna(r[c_note]) and str(r[c_note]).strip() not in ("-", "#REF!") else None,
+        })
+    if bad_dates:
+        warnings.append(f"{bad_dates} tanggal tidak valid (mis. tahun 0206) dikosongkan — cek di sheet")
+    if bad_qty:
+        warnings.append(f"{bad_qty} baris tanpa QTY dilewati")
+    over = sum(1 for l in lines if l["qty_received"] > l["qty_ordered"])
+    if over:
+        warnings.append(f"{over} baris diterima lebih dari dipesan (ditandai Over)")
+    return lines, warnings
+
+
+def _import_po_master(lines, warnings, filename):
+    """Upsert by line key (PO Number | SKU | n-th line of that SKU in the PO). New lines are added, existing
+    lines updated; the higher received quantity wins, so receipts entered in Stockwise are not lost on a
+    re-upload. Old open lines without a PO number (previous upload format) are marked 'superseded' once."""
+    engine = get_engine()
+    with engine.begin() as c:
+        ensure_po_columns(c)
+    conn = get_raw_conn()
+    conn.autocommit = False
+    cur = conn.cursor()
+    try:
+        names = {}
+        for l in lines:
+            names.setdefault(l["sku"], l["description"] or l["sku"])
+        execute_values(cur, "INSERT INTO products (sku, name) VALUES %s ON CONFLICT (sku) DO NOTHING",
+                       list(names.items()), page_size=1000)
+        cur.execute("SELECT line_key FROM purchase_orders WHERE line_key = ANY(%s)", ([l["line_key"] for l in lines],))
+        existing = {r[0] for r in cur.fetchall()}
+        cur.execute("""UPDATE purchase_orders SET status = 'superseded', updated_at = NOW()
+                       WHERE line_key IS NULL AND status IN ('pending', 'partial')""")
+        superseded = cur.rowcount
+        execute_values(cur, """
+            INSERT INTO purchase_orders (line_key, po_number, sku, description, qty_ordered, qty_received,
+                                         order_date, expected_date, received_date, status, courier, notes)
+            VALUES %s
+            ON CONFLICT (line_key) WHERE line_key IS NOT NULL DO UPDATE SET
+                po_number = EXCLUDED.po_number, description = EXCLUDED.description,
+                qty_ordered = EXCLUDED.qty_ordered,
+                qty_received = GREATEST(EXCLUDED.qty_received, purchase_orders.qty_received),
+                order_date = EXCLUDED.order_date, expected_date = EXCLUDED.expected_date,
+                received_date = COALESCE(EXCLUDED.received_date, purchase_orders.received_date),
+                courier = COALESCE(EXCLUDED.courier, purchase_orders.courier),
+                notes = COALESCE(EXCLUDED.notes, purchase_orders.notes),
+                status = CASE WHEN purchase_orders.status IN ('cancelled', 'closed') THEN purchase_orders.status
+                              WHEN GREATEST(EXCLUDED.qty_received, purchase_orders.qty_received) >= EXCLUDED.qty_ordered THEN 'completed'
+                              WHEN GREATEST(EXCLUDED.qty_received, purchase_orders.qty_received) > 0 THEN 'partial'
+                              ELSE 'pending' END,
+                updated_at = NOW()
+        """, [(l["line_key"], l["po_number"], l["sku"], l["description"], l["qty_ordered"], l["qty_received"],
+               l["order_date"], l["expected_date"], l["received_date"], l["status"], l["courier"], l["notes"])
+              for l in lines], page_size=1000)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+    open_lines = [l for l in lines if l["qty_received"] < l["qty_ordered"]]
+    return {
+        "status": "success", "format": "po_master",
+        "message": f"{len(lines)} baris PO dimuat ({len(lines) - len(existing)} baru, {len(existing)} diperbarui) · "
+                   f"{len(open_lines)} baris belum lengkap ({sum(l['qty_ordered'] - l['qty_received'] for l in open_lines):,} unit)",
+        "matched": len(lines), "new_lines": len(lines) - len(existing), "updated_lines": len(existing),
+        "po_numbers": len({l["po_number"] for l in lines}), "open_lines": len(open_lines),
+        "superseded_old_rows": superseded, "unmatched": 0, "unmatched_names": [], "warnings": warnings,
+    }
+
+
 @app.post("/api/po/upload")
 async def po_upload(file: UploadFile = File(...)):
     """
@@ -999,6 +1149,15 @@ async def po_upload(file: UploadFile = File(...)):
         ext = os.path.splitext(tmp)[1].lower()
         df = pd.read_excel(tmp, engine="xlrd" if ext == ".xls" else "openpyxl")
         df.columns = [str(c).strip() for c in df.columns]
+
+        # Purchasing team's PO master sheet (history + ongoing, with receipts): dedicated importer
+        if _is_po_master(df.columns):
+            lines, warnings = _parse_po_master(df)
+            if not lines:
+                raise HTTPException(400, "Tidak ada baris PO yang valid di file.")
+            res = _import_po_master(lines, warnings, file.filename)
+            os.remove(tmp)
+            return res
 
         # Column mapping: exact aliases first, then keyword rules in a fixed priority order.
         # Dates are matched BEFORE quantity, so "Order Date" can never become the qty column.
@@ -1128,43 +1287,48 @@ async def po_upload(file: UploadFile = File(...)):
 
 @app.get("/api/po/list")
 async def po_list(status: str = "open"):
-    """PO lines. status = open (pending+partial) | pending | partial | received | completed |
-    cancelled | superseded | overdue | all. ETA follows the hierarchy expected_date -> order_date + lead time -> unknown."""
+    """PO lines with everything the PO & Supplier page shows. status = open | overdue | all | <status>.
+    remaining = ordered − received (negative = over-received). age_days = days since PO date
+    (until the receipt date for finished lines). aging = open line older than po_aging_warn_days."""
     cfg = get_settings()
     today = date.today()
     engine = get_engine()
-    where, params = "", {}
-    if status == "open" or status == "overdue":
-        where = "WHERE po.status IN ('pending','partial')"
-    elif status != "all":
-        where, params = "WHERE po.status = :status", {"status": status}
-    with engine.connect() as conn:
-        rows = conn.execute(text(f"""
-            SELECT po.id, po.sku, p.name, po.qty_ordered, COALESCE(po.qty_received, 0),
-                   po.supplier, po.status, po.order_date, po.expected_date, po.received_date
-            FROM purchase_orders po
-            LEFT JOIN products p ON p.sku = po.sku
-            {where}
-            ORDER BY po.created_at DESC, po.id DESC
-        """), params).fetchall()
+    with engine.begin() as conn:
+        ensure_po_columns(conn)
+        rows = conn.execute(text("""
+            SELECT po.id, po.sku, COALESCE(p.name, po.description, po.sku), po.qty_ordered, COALESCE(po.qty_received, 0),
+                   po.supplier, po.status, po.order_date, po.expected_date, po.received_date,
+                   po.po_number, po.courier, po.notes
+            FROM purchase_orders po LEFT JOIN products p ON p.sku = po.sku
+            WHERE po.status <> 'superseded'
+            ORDER BY po.order_date DESC NULLS LAST, po.po_number, po.id
+        """)).fetchall()
     data = []
     for r in rows:
-        outstanding = max(0, int(r[3]) - int(r[4])) if r[6] in ("pending", "partial") else 0
+        is_open = r[6] in ("pending", "partial") and r[3] > r[4]
+        outstanding = max(0, int(r[3]) - int(r[4])) if is_open else 0
         eta, src = rp.po_eta({"expected_date": r[8], "order_date": r[7]}, cfg["lead_time_weeks"])
-        overdue = bool(outstanding > 0 and eta and eta < today)
+        overdue = bool(is_open and eta and eta < today)
+        end = r[9] if (not is_open and r[9]) else today
+        age = (end - r[7]).days if r[7] else None
+        aging = bool(is_open and age is not None and age > cfg["po_aging_warn_days"])
+        if status == "open" and not is_open:
+            continue
         if status == "overdue" and not overdue:
             continue
+        if status not in ("open", "overdue", "all") and r[6] != status:
+            continue
         data.append({
-            "id": r[0], "sku": r[1], "product": r[2],
-            "qty_ordered": r[3], "qty_received": r[4], "outstanding": outstanding,
-            "supplier": r[5], "status": r[6],
-            "order_date": str(r[7]) if r[7] else None,
-            "expected_date": str(r[8]) if r[8] else None,
+            "id": r[0], "sku": r[1], "product": r[2], "qty_ordered": r[3], "qty_received": r[4],
+            "remaining": int(r[3]) - int(r[4]), "outstanding": outstanding,
+            "supplier": r[5], "status": r[6], "is_open": is_open,
+            "order_date": str(r[7]) if r[7] else None, "expected_date": str(r[8]) if r[8] else None,
             "received_date": str(r[9]) if r[9] else None,
             "eta": str(eta) if eta else None, "eta_source": src, "overdue": overdue,
             "days_overdue": (today - eta).days if overdue else None,
+            "age_days": age, "aging": aging, "po_number": r[10], "courier": r[11], "notes": r[12],
         })
-    return {"count": len(data), "data": data}
+    return {"count": len(data), "data": data, "aging_warn_days": cfg["po_aging_warn_days"]}
 
 
 @app.get("/api/po/summary")
@@ -1174,13 +1338,15 @@ async def po_summary():
     cfg = get_settings()
     today = date.today()
     engine = get_engine()
-    with engine.connect() as conn:
+    with engine.begin() as conn:
+        ensure_po_columns(conn)
         rows = conn.execute(text("""
             SELECT id, sku, qty_ordered, COALESCE(qty_received,0), status, order_date, expected_date,
-                   received_date, supplier
+                   received_date, supplier, po_number
             FROM purchase_orders
         """)).fetchall()
     open_rows = [r for r in rows if r[4] in ("pending", "partial") and r[2] > r[3]]
+    aging = sum(1 for r in open_rows if r[5] and (today - r[5]).days > cfg["po_aging_warn_days"])
     overdue = unknown = estimated = 0
     for r in open_rows:
         eta, src = rp.po_eta({"expected_date": r[6], "order_date": r[5]}, cfg["lead_time_weeks"])
@@ -1194,18 +1360,23 @@ async def po_summary():
     # Delivery performance (needs order dates + receipts)
     # Lines that are due: closed lines, plus partial lines whose ETA has passed (still-in-transit lines are excluded)
     def _due(r):
-        if r[4] in ("received", "completed"):
+        if r[4] in ("received", "completed", "closed"):
             return True
-        if r[4] == "partial":
+        if r[4] in ("partial", "pending"):   # still open but already due: counts with what arrived so far
             eta, _ = rp.po_eta({"expected_date": r[6], "order_date": r[5]}, cfg["lead_time_weeks"])
             return bool(eta and eta < today)
         return False
     done = [r for r in rows if _due(r) and r[2] > 0]
     fulfil = {"available": False, "reason": "no_receipts", "required": "qty_received on received/partial POs"}
     if done and sum(r[3] for r in done) > 0:
-        fulfil = {"available": True, "rate_pct": round(sum(r[3] for r in done) / sum(r[2] for r in done) * 100, 1),
-                  "po_lines": len(done)}
-    lts = [((r[7] - r[5]).days, r[8] or "Unknown supplier") for r in rows if r[5] and r[7]]
+        # fill rate: over-delivery on one line must not hide a shortage on another -> cap each line at ordered
+        fulfil = {"available": True,
+                  "rate_pct": round(sum(min(r[3], r[2]) for r in done) / sum(r[2] for r in done) * 100, 1),
+                  "po_lines": len(done),
+                  "short_lines": sum(1 for r in done if r[3] < r[2]),
+                  "over_lines": sum(1 for r in done if r[3] > r[2])}
+    lts = [((r[7] - r[5]).days, r[8] or "All suppliers (1 agent)") for r in rows
+           if r[5] and r[7] and r[7] >= r[5] and r[4] in ("completed", "received", "partial", "closed")]
     lead = {"available": False, "reason": "no_order_and_receipt_dates",
             "required": "order_date and received_date on the same PO line", "deliveries": len(lts)}
     if lts:
@@ -1213,7 +1384,10 @@ async def po_summary():
         sup = {}
         for d, s_ in lts:
             sup.setdefault(s_, []).append(d)
-        lead = {"available": True, "avg_days": round(sum(d for d, _ in lts) / len(lts), 1), "deliveries": len(lts),
+        ds = sorted(d for d, _ in lts)
+        lead = {"available": True, "avg_days": round(sum(ds) / len(ds), 1), "deliveries": len(lts),
+                "median_days": round(statistics.median(ds), 1),
+                "p90_days": ds[min(len(ds) - 1, int(round(0.9 * (len(ds) - 1))))],
                 "by_supplier": [{"supplier": k, "deliveries": len(v), "avg_days": round(sum(v) / len(v), 1),
                                  "std_days": round(statistics.stdev(v), 1) if len(v) >= 3 else None}
                                 for k, v in sorted(sup.items())]}
@@ -1223,6 +1397,8 @@ async def po_summary():
         "open_qty_received": sum(r[3] for r in open_rows),
         "outstanding_qty": sum(r[2] - r[3] for r in open_rows),
         "overdue": overdue, "eta_unknown": unknown, "eta_estimated": estimated,
+        "aging": aging, "aging_warn_days": cfg["po_aging_warn_days"],
+        "open_po_numbers": len({r[9] for r in open_rows if r[9]}),
         "by_status": by_status,
         "suppliers": len({r[8] for r in rows if r[8]}),
         "default_lead_time_weeks": cfg["lead_time_weeks"],
@@ -1269,25 +1445,82 @@ async def po_delete(po_id: int):
 
 @app.patch("/api/po/{po_id}")
 async def po_update(po_id: int, body: dict = None):
-    """Update PO status or qty_received."""
+    """Update a PO line. qty_received sets the status automatically (completed / partial / pending)
+    and stamps the receipt date (today, or body.received_date) when goods are received for the first time."""
     if not body:
         raise HTTPException(400, "Body kosong")
     sets = []
     params = {"id": po_id}
-    if "status" in body:
-        sets.append("status = :status")
-        params["status"] = body["status"]
     if "qty_received" in body:
+        try:
+            q = int(body["qty_received"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "qty_received harus angka")
+        if q < 0:
+            raise HTTPException(400, "qty_received tidak boleh minus")
+        params["qty_received"] = q
         sets.append("qty_received = :qty_received")
-        params["qty_received"] = int(body["qty_received"])
+        if "status" not in body:
+            sets.append("""status = CASE WHEN status IN ('cancelled','superseded') THEN status
+                                         WHEN :qty_received >= qty_ordered THEN 'completed'
+                                         WHEN status = 'closed' THEN 'closed'
+                                         WHEN :qty_received > 0 THEN 'partial' ELSE 'pending' END""")
+        rd = body.get("received_date")
+        try:
+            params["rd"] = date.fromisoformat(rd) if rd else date.today()
+        except ValueError:
+            raise HTTPException(400, "received_date harus YYYY-MM-DD")
+        sets.append("received_date = CASE WHEN :qty_received > 0 THEN COALESCE(received_date, :rd) ELSE NULL END")
+    elif body.get("received_date"):
+        # correct the receipt date of a line that already has goods in (used for actual lead time)
+        try:
+            params["rd"] = date.fromisoformat(body["received_date"])
+        except ValueError:
+            raise HTTPException(400, "received_date harus YYYY-MM-DD")
+        sets.append("received_date = CASE WHEN COALESCE(qty_received, 0) > 0 THEN :rd ELSE received_date END")
+    if "status" in body:
+        st = body["status"]
+        if st == "reopen":      # undo "close short": back to pending / partial from the received qty
+            sets.append("status = CASE WHEN COALESCE(qty_received,0) >= qty_ordered THEN 'completed' "
+                        "WHEN COALESCE(qty_received,0) > 0 THEN 'partial' ELSE 'pending' END")
+        elif st in ("pending", "partial", "completed", "cancelled", "closed"):
+            sets.append("status = :status")
+            params["status"] = st
+        else:
+            raise HTTPException(400, "status tidak dikenal")
+    if "notes" in body:
+        sets.append("notes = :notes")
+        params["notes"] = (str(body["notes"]).strip() or None) if body["notes"] is not None else None
     if not sets:
         raise HTTPException(400, "Tidak ada field yang di-update")
     sets.append("updated_at = NOW()")
     engine = get_engine()
     with engine.connect() as conn:
-        conn.execute(text(f"UPDATE purchase_orders SET {', '.join(sets)} WHERE id = :id"), params)
+        row = conn.execute(text(f"UPDATE purchase_orders SET {', '.join(sets)} WHERE id = :id "
+                                "RETURNING id, qty_ordered, qty_received, status, received_date"), params).fetchone()
         conn.commit()
-    return {"status": "updated", "id": po_id}
+    if not row:
+        raise HTTPException(404, "PO line tidak ditemukan")
+    return {"status": "updated", "id": row[0], "qty_ordered": row[1], "qty_received": row[2],
+            "line_status": row[3], "received_date": str(row[4]) if row[4] else None}
+
+
+@app.post("/api/po/receive-all")
+async def po_receive_all(body: dict = None):
+    """Mark every open line of one PO number as fully received (today, or body.received_date)."""
+    po = (body or {}).get("po_number")
+    if not po:
+        raise HTTPException(400, "po_number wajib")
+    rd = (body or {}).get("received_date")
+    engine = get_engine()
+    with engine.begin() as conn:
+        ensure_po_columns(conn)
+        n = conn.execute(text("""
+            UPDATE purchase_orders SET qty_received = qty_ordered, status = 'completed',
+                   received_date = COALESCE(received_date, :rd), updated_at = NOW()
+            WHERE po_number = :po AND status IN ('pending', 'partial')
+        """), {"po": po, "rd": date.fromisoformat(rd) if rd else date.today()}).rowcount
+    return {"status": "updated", "po_number": po, "lines": n}
 
 
 # ══════════════════════════════════════════════════════════════

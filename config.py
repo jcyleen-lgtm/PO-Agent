@@ -39,4 +39,6 @@ def settings():
         "fast_share": _num("SW_FAST_SHARE", 0.20),
         "medium_share": _num("SW_MEDIUM_SHARE", 0.50),
         "movement_window_weeks": _num("SW_MOVEMENT_WINDOW_WEEKS", 12, int),
+        # Open PO line older than this (days since PO date) is flagged on the PO & Supplier page.
+        "po_aging_warn_days": _num("SW_PO_AGING_WARN_DAYS", 60, int),
     }
