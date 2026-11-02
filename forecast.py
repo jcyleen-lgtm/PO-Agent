@@ -493,12 +493,13 @@ def save_forecast_to_db(engine, forecast_data: dict):
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE TABLE forecast_results RESTART IDENTITY"))
 
-        for r in results:
-            conn.execute(
-                text(
-                    """INSERT INTO forecast_results (sku, alpha, beta, mape, forecast_data, training_months)
-                       VALUES (:sku, :alpha, :beta, :mape, :forecast_data, :training_months)"""
-                ),
+        # One executemany call (batched by SQLAlchemy) instead of one round trip per SKU.
+        conn.execute(
+            text(
+                """INSERT INTO forecast_results (sku, alpha, beta, mape, forecast_data, training_months)
+                   VALUES (:sku, :alpha, :beta, :mape, :forecast_data, :training_months)"""
+            ),
+            [
                 {
                     "sku": r["sku"],
                     "alpha": r["alpha"],
@@ -517,7 +518,9 @@ def save_forecast_to_db(engine, forecast_data: dict):
                         }
                     ),
                     "training_months": r["training_weeks"],
-                },
-            )
+                }
+                for r in results
+            ],
+        )
 
     return len(results)

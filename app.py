@@ -20,6 +20,7 @@ import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine, text
 import psycopg2
+from psycopg2.extras import execute_values  # one round trip for many rows (Supabase is remote)
 
 from etl import clean_sales_data, load_master_sku, load_product_lookup_from_db
 from forecast import run_forecast, save_forecast_to_db, _holdout_summary
@@ -280,59 +281,57 @@ async def dashboard_page():
 
 # ── ETL API ───────────────────────────────────────────────────
 
+def read_sku_name_sheet(content: bytes, filename: str):
+    """Read a 2-column SKU list (col A = SKU, col B = name) from .xls/.xlsx, with or without a header row.
+    A header row is recognised by 'sku' in column A; a stock export's extra Quantity column is ignored."""
+    ext = os.path.splitext(filename)[1].lower()
+    raw = pd.read_excel(io.BytesIO(content), header=None, dtype=str, engine="xlrd" if ext == ".xls" else "openpyxl")
+    if raw.empty or raw.shape[1] < 2:
+        raise HTTPException(400, "File harus punya minimal 2 kolom: kolom A = SKU, kolom B = nama produk.")
+    head = [str(x).strip().lower() for x in raw.iloc[0].tolist()]
+    sku_i, name_i, start = 0, 1, 0
+    if any("sku" in h or "item no" in h or "kode" in h for h in head):
+        sku_i = next(i for i, h in enumerate(head) if "sku" in h or "item no" in h or "kode" in h)
+        name_i = next((i for i, h in enumerate(head) if any(k in h for k in ("desc", "name", "nama", "product"))),
+                      1 if sku_i == 0 else 0)
+        start = 1
+    rows = {}
+    for sku, name in zip(raw.iloc[start:, sku_i], raw.iloc[start:, name_i]):
+        sku = "" if pd.isna(sku) else str(sku).strip()
+        if not sku or sku.lower() in ("nan", "sku") or not sku[0].isalnum():
+            continue
+        name = "" if pd.isna(name) else str(name).strip()
+        rows[sku] = name or sku
+    return rows
+
+
 @app.post("/api/master-sku/upload")
 async def upload_master_sku(file: UploadFile = File(...)):
+    """Master SKU list -> products table (the sales ETL resolves names to SKUs from products).
+    Kept in the database, not on disk: Vercel's file system is read-only and every instance needs the list."""
     global master_sku
-    if not file.filename.endswith((".xls", ".xlsx")):
+    if not file.filename.lower().endswith((".xls", ".xlsx")):
         raise HTTPException(400, "Format file harus .xls atau .xlsx")
-
     content = await file.read()
-    with open(MASTER_SKU_PATH, "wb") as f:
-        f.write(content)
-
     try:
-        # Keep the existing description -> SKU mapping used by the sales ETL.
-        master_sku = load_master_sku(MASTER_SKU_PATH)
-
-        # IMPORTANT: stock_snapshots.sku has a foreign key to products.sku.
-        # Therefore every SKU from the uploaded Master SKU must also exist in
-        # products, even if that SKU has never appeared in sales yet.
-        master_df = pd.read_excel(MASTER_SKU_PATH, engine="openpyxl")
-        master_df.columns = [str(c).strip() for c in master_df.columns]
-        sku_col = next((c for c in master_df.columns if "sku" in c.lower()), None)
-        name_col = next((c for c in master_df.columns
-                         if "desc" in c.lower() or "name" in c.lower() or "product" in c.lower()), None)
-
-        if not sku_col or not name_col:
-            raise ValueError("Kolom SKU dan Description/Name/Product tidak ditemukan di Master SKU")
-
-        rows = []
-        for _, row in master_df.iterrows():
-            if pd.isna(row[sku_col]):
-                continue
-            sku = str(row[sku_col]).strip()
-            if not sku or sku.lower() == "nan":
-                continue
-            name = "" if pd.isna(row[name_col]) else str(row[name_col]).strip()
-            rows.append((sku, name or sku))
-
-        # Deduplicate by SKU before upsert.
-        products_by_sku = {}
-        for sku, name in rows:
-            products_by_sku[sku] = name
+        products_by_sku = read_sku_name_sheet(content, file.filename)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Gagal membaca Master SKU: {e}")
+    if not products_by_sku:
+        raise HTTPException(400, "Tidak ada SKU yang terbaca. Format: kolom A = SKU, kolom B = nama produk.")
+    try:
+        # this instance's in-memory mapping (description -> SKU), used next to the products table
+        master_sku = {**master_sku, **{n.lower(): k for k, n in products_by_sku.items() if n}}
 
         conn = get_raw_conn()
         cur = conn.cursor()
         try:
-            for sku, name in products_by_sku.items():
-                cur.execute(
-                    """
-                    INSERT INTO products (sku, name)
-                    VALUES (%s, %s)
-                    ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name
-                    """,
-                    (sku, name),
-                )
+            execute_values(cur, """
+                INSERT INTO products (sku, name) VALUES %s
+                ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name
+            """, list(products_by_sku.items()), page_size=1000)
             conn.commit()
         except Exception:
             conn.rollback()
@@ -343,7 +342,7 @@ async def upload_master_sku(file: UploadFile = File(...)):
 
         return {
             "status": "success",
-            "entries": len(master_sku),
+            "entries": len(products_by_sku),
             "products_synced": len(products_by_sku),
             "message": f"Master SKU berhasil di-upload dan {len(products_by_sku)} SKU disinkronkan ke database.",
         }
@@ -559,6 +558,36 @@ def ensure_food_tables(conn):
         )"""))
 
 
+def ensure_sales_excluded(conn):
+    conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS sales_excluded (
+            id BIGSERIAL PRIMARY KEY, sku VARCHAR(255), invoice_date DATE, quantity INTEGER, unit VARCHAR(20),
+            amount NUMERIC, cogs_accurate NUMERIC, gpao_accurate NUMERIC, gpao_pct_acc NUMERIC,
+            week_label VARCHAR(30), month_label VARCHAR(20), quarter_label VARCHAR(30), year_val SMALLINT,
+            created_at TIMESTAMPTZ DEFAULT NOW(), excluded_at TIMESTAMPTZ DEFAULT NOW(), reason VARCHAR(40))"""))
+
+
+def move_food_sales(conn, food_skus):
+    """Food sales leave the system (archived with reason 'food'); sales of products that are no longer
+    on the food list come back. Returns (archived, restored) row counts."""
+    ensure_sales_excluded(conn)
+    restored = conn.execute(text(f"""
+        INSERT INTO sales ({SALES_COLS})
+        SELECT {SALES_COLS} FROM sales_excluded x
+        WHERE x.reason = 'food' AND NOT (x.sku = ANY(:k)) AND NOT EXISTS (
+            SELECT 1 FROM sales e WHERE e.sku = x.sku AND e.invoice_date = x.invoice_date
+              AND e.quantity = x.quantity AND e.amount = x.amount)
+    """), {"k": list(food_skus)}).rowcount
+    conn.execute(text("DELETE FROM sales_excluded WHERE reason = 'food' AND NOT (sku = ANY(:k))"), {"k": list(food_skus)})
+    archived = 0
+    if food_skus:
+        archived = conn.execute(text(f"""
+            WITH m AS (DELETE FROM sales WHERE sku = ANY(:k) RETURNING {SALES_COLS})
+            INSERT INTO sales_excluded ({SALES_COLS}, reason) SELECT {SALES_COLS}, 'food' FROM m
+        """), {"k": list(food_skus)}).rowcount
+    return archived, restored
+
+
 def load_food_rules(conn):
     """Return (codes, normalized_names). Empty sets if no food list was uploaded yet."""
     exists = conn.execute(text("SELECT to_regclass('public.food_skus')")).scalar()
@@ -581,8 +610,9 @@ def is_food(sku, name, codes, names):
 @app.post("/api/food-sku/upload")
 async def upload_food_sku(file: UploadFile = File(...)):
     """Upload the food list (Excel: col A = SKU/code, col B = product name).
-    Replaces the stored list and re-tags every product as food or import.
-    Sales data is not touched (any rows archived by an earlier version are restored)."""
+    Replaces the stored list, re-tags every product as food or import, and takes food sales OUT of the
+    system: they are moved to sales_excluded (reason 'food'), so no page, forecast or KPI uses them.
+    A product removed from the list gets its archived sales back."""
     if not file.filename.lower().endswith((".xls", ".xlsx")):
         raise HTTPException(400, "File harus .xls atau .xlsx")
     content = await file.read()
@@ -619,17 +649,7 @@ async def upload_food_sku(file: UploadFile = File(...)):
         if food:
             conn.execute(text("UPDATE products SET product_type = 'food' WHERE sku = ANY(:k)"), {"k": food})
 
-        # Undo the earlier "exclude food" behaviour: move archived food sales back (skip exact duplicates).
-        restored = 0
-        if conn.execute(text("SELECT to_regclass('public.sales_excluded')")).scalar():
-            restored = conn.execute(text(f"""
-                INSERT INTO sales ({SALES_COLS})
-                SELECT {SALES_COLS} FROM sales_excluded x
-                WHERE x.reason = 'food' AND NOT EXISTS (
-                    SELECT 1 FROM sales e WHERE e.sku = x.sku AND e.invoice_date = x.invoice_date
-                      AND e.quantity = x.quantity AND e.amount = x.amount)
-            """)).rowcount
-            conn.execute(text("DELETE FROM sales_excluded WHERE reason = 'food'"))
+        archived, restored = move_food_sales(conn, food)
 
     forecast_cache.clear()
     return {
@@ -638,6 +658,7 @@ async def upload_food_sku(file: UploadFile = File(...)):
         "products_marked_food": len(food),
         "products_marked_import": len(products) - len(food),
         "sales_rows_restored": restored,
+        "sales_rows_archived": archived,
         "auto_sku_matched_by_name": auto_matched[:20],
         "auto_sku_matched_count": len(auto_matched),
     }
@@ -687,8 +708,10 @@ async def etl_confirm(file_id: str):
     df = cached["df"]
     try:
         # Tag products as food/import with the stored food list (if one was uploaded).
-        with get_engine().connect() as c:
+        with get_engine().begin() as c:
             food_codes, food_names = load_food_rules(c)
+            if food_codes or food_names:
+                ensure_sales_excluded(c)
         has_food_rules = bool(food_codes or food_names)
         sales = df.copy()
         # Newer Accurate exports carry both "Invoice Date" and "Date". Renaming "date" too would create two
@@ -732,17 +755,20 @@ async def etl_confirm(file_id: str):
         cur = conn.cursor()
         try:
             food_tagged = 0
-            for _, row in products.iterrows():
+            prod_rows = []
+            for sku_, pname in zip(products["SKU"], products["product_name"]):
                 ptype = None
                 if has_food_rules:
-                    ptype = "food" if is_food(row["SKU"], row["product_name"], food_codes, food_names) else "import"
+                    ptype = "food" if is_food(sku_, pname, food_codes, food_names) else "import"
                     food_tagged += ptype == "food"
-                cur.execute("""
-                    INSERT INTO products (sku, name, product_type) VALUES (%s, %s, %s)
-                    ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name,
-                        product_type = COALESCE(EXCLUDED.product_type, products.product_type),
-                        updated_at = NOW()
-                """, (str(row["SKU"]), row["product_name"], ptype))
+                prod_rows.append((str(sku_), pname, ptype))
+            # One statement for all products (was one network round trip per product)
+            execute_values(cur, """
+                INSERT INTO products (sku, name, product_type) VALUES %s
+                ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name,
+                    product_type = COALESCE(EXCLUDED.product_type, products.product_type),
+                    updated_at = NOW()
+            """, prod_rows, page_size=1000)
             # ── Append mode: load into temp table, then INSERT ... ON CONFLICT DO NOTHING ──
             cur.execute("""
                 CREATE TEMP TABLE _sales_stage (LIKE sales INCLUDING DEFAULTS)
@@ -770,6 +796,19 @@ async def etl_confirm(file_id: str):
                           columns=('sku','invoice_date','quantity','unit','amount',
                                    'cogs_accurate','gpao_accurate','gpao_pct_acc',
                                    'week_label','month_label','quarter_label','year_val'))
+            # Food products never enter the sales table: their rows go to the archive (reason 'food').
+            food_list = [p_[0] for p_ in prod_rows if p_[2] == "food"]
+            food_rows = 0
+            if food_list:
+                cur.execute("""
+                    INSERT INTO sales_excluded (sku, invoice_date, quantity, unit, amount, cogs_accurate,
+                        gpao_accurate, gpao_pct_acc, week_label, month_label, quarter_label, year_val, reason)
+                    SELECT sku, invoice_date, quantity, unit, amount, cogs_accurate, gpao_accurate, gpao_pct_acc,
+                           week_label, month_label, quarter_label, year_val, 'food'
+                    FROM _sales_stage WHERE sku = ANY(%s)
+                """, (food_list,))
+                food_rows = cur.rowcount
+                cur.execute("DELETE FROM _sales_stage WHERE sku = ANY(%s)", (food_list,))
             # Deduplicate: skip rows that already exist (same sku + date + qty + amount)
             cur.execute("""
                 INSERT INTO sales (sku, invoice_date, quantity, unit, amount,
@@ -788,7 +827,7 @@ async def etl_confirm(file_id: str):
                 )
             """)
             inserted = cur.rowcount
-            skipped = len(sales) - inserted
+            skipped = len(sales) - inserted - food_rows
             conn.commit()
             total = inserted
         except Exception as e:
@@ -815,7 +854,8 @@ async def etl_confirm(file_id: str):
         return {
             "status": "success",
             "message": f"{total:,} baris baru ditambahkan ({skipped:,} duplikat di-skip)"
-                       + (f" · {food_tagged:,} produk ditandai food" if food_tagged else ""),
+                       + (f" · {food_rows:,} baris penjualan food dikeluarkan ({food_tagged:,} produk food)" if food_rows else ""),
+            "food_rows_excluded": food_rows,
             "food_products_tagged": food_tagged,
             "database": {"products": row[0], "sales": row[1],
                          "date_range": f"{row[2]} s/d {row[3]}", "unique_skus": row[4]},
@@ -875,17 +915,12 @@ async def stock_upload(file: UploadFile = File(...), report_date: str = Form(Non
             if missing_skus:
                 # Build SKU -> product name mapping from the stock file
                 sku_name_map = df.drop_duplicates(subset=["sku"]).set_index("sku")["product"].to_dict()
-                for msku in missing_skus:
-                    pname = sku_name_map.get(msku, msku)
-                    cur.execute(
-                        "INSERT INTO products (sku, name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                        (msku, pname)
-                    )
+                execute_values(cur, "INSERT INTO products (sku, name) VALUES %s ON CONFLICT DO NOTHING",
+                               [(m, sku_name_map.get(m, m)) for m in missing_skus], page_size=1000)
 
             cur.execute("DELETE FROM stock_snapshots WHERE snapshot_date = %s", (today,))
-            for _, row in df.iterrows():
-                cur.execute("INSERT INTO stock_snapshots (sku, quantity, snapshot_date) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
-                            (row["sku"], row["quantity"], today))
+            execute_values(cur, "INSERT INTO stock_snapshots (sku, quantity, snapshot_date) VALUES %s ON CONFLICT DO NOTHING",
+                           [(str(s_), int(q_), today) for s_, q_ in zip(df["sku"], df["quantity"])], page_size=1000)
             conn.commit()
             saved = len(df)
         except Exception as e:
@@ -1051,25 +1086,19 @@ async def po_upload(file: UploadFile = File(...)):
         cur = conn.cursor()
         try:
             # Auto-insert new products found via master_sku
-            for np in new_products:
-                cur.execute("""
-                    INSERT INTO products (sku, name) VALUES (%s, %s)
-                    ON CONFLICT (sku) DO NOTHING
-                """, (np["sku"], np["name"]))
+            if new_products:
+                execute_values(cur, "INSERT INTO products (sku, name) VALUES %s ON CONFLICT (sku) DO NOTHING",
+                               list({p_["sku"]: (p_["sku"], p_["name"]) for p_ in new_products}.values()))
             # The file is the new list of open POs. Previously open lines are marked 'superseded'
             # (NOT 'cancelled'), so a replaced line can be told apart from a real cancellation and
             # the history stays. Upsert by PO number arrives with the P2 migration (po_number column).
             cur.execute("UPDATE purchase_orders SET status = 'superseded', updated_at = NOW() WHERE status IN ('pending', 'partial')")
-            for po in resolved:
-                cur.execute("""
-                    INSERT INTO purchase_orders (sku, qty_ordered, supplier, order_date, expected_date, status)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (
-                    po["sku"], po["qty_ordered"], po["supplier"],
-                    po["order_date"].date() if pd.notna(po["order_date"]) else None,
-                    po["expected_date"].date() if pd.notna(po["expected_date"]) else None,
-                    po["status"],
-                ))
+            execute_values(cur, """
+                INSERT INTO purchase_orders (sku, qty_ordered, supplier, order_date, expected_date, status) VALUES %s
+            """, [(po["sku"], po["qty_ordered"], po["supplier"],
+                   po["order_date"].date() if pd.notna(po["order_date"]) else None,
+                   po["expected_date"].date() if pd.notna(po["expected_date"]) else None,
+                   po["status"]) for po in resolved])
             conn.commit()
         except Exception as e:
             conn.rollback()
