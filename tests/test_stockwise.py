@@ -216,3 +216,27 @@ def test_order_by_date():
     big = plan(10_000)                               # no stockout within 12 weeks
     assert big["stockout_week"] is None and big["order_by_is_estimate"] is True
     assert big["order_by"] == str(date(2027, 1, 25) - timedelta(weeks=8))
+
+
+# PO master list (purchasing sheet): detection, line keys, status, bad dates
+def test_po_master_parse():
+    import importlib
+    import pandas as pd
+    os.environ.setdefault("SUPABASE_DB_URL", "postgresql://x@/x")
+    app = importlib.import_module("app")
+    df = pd.DataFrame({
+        "Tgl PO": ["2026-09-13", "2026-09-13", "2026-09-13", "0206-05-01"],
+        "PO Number": ["PO/09/26/001"] * 3 + ["PO/05/26/001"],
+        "Item": ["A1", "A1", "B2", "C3"], "Description": ["a", "a", "b", "c"],
+        "QTY": [100, 50, 20, 10], "Received": [100, 10, None, 12],
+        "ETA Date": ["2026-11-12", None, "#REF!", "-"],
+    })
+    assert app._is_po_master(df.columns)
+    assert not app._is_po_master(["SKU", "Qty Ordered", "Order Date"])
+    lines, warnings = app._parse_po_master(df)
+    assert [l["line_key"] for l in lines] == ["PO/09/26/001|A1|1", "PO/09/26/001|A1|2",
+                                              "PO/09/26/001|B2|1", "PO/05/26/001|C3|1"]
+    assert [l["status"] for l in lines] == ["completed", "partial", "pending", "completed"]
+    assert lines[3]["order_date"] is None and any("0206" in w for w in warnings)   # year 0206 -> blank + warning
+    assert lines[2]["expected_date"] is None                                        # #REF! ignored
+    assert any("Over" in w for w in warnings)                                       # 12 received of 10
