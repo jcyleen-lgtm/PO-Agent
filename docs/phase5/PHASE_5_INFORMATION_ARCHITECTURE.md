@@ -4,7 +4,7 @@ Built only on data the API already returns (`/api/inventory/summary`, `/api/repl
 `/api/best-sellers-at-risk`, `/api/overview`, `/api/forecast/*`, `/api/po/*`, `/api/db/stats`). No new metric, rule,
 endpoint or field. Business rules referenced by section of `docs/spec.md`.
 
-**Status: proposal for review — nothing implemented yet.**
+**Status: approved by San 2026-11-03 with the decisions in §6 (A1–A5); being implemented.**
 
 ---
 
@@ -22,7 +22,7 @@ purchasing decision now, and (4) where to click next.
 │ ███████████████████████████████████████████▌██████▌███  · Out of stock 35 (included above)  │   (1 line + bar)
 ├───────────────────────────────────────────────────────────────────────────────────────────┤
 │ Purchasing Action Center                                         [Open Replenishment →]   │ 3 Action
-│ ┌ Order now ──────┐ ┌ Within 2 weeks ─┐ ┌ Hold ───────────┐ ┌ No action this cycle ┐      │   Center
+│ ┌ Order now ──────┐ ┌ Within 2 weeks ─┐ ┌ Hold ───────────┐ ┌ No action needed ┐        │   Center
 │ │ 39 SKUs         │ │ 4 SKUs          │ │ 3 SKUs          │ │ 2 SKUs               │      │   (most
 │ │ 46,409 units    │ │ 1,920 units     │ │ Rp 34.9 jt over │ │                      │      │   prominent)
 │ │ ≈ Rp 374 jt ¹   │ │ ≈ Rp 18 jt ¹    │ │ stock value ¹   │ │                      │      │
@@ -59,8 +59,8 @@ purchasing decision now, and (4) where to click next.
 |---|---|---|
 | Order now | `order_by_is_estimate = false` and `order_by_days ≤ 0` | "Order now" + days late |
 | Within 2 weeks | `order_by_is_estimate = false` and `1 ≤ order_by_days ≤ 14` | "Order within 2 weeks" + date |
-| Hold | `status = overstocked`, or (`reco_po = 0` and `confirmed_incoming > 0`) | "Hold — enough stock / incoming" |
-| No action this cycle | everything else | "No action this cycle" |
+| Hold | `status = 'overstocked'`, or (`reco_po = 0` and `confirmed_incoming > 0`) | "Hold — enough stock / incoming" |
+| No action needed | everything else | "No action needed" |
 
 This is the first implementation of D2 (it is in the spec, not in the code). It is computed in the browser from
 fields already in the API response — no API or business-rule change. It labels the situation; it does not store a
@@ -159,12 +159,33 @@ Purpose: investigation, entered from a SKU or from the menu.
 Every upload card shows the same steps: choose file → (existing validation) → result with counts and errors, next step
 hint. Upload rules and processing are unchanged; only messages and layout.
 
-## 6. Issues needing approval (not done in Phase 5 unless approved)
+## 6. Decisions (San, 2026-11-03)
 
-| # | Issue | Why it needs approval |
+| ID | Decision | How it is implemented |
 |---|---|---|
-| A1 | Action Center buckets (D2) shown in UI for the first time | approved in spec, but it is the first time users see this classification — confirm wording and the "No action this cycle" label |
-| A2 | "Why" text per SKU: the API has **no** reason field for the plan (spec §9.4 is still Proposed; the existing `reason` is the holdout status). Option: compose it in the browser only from existing facts (stockout week, order-by days, confirmed / unconfirmed incoming, coverage, estimate flag) using the §9.4 sentence patterns | presentation of existing fields, but it is user-facing business wording — confirm before building |
-| A3 | Pareto / company-list scope stays in data but hidden from UI | San to decide later with the Pareto discussion |
-| A4 | Forecast reliability per SKU (e.g. reliable / estimate) | depends on F2–F5 in `docs/forecast-accuracy.md` |
-| A5 | Saving purchasing decisions (Order/Hold/Monitor) | not wanted now (San); would need API + table |
+| A1 | **Approved, label revised**: show the Action Center buckets; "No action this cycle" → **"No action needed"**; keep the approved rules; counts must not double-count | One function `bucketOf(row)` (spec §9.2, first match wins) used by Overview and Replenishment. Every SKU row gets exactly one bucket, so the four counts always add up to the number of SKUs. |
+| A2 | **Approved**: SKU explanation in the frontend, deterministic, rule-based, only from fields the API already returns; fallback when data is insufficient; no API change; no AI text | `explainSku(row)` builds sentences from fixed templates (spec §9.4 patterns) using `stockout_week`, `order_by`, `order_by_days`, `order_by_is_estimate`, `reco_po`, `lt_demand_8w`, `safety_stock`, `inventory_position`, `confirmed_incoming`, `unconfirmed_incoming`, `coverage`, `status`, `fc_method`, `flags`. Missing inputs → "Not enough data to explain this recommendation." |
+| A3 | **Approved to hide temporarily**: no Pareto UI or indicators; Pareto must not influence Action Center priority; keep implementation and data | Overview scope card, Replenishment "Company list / Pareto only" filter and Hero/Pareto tags removed from the UI. API `/api/bestseller/scope`, the data and the forecast scope rule are untouched; the removed UI code stays in git history (`main@08fca67`, `static/js/pages/overview.js` scope section). Action Center sort uses only order-by date, estimate flag and L4W revenue (spec §9.3). |
+| A4 | **Deferred**: no reliability / confidence labels until F2–F5 are decided | No High/Medium/Low labels. Existing facts stay visible as before (e.g. the "est." tag for the naive fallback, per-SKU WMAPE in the demand plan). The "accuracy %" ring is removed, not replaced. |
+| A5 | **Not required**: no decision saving, no new tables / endpoints / workflows | No Order / Hold / Monitor input. Visible actions: filter, open detail, edit quantity, select, export order list — all existing functions. |
+
+## 7. Verification against the API (2026-11-03)
+
+Checked on the synthetic test data through the real endpoints (`/api/replenishment`, `/api/inventory/summary`,
+`/api/po/summary`, `/api/overview`):
+
+- Field names used: `reco_po` (recommended qty; the spec's `reco_qty` is its name inside `plan_sku`), `order_by_days`,
+  `order_by_is_estimate`, `status` (`understocked` / `healthy` / `overstocked` / `null` = not classified),
+  `confirmed_incoming`, `unconfirmed_incoming`, `stockout_week`, `fc_avg_weekly`, `l4w_revenue`, `unit_cost`,
+  `cost_verified`, `overstock_value`, `out_of_stock`; summary `freshness` (`stock_date`, `stock_age_days`,
+  `stock_level`, `last_sale_date`); `forecast_summary.forecast_demand_8w`, `trending_down`, `calculated_at`;
+  PO summary `open_po_numbers`, `outstanding_qty`, `overdue`.
+- **Single source for counts**: health line and buckets are both computed from the `/api/replenishment` rows (44 rows
+  = inventory summary total 44; status counts 37 / 6 / 0 / 1 and out-of-stock 34 match the summary). Buckets on the
+  test data: Order now 39 · Within 2 weeks 0 · Hold 2 · No action needed 3 = 44.
+- Edge case found: a SKU can be **Order now with recommended qty 0** (order-by date passed because the projected
+  stockout is in week 10–12, but current stock still covers the 8-week lead-time demand + safety stock). The
+  explanation states this explicitly; quantities are not changed.
+- Replenishment's old "Order now" tab used a different rule (`reco_po > 0` or understocked or order-by ≤ 14 days).
+  To keep **one** definition, the tabs become the four buckets + All. Pre-selection for export keeps its existing
+  rule (needs order and `reco_po > 0`) and is now stated next to the selection bar.
