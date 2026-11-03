@@ -48,13 +48,23 @@ def load_product_lookup_from_db(engine) -> dict:
                     CASE WHEN p.sku LIKE 'AUTO-%' THEN 0 WHEN p.sku NOT LIKE '%.%' THEN 1 ELSE 2 END,
                     p.sku
             """)).fetchall()
-            mapping = {}
+            mapping = NameLookup()
             for r in rows:
                 if r[1]:
-                    mapping[str(r[1]).strip().lower()] = str(r[0]).strip()
+                    name, sku = str(r[1]).strip(), str(r[0]).strip()
+                    mapping[name.lower()] = sku
+                    mapping.exact[name] = sku
             return mapping
     except Exception:
         return {}
+
+
+class NameLookup(dict):
+    """{name_lower: sku} plus `.exact` {name as written: sku}. Accurate sometimes has two items whose
+    names differ only in capitals (e.g. a parent code and its variant); the exact spelling decides first."""
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.exact = {}
 
 
 def clean_sales_data(filepath: str, master_sku: dict = None, db_product_lookup: dict = None) -> dict:
@@ -192,6 +202,7 @@ def clean_sales_data(filepath: str, master_sku: dict = None, db_product_lookup: 
     combined_lookup = {}
     combined_lookup.update(master_sku)        # file-based (lower priority)
     combined_lookup.update(db_product_lookup)  # DB-based (higher priority)
+    exact_lookup = getattr(db_product_lookup, "exact", {}) or {}
 
     # Auto-generate stable SKUs for unmatched products
     # Uses hash of product name so re-uploads produce the same SKU
@@ -210,7 +221,10 @@ def clean_sales_data(filepath: str, master_sku: dict = None, db_product_lookup: 
         match = re.match(r"^([\d.]+)\s*[-–]\s*(.+)$", s)
         if match:
             return match.group(1).strip(), match.group(2).strip()
-        # Pattern 2: exact match in combined lookup (DB + master file)
+        # Pattern 2a: same spelling incl. capitals (DB products)
+        if s in exact_lookup:
+            return exact_lookup[s], s
+        # Pattern 2b: exact match ignoring capitals in combined lookup (DB + master file)
         lookup_key = s.lower()
         if lookup_key in combined_lookup:
             return combined_lookup[lookup_key], s

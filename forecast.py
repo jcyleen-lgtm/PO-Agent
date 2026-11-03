@@ -9,6 +9,20 @@ import numpy as np
 from datetime import datetime
 
 
+def load_hero_skus(engine) -> dict:
+    """Company best-seller list (Hero SKU), uploaded on the Upload Data page.
+    {sku: {"group", "status"}}; empty when the table does not exist yet."""
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text(
+                "SELECT h.sku, h.group_name, h.status FROM hero_skus h JOIN products p ON p.sku = h.sku "
+                "WHERE COALESCE(p.product_type, 'import') = 'import'")).fetchall()
+        return {r[0]: {"group": r[1], "status": r[2]} for r in rows}
+    except Exception:
+        return {}
+
+
 def holts_des(series: list, alpha: float, beta: float, forecast_periods: int = 12) -> dict:
     """
     Run Holt's DES on a time series.
@@ -154,8 +168,8 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
 
     df["week_start"] = pd.to_datetime(df["week_start"])
 
-    # ── Pareto 80/20 SKU scoping ─────────────────────────────
-    # Only forecast SKUs contributing to top 80% of total revenue
+    # ── Best-seller scope = Pareto 80/20 ∪ company Hero SKU list ─────
+    # Pareto: SKUs that together make up the top 80% of import revenue (rank by revenue).
     sku_revenue = df.groupby("sku")["total_amount"].sum().sort_values(ascending=False)
     total_revenue = sku_revenue.sum()
     cumulative = sku_revenue.cumsum()
@@ -164,9 +178,24 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     if len(pareto_skus) < len(sku_revenue):
         boundary_sku = cumulative[cumulative > total_revenue * 0.80].index[0]
         pareto_skus.add(boundary_sku)
+    rank = {s: i + 1 for i, s in enumerate(sku_revenue.index)}
+    share = (sku_revenue / total_revenue * 100) if total_revenue else sku_revenue * 0
+    cum_share = (cumulative / total_revenue * 100) if total_revenue else cumulative * 0
+
+    # Company list: always analysed, even when the SKU is outside the Pareto set.
+    hero = load_hero_skus(engine)
+    scope_skus = pareto_skus | set(hero)
+
+    def scope_info(sku):
+        h = hero.get(sku) or {}
+        return {"pareto": sku in pareto_skus, "hero": sku in hero,
+                "source": "both" if (sku in pareto_skus and sku in hero) else ("hero" if sku in hero else "pareto"),
+                "rank": rank.get(sku), "revenue": round(float(sku_revenue.get(sku, 0))),
+                "share_pct": round(float(share.get(sku, 0)), 2), "cum_share_pct": round(float(cum_share.get(sku, 0)), 1),
+                "group": h.get("group"), "status": h.get("status")}
 
     pareto_excluded = len(sku_revenue) - len(pareto_skus)
-    df = df[df["sku"].isin(pareto_skus)]
+    df = df[df["sku"].isin(scope_skus)]
 
     # Product names
     with engine.connect() as conn:
@@ -190,13 +219,47 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     results = []
     skipped = 0
     skip_reasons = {"too_few_weeks": 0, "no_sales": 0, "inactive": 0, "forecast_fail": 0}
+    naive_reasons = {}
 
     # Recency threshold: skip SKUs with no sales in last 8 weeks
     max_week = df["week_start"].max()
     recency_cutoff = max_week - pd.DateOffset(weeks=8)
+    horizon_weeks = pd.date_range(start=max_week + pd.DateOffset(weeks=1), periods=forecast_periods,
+                                  freq="W-MON").strftime("%Y-%m-%d").tolist()
+
+    def naive(sku, sku_data, reason):
+        """Hero SKU that Holt's DES cannot model (too little / no recent history): flat forecast at the
+        average of its last 4 weeks, clearly marked, so the SKU is still on every page."""
+        if sku_data is not None and not sku_data.empty:
+            wk = pd.date_range(start=sku_data["week_start"].min(), end=max_week, freq="W-MON")
+            sw = pd.DataFrame({"week_start": wk}).merge(
+                sku_data[["week_start", "total_qty", "total_amount"]], on="week_start", how="left").fillna(0)
+            series, amounts = sw["total_qty"].tolist(), sw["total_amount"].tolist()
+            weeks = sw["week_start"].dt.strftime("%Y-%m-%d").tolist()
+        else:
+            series, amounts, weeks = [], [], []
+        last4 = series[-4:]
+        avg = sum(last4) / len(last4) if last4 else 0.0
+        naive_reasons[reason] = naive_reasons.get(reason, 0) + 1
+        return {
+            "sku": sku, "product_name": name_map.get(sku, sku),
+            "alpha": None, "beta": None, "mape": 999, "trend": 0, "trend_direction": "stable",
+            "level": round(avg, 2), "avg_weekly_demand": round(avg, 1), "training_weeks": len(series),
+            "actual_data": {"weeks": weeks, "quantities": [round(x, 1) for x in series],
+                            "amounts": [round(x, 0) for x in amounts]},
+            "fitted_data": {"weeks": [], "quantities": []},
+            "forecast_data": {"weeks": horizon_weeks, "quantities": [round(avg, 1)] * forecast_periods},
+            "holdout": {"wmape": None, "reason": "naive_" + reason},
+            "method": "naive", "method_reason": reason, "scope": scope_info(sku),
+        }
+
+    # Hero SKUs with no import sales at all still get a row (forecast 0)
+    for sku in sorted(set(hero) - set(df["sku"].unique())):
+        results.append(naive(sku, None, "no_sales"))
 
     for sku in df["sku"].unique():
         sku_data = df[df["sku"] == sku].copy()
+        is_hero = sku in hero
 
         # Skip SKU "0" (unmatched products)
         if str(sku).strip() == "0":
@@ -207,6 +270,9 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
         # Recency check: must have at least 1 sale in last 8 weeks
         recent_sales = sku_data[sku_data["week_start"] >= recency_cutoff]
         if recent_sales.empty:
+            if is_hero:
+                results.append(naive(sku, sku_data, "inactive"))
+                continue
             skipped += 1
             skip_reasons["inactive"] += 1
             continue
@@ -215,6 +281,9 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
         last_12w_cutoff = max_week - pd.DateOffset(weeks=12)
         last_12w_sales = sku_data[sku_data["week_start"] >= last_12w_cutoff]
         if len(last_12w_sales) < 3:
+            if is_hero:
+                results.append(naive(sku, sku_data, "inactive"))
+                continue
             skipped += 1
             skip_reasons["inactive"] += 1
             continue
@@ -235,11 +304,17 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
         weeks = sku_weekly["week_start"].dt.strftime("%Y-%m-%d").tolist()
 
         if len(series) < min_weeks:
+            if is_hero:
+                results.append(naive(sku, sku_data, "too_few_weeks"))
+                continue
             skipped += 1
             skip_reasons["too_few_weeks"] += 1
             continue
 
         if sum(series) == 0:
+            if is_hero:
+                results.append(naive(sku, sku_data, "no_sales"))
+                continue
             skipped += 1
             skip_reasons["no_sales"] += 1
             continue
@@ -247,6 +322,9 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
         # Grid search
         best = grid_search_holts(series, forecast_periods)
         if best is None:
+            if is_hero:
+                results.append(naive(sku, sku_data, "forecast_fail"))
+                continue
             skipped += 1
             skip_reasons["forecast_fail"] += 1
             continue
@@ -295,26 +373,30 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
                 "quantities": [max(0, round(x, 1)) for x in best["forecasts"]],
             },
             "holdout": holdout_wmape(series),
+            "method": "holt", "method_reason": None, "scope": scope_info(sku),
         }
         results.append(result)
 
     # Sort by total sales volume desc
     results.sort(key=lambda x: sum(x["actual_data"]["quantities"]), reverse=True)
 
-    # Summary
-    mapes = [r["mape"] for r in results if r["mape"] < 999]
+    # Summary (MAPE / WMAPE are Holt's DES metrics: the naive fallback rows are left out)
+    holt = [r for r in results if r.get("method", "holt") == "holt"]
+    mapes = [r["mape"] for r in holt if r["mape"] < 999]
 
     summary = {
         "total_skus_forecasted": len(results),
         "total_skus_skipped": skipped,
         "pareto_skus_included": len(pareto_skus),
         "pareto_skus_excluded": pareto_excluded,
+        "hero_skus": len(hero), "hero_outside_pareto": len(set(hero) - pareto_skus),
+        "holt_skus": len(holt), "naive_skus": len(results) - len(holt), "naive_reasons": naive_reasons,
         "skip_reasons": skip_reasons,
         "avg_mape": round(sum(mapes) / len(mapes), 2) if mapes else 0,
         "good_forecast_count": len([m for m in mapes if m < 25]),
         "moderate_forecast_count": len([m for m in mapes if 25 <= m < 50]),
         "poor_forecast_count": len([m for m in mapes if m >= 50]),
-        "holdout": _holdout_summary(results),
+        "holdout": _holdout_summary(holt),
         "forecast_periods": forecast_periods,
         "data_range": {
             "start": df["week_start"].min().strftime("%Y-%m-%d"),
@@ -515,6 +597,9 @@ def save_forecast_to_db(engine, forecast_data: dict):
                             "fitted": r["fitted_data"],
                             "forecast": r["forecast_data"],
                             "holdout": r.get("holdout"),
+                            "method": r.get("method", "holt"),
+                            "method_reason": r.get("method_reason"),
+                            "scope": r.get("scope"),
                         }
                     ),
                     "training_months": r["training_weeks"],

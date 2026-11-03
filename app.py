@@ -133,18 +133,22 @@ def load_forecast_from_db(engine, sku=None):
             "fitted_data": fd.get("fitted", {"weeks": [], "quantities": []}),
             "forecast_data": fd.get("forecast", {"weeks": [], "quantities": []}),
             "holdout": fd.get("holdout"),
+            "method": fd.get("method", "holt"), "method_reason": fd.get("method_reason"),
+            "scope": fd.get("scope"),
         })
         if calc_at:
             calc_times.append(calc_at)
 
-    mapes = [r["mape"] for r in results if r["mape"] < 999]
+    holt = [r for r in results if r.get("method", "holt") == "holt"]
+    mapes = [r["mape"] for r in holt if r["mape"] < 999]
     summary = {
         "total_skus_forecasted": len(results),
+        "holt_skus": len(holt), "naive_skus": len(results) - len(holt),
         "avg_mape": round(sum(mapes) / len(mapes), 2) if mapes else 0,
         "good_forecast_count": len([m for m in mapes if m < 25]),
         "moderate_forecast_count": len([m for m in mapes if 25 <= m < 50]),
         "poor_forecast_count": len([m for m in mapes if m >= 50]),
-        "holdout": _holdout_summary(results),
+        "holdout": _holdout_summary(holt),
         "forecast_periods": len(results[0]["forecast_data"].get("quantities", [])),
         "calculated_at": (lambda c: c.isoformat() if hasattr(c, "isoformat") else str(c))(max(calc_times)) if calc_times else None,
         "source": "database",
@@ -156,7 +160,7 @@ def get_forecast_light(engine):
     """Only the forecast fields the dashboard tables need (no full actual/fitted history).
     ~10x smaller than the full forecast, so it is cheap to load on a fresh Vercel instance.
     Also carries the relative trend and the holdout WMAPE so every page reads the same values."""
-    def slim(r, actual8, holdout, ptype):
+    def slim(r, actual8, holdout, ptype, method="holt", method_reason=None, scope=None):
         q = r["forecast_data"].get("quantities", [])
         tp, tc = rp.relative_trend(actual8, q)
         h = holdout or {}
@@ -176,6 +180,8 @@ def get_forecast_light(engine):
             "avg_weekly_demand": r.get("avg_weekly_demand", 0),
             "forecast_data": {"weeks": r["forecast_data"].get("weeks", []),
                               "quantities": q},
+            "method": method or "holt", "method_reason": method_reason,
+            "scope": scope or {"source": "pareto", "pareto": True, "hero": False},
         }
     if "light" in forecast_cache:
         return forecast_cache["light"]
@@ -188,12 +194,16 @@ def get_forecast_light(engine):
                    f.forecast_data::jsonb ->> 'avg_weekly_demand',
                    f.forecast_data::jsonb -> 'actual' -> 'quantities',
                    f.forecast_data::jsonb -> 'holdout',
-                   p.product_type
+                   p.product_type,
+                   f.forecast_data::jsonb ->> 'method',
+                   f.forecast_data::jsonb ->> 'method_reason',
+                   f.forecast_data::jsonb -> 'scope'
             FROM forecast_results f LEFT JOIN products p ON p.sku = f.sku
             ORDER BY f.id
         """)).fetchall()
     light = []
-    for sku, name, mape, fc, trend, tdir, avg, actual, holdout, ptype in rows:
+    for sku, name, mape, fc, trend, tdir, avg, actual, holdout, ptype, method, mreason, scope in rows:
+        scope = scope if isinstance(scope, dict) or scope is None else json.loads(scope)
         fc = fc if isinstance(fc, dict) else json.loads(fc or "{}")
         actual = actual if isinstance(actual, list) else json.loads(actual or "[]")
         holdout = holdout if isinstance(holdout, dict) or holdout is None else json.loads(holdout)
@@ -204,7 +214,7 @@ def get_forecast_light(engine):
             "trend_direction": tdir or "stable",
             "avg_weekly_demand": float(avg) if avg is not None else 0,
             "forecast_data": fc or {"weeks": [], "quantities": []},
-        }, actual[-8:], holdout, ptype))
+        }, actual[-8:], holdout, ptype, method, mreason, scope))
     if light:
         forecast_cache["light"] = light
     return light
@@ -217,8 +227,9 @@ def forecast_summary_fast(engine, product_type="all"):
         light = [r for r in light if r["product_type"] == product_type]
     if not light:
         return None
-    mapes = [r["mape"] for r in light if r["mape"] < 999]
-    ev = [r for r in light if r["holdout_wmape"] is not None]
+    holt = [r for r in light if r.get("method", "holt") == "holt"]
+    mapes = [r["mape"] for r in holt if r["mape"] < 999]
+    ev = [r for r in holt if r["holdout_wmape"] is not None]
     act = sum(r["holdout_actual_sum"] for r in ev)
     calc = forecast_cache.get("light_calc_at")
     if calc is None:
@@ -234,7 +245,9 @@ def forecast_summary_fast(engine, product_type="all"):
         "avg_mape": round(sum(mapes) / len(mapes), 2) if mapes else 0,
         "mape_basis": "in_sample",
         "holdout_wmape": round(sum(r["holdout_abs_err"] for r in ev) / act * 100, 2) if act else None,
-        "holdout_evaluated": len(ev), "holdout_not_evaluated": len(light) - len(ev),
+        "holdout_evaluated": len(ev), "holdout_not_evaluated": len(holt) - len(ev),
+        "holt_skus": len(holt), "naive_skus": len(light) - len(holt),
+        "hero_skus": sum(1 for r in light if (r.get("scope") or {}).get("hero")),
         "forecast_demand_8w": round(sum(sum(r["forecast_data"]["quantities"][:8]) for r in light)),
         "trending_up": len([r for r in light if r["trend_class"] == "increasing"]),
         "trending_down": len([r for r in light if r["trend_class"] == "decreasing"]),
@@ -267,6 +280,203 @@ def get_latest_forecast(engine, compute_if_missing=True):
             print(f"[forecast] could not save results: {e}")
         forecast_cache["latest"] = data
     return data
+
+
+# ── Hero SKU (company best-seller list) ───────────────────────
+
+def ensure_hero_table(conn):
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS hero_skus (
+            sku VARCHAR(50) PRIMARY KEY,
+            group_name VARCHAR(160),
+            status VARCHAR(60),
+            source_code VARCHAR(160),
+            product_name TEXT,
+            uploaded_at TIMESTAMPTZ DEFAULT NOW()
+        )"""))
+
+
+def _hero_columns(raw):
+    """Find the header row (within the first 10 rows) and the SKU / name / group / status columns."""
+    for i in range(min(10, len(raw))):
+        head = [" ".join(str(x).lower().split()) if pd.notna(x) else "" for x in raw.iloc[i].tolist()]
+        sku_i = next((j for j, h in enumerate(head) if h in ("sku", "master sku", "kode", "item no", "item no.")
+                      or h.endswith(" sku")), None)
+        if sku_i is None:
+            continue
+        pick = lambda *keys: next((j for j, h in enumerate(head) if any(k == h or h.startswith(k) for k in keys)), None)
+        return i, sku_i, pick("produk", "product", "nama", "name", "description"), pick("group", "grup"), pick("status")
+    return None
+
+
+@app.post("/api/hero-sku/upload")
+async def upload_hero_sku(file: UploadFile = File(...)):
+    """Company best-seller list (sheet HERO SKU / BEST SELLER SKU): SKU + optional PRODUK, GROUP, STATUS.
+    Every SKU on it is analysed by Stockwise, on top of the Pareto 80% set. Replaces the stored list.
+    Codes are matched to Accurate SKUs: exact, else ignoring dots (299028001 = 299.028.001);
+    a bundle 'A+B' becomes its component SKUs."""
+    if not file.filename.lower().endswith((".xls", ".xlsx")):
+        raise HTTPException(400, "File harus .xls atau .xlsx")
+    content = await file.read()
+    ext = os.path.splitext(file.filename)[1].lower()
+    try:
+        raw = pd.read_excel(io.BytesIO(content), header=None, dtype=str, engine="xlrd" if ext == ".xls" else "openpyxl")
+    except Exception as e:
+        raise HTTPException(400, f"Gagal membaca file: {e}")
+    cols = _hero_columns(raw)
+    if not cols:
+        raise HTTPException(400, "Kolom SKU tidak ditemukan. Baris judul harus berisi 'SKU' (atau 'MASTER SKU'); "
+                                 "kolom lain opsional: PRODUK, GROUP, STATUS.")
+    hdr, c_sku, c_name, c_group, c_status = cols
+    val = lambda r, c: (str(r[c]).strip() if c is not None and c < len(r) and pd.notna(r[c]) and str(r[c]).strip() else None)
+
+    engine = get_engine()
+    with engine.begin() as conn:
+        ensure_hero_table(conn)
+        prods = {r[0]: r[1] for r in conn.execute(text("SELECT sku, name FROM products WHERE sku <> '0'")).fetchall()}
+        snap = conn.execute(text("SELECT MAX(snapshot_date) FROM stock_snapshots")).scalar()
+        in_stock = {r[0] for r in conn.execute(text("SELECT sku FROM stock_snapshots WHERE snapshot_date = :d"),
+                                               {"d": snap}).fetchall()} if snap else set()
+        nodot = {}
+        for sku in prods:
+            nodot.setdefault(sku.replace(".", ""), []).append(sku)
+
+        def resolve(code):
+            if code in prods:
+                return code, False
+            cands = nodot.get(code.replace(".", ""), [])
+            if not cands:
+                return None, False
+            # same digits under several codes: prefer the one in the latest stock, then the dotted Accurate code
+            cands.sort(key=lambda s_: (s_ in in_stock, "." in s_), reverse=True)
+            return cands[0], True
+
+        saved, unmatched, normalized, bundles, dupes, new_products = {}, [], [], 0, 0, []
+        for r in raw.iloc[hdr + 1:].itertuples(index=False):
+            code = val(r, c_sku)
+            if not code or not code[0].isdigit():
+                continue
+            parts = [p_.strip() for p_ in code.split("+") if p_.strip()]
+            bundles += len(parts) > 1
+            for part in parts:
+                sku, fixed = resolve(part)
+                if sku is None:
+                    name = val(r, c_name) if len(parts) == 1 else None
+                    if name and "." in part:          # a valid-looking new code with a name: create the product
+                        sku = part
+                        new_products.append({"s": sku, "n": name})
+                        prods[sku] = name
+                    else:
+                        unmatched.append(part)
+                        continue
+                if fixed:
+                    normalized.append(f"{part} → {sku}")
+                if sku in saved:
+                    dupes += 1
+                    continue
+                saved[sku] = {"sku": sku, "g": val(r, c_group), "st": val(r, c_status), "src": code,
+                              "n": val(r, c_name) or prods.get(sku)}
+        if not saved:
+            raise HTTPException(400, "Tidak ada SKU yang bisa dicocokkan dengan data produk.")
+        if new_products:
+            conn.execute(text("INSERT INTO products (sku, name) VALUES (:s, :n) ON CONFLICT (sku) DO NOTHING"), new_products)
+        conn.execute(text("DELETE FROM hero_skus"))
+        conn.execute(text("""INSERT INTO hero_skus (sku, group_name, status, source_code, product_name)
+                             VALUES (:sku, :g, :st, :src, :n)"""), list(saved.values()))
+    forecast_cache.clear()
+    return {
+        "status": "success", "skus_saved": len(saved), "bundles_split": bundles,
+        "normalized": normalized[:30], "normalized_count": len(normalized),
+        "duplicates_skipped": dupes, "unmatched": unmatched[:30], "unmatched_count": len(unmatched),
+        "new_products": len(new_products),
+        "groups": len({v["g"] for v in saved.values() if v["g"]}),
+        "message": f"{len(saved)} SKU Hero disimpan. Jalankan Refresh forecast supaya semuanya masuk analisis.",
+    }
+
+
+@app.get("/api/bestseller/scope")
+async def bestseller_scope():
+    """How the best-seller set is formed: Pareto 80% of import revenue (same rule as the forecast run)
+    plus the company Hero SKU list. Returns the Pareto curve, the counts and one row per SKU in scope."""
+    engine = get_engine()
+    with engine.begin() as conn:
+        ensure_hero_table(conn)
+        sales = conn.execute(text("""
+            SELECT s.sku, MIN(p.name), SUM(s.amount), SUM(s.quantity), MIN(s.invoice_date), MAX(s.invoice_date)
+            FROM sales s JOIN products p ON p.sku = s.sku
+            WHERE s.invoice_date IS NOT NULL AND COALESCE(p.product_type, 'import') = 'import'
+            GROUP BY s.sku ORDER BY SUM(s.amount) DESC, s.sku
+        """)).fetchall()
+        hero = {r[0]: {"group": r[1], "status": r[2], "name": r[3], "src": r[4]} for r in conn.execute(text(
+            "SELECT h.sku, h.group_name, h.status, COALESCE(p.name, h.product_name), h.source_code "
+            "FROM hero_skus h LEFT JOIN products p ON p.sku = h.sku")).fetchall()}
+    try:
+        fc = {r["sku"]: r for r in get_forecast_light(engine)}
+    except Exception:
+        fc = {}
+    total = float(sum(float(r[2] or 0) for r in sales)) or 0.0
+    rows, cum, prev, n_pareto, curve = {}, 0.0, 0.0, 0, []
+    step = max(1, len(sales) // 300)
+    for i, (sku, name, rev, qty, first, last) in enumerate(sales, start=1):
+        rev = float(rev or 0)
+        prev, cum = cum, cum + rev
+        in_p = total > 0 and prev < 0.8 * total
+        n_pareto += in_p
+        if i % step == 0 or i == len(sales) or in_p and (cum >= 0.8 * total):
+            curve.append({"rank": i, "cum_pct": round(cum / total * 100, 2) if total else 0})
+        if in_p or sku in hero:
+            rows[sku] = {"sku": sku, "product_name": name, "rank": i, "revenue": round(rev), "qty": int(qty or 0),
+                         "share_pct": round(rev / total * 100, 3) if total else 0,
+                         "cum_pct": round(cum / total * 100, 2) if total else 0,
+                         "first_sale": str(first) if first else None, "last_sale": str(last) if last else None,
+                         "pareto": bool(in_p)}
+    for sku, h in hero.items():
+        rows.setdefault(sku, {"sku": sku, "product_name": h["name"], "rank": None, "revenue": 0, "qty": 0,
+                              "share_pct": 0, "cum_pct": None, "first_sale": None, "last_sale": None, "pareto": False})
+    last = max((r[5] for r in sales if r[5]), default=None)
+    out = []
+    for sku, r in rows.items():
+        h, f = hero.get(sku), fc.get(sku)
+        r.update({"hero": h is not None, "group": h["group"] if h else None, "status": h["status"] if h else None,
+                  "source_code": h["src"] if h else None,
+                  "source": "both" if (r["pareto"] and h) else ("hero" if h else "pareto"),
+                  "in_system": f is not None,
+                  "method": f.get("method", "holt") if f else None,
+                  "method_reason": f.get("method_reason") if f else None})
+        if not f and r["pareto"] and not h:
+            # Pareto SKU left out of the forecast run: no sale in the last 8 weeks, or too little history
+            stale = last and r["last_sale"] and (last - date.fromisoformat(r["last_sale"])).days > 56
+            r["method_reason"] = "inactive" if stale else "too_few_weeks"
+        out.append(r)
+    out.sort(key=lambda r: (r["rank"] is None, r["rank"] or 0, r["sku"]))
+    cut = min((r["revenue"] for r in out if r["pareto"]), default=None)
+    first = min((r[4] for r in sales if r[4]), default=None)
+    last = max((r[5] for r in sales if r[5]), default=None)
+    pareto_rev = sum(r["revenue"] for r in out if r["pareto"])
+    hero_rev = sum(r["revenue"] for r in out if r["hero"])
+    groups = {}
+    for r in out:
+        if r["hero"]:
+            g = groups.setdefault(r["group"] or "(tanpa group)", {"group": r["group"] or "(tanpa group)", "status": r["status"],
+                                                                   "skus": 0, "in_pareto": 0, "revenue": 0})
+            g["skus"] += 1
+            g["in_pareto"] += r["pareto"]
+            g["revenue"] += r["revenue"]
+    return {
+        "period": {"start": str(first) if first else None, "end": str(last) if last else None},
+        "import_revenue": round(total), "skus_sold": len(sales),
+        "pareto": {"skus": n_pareto, "share_of_skus_pct": round(n_pareto / len(sales) * 100, 1) if sales else 0,
+                   "revenue_pct": round(pareto_rev / total * 100, 1) if total else 0, "cut_revenue": cut},
+        "hero": {"skus": len(hero), "revenue_pct": round(hero_rev / total * 100, 1) if total else 0,
+                 "groups": len(groups)},
+        "counts": {"both": sum(r["source"] == "both" for r in out), "pareto_only": sum(r["source"] == "pareto" for r in out),
+                   "hero_only": sum(r["source"] == "hero" for r in out), "in_scope": len(out),
+                   "in_system": sum(r["in_system"] for r in out),
+                   "naive": sum(r["method"] == "naive" for r in out)},
+        # a Hero SKU that is not in the forecast yet = the list was uploaded after the last Refresh forecast
+        "forecast_stale": any(r["hero"] and not r["in_system"] for r in out),
+        "curve": curve, "groups": sorted(groups.values(), key=lambda g: -g["revenue"]), "rows": out,
+    }
 
 
 # ── Page Routes ───────────────────────────────────────────────
@@ -434,7 +644,9 @@ def build_inventory(engine, product_type="import", scope="all", today=None):
     except Exception:
         fc_map = {}
     if scope == "bestseller" and fc_map:
-        sku_rows = [r for r in sku_rows if r[0] in fc_map]
+        # every SKU in the best-seller scope, including company-list SKUs that have no sales yet
+        sku_rows = sorted((s, r.get("product_name") or s) for s, r in fc_map.items()
+                          if product_type == "all" or r.get("product_type", "import") == product_type)
 
     rows = []
     for sku, name in sku_rows:
@@ -474,8 +686,15 @@ def build_inventory(engine, product_type="import", scope="all", today=None):
             "stockout_week": None, "stockout_week_if_unconfirmed_arrives": None,
             "urgency": None, "slack_weeks": None, "needs_po_check": False, "est_purchase_cost": None,
             "order_by": None, "order_by_days": None, "order_by_is_estimate": None,
+            "scope_source": None, "hero_group": None, "hero_status": None, "pareto_rank": None,
+            "fc_method": None, "fc_method_reason": None,
         }
         fc = fc_map.get(sku)
+        if fc:
+            sc = fc.get("scope") or {}
+            row.update({"scope_source": sc.get("source"), "hero_group": sc.get("group"),
+                        "hero_status": sc.get("status"), "pareto_rank": sc.get("rank"),
+                        "fc_method": fc.get("method", "holt"), "fc_method_reason": fc.get("method_reason")})
         if fc:
             fq = fc["forecast_data"]["quantities"]
             plan = rp.plan_sku(cs, lines, fq, fc["forecast_data"].get("weeks", []), cfg, today=today)
