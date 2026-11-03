@@ -6,7 +6,17 @@
 <script>try{var st=JSON.parse(localStorage.getItem('po-settings-v4')||'{}'),t=st.theme||'light';if(t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<link rel="stylesheet" href="/static/css/app.css">
+<!-- styles: load order = cascade order (foundations → layout → components → pages → responsive) -->
+<link rel="stylesheet" href="/static/css/foundations.css">
+<link rel="stylesheet" href="/static/css/layout.css">
+<link rel="stylesheet" href="/static/css/components.css">
+<link rel="stylesheet" href="/static/css/pages/login.css">
+<link rel="stylesheet" href="/static/css/pages/overview.css">
+<link rel="stylesheet" href="/static/css/pages/replenishment.css">
+<link rel="stylesheet" href="/static/css/pages/analysis.css">
+<link rel="stylesheet" href="/static/css/pages/po.css">
+<link rel="stylesheet" href="/static/css/pages/upload.css">
+<link rel="stylesheet" href="/static/css/responsive.css">
 </head>
 <body>
 
@@ -339,6 +349,19 @@
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <div id="tipBox" role="tooltip"></div>
 
+<!-- scripts: classic scripts, order matters (core → pages → app start-up); see docs/frontend.md -->
+<script src="/static/js/core/format.js"></script>
+<script src="/static/js/core/state.js"></script>
+<script src="/static/js/core/api.js"></script>
+<script src="/static/js/core/ui.js"></script>
+<script src="/static/js/core/charts.js"></script>
+<script src="/static/js/core/settings.js"></script>
+<script src="/static/js/core/auth.js"></script>
+<script src="/static/js/pages/overview.js"></script>
+<script src="/static/js/pages/replenishment.js"></script>
+<script src="/static/js/pages/analysis.js"></script>
+<script src="/static/js/pages/po.js"></script>
+<script src="/static/js/pages/upload.js"></script>
 <script src="/static/js/app.js"></script>
 </body>
 </html>

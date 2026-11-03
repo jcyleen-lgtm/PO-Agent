@@ -1,0 +1,12 @@
+/* Replenishment Planning page: order table and selection bar. */
+.ro-table{width:100%;border-collapse:collapse;font-size:14px}
+.ro-table th{font-size:12.5px;font-weight:600;color:var(--text3);text-align:left;padding:12px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface2);position:sticky;top:0;z-index:1}
+.ro-table td{padding:12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.ro-table tbody tr{cursor:pointer;transition:background 120ms}
+.ro-table tbody tr:hover{background:var(--surface2)}
+.ro-table tbody tr.sel{background:var(--blue-bg)}
+.ro-table .r{text-align:right}
+.sel-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:14px 20px;border-radius:16px;background:var(--panel);color:#fff;margin-top:18px;box-shadow:0 8px 32px rgba(38,63,96,.25)}
+.sel-bar .sb-v{font-size:18px;font-weight:700}
+.sel-bar .sb-l{font-size:12px;opacity:.75}
+.sel-bar .btn{margin-left:auto}

@@ -1,0 +1,51 @@
+/* Design tokens (light + dark), base element styles and the glass surface. */
+:root{
+  --bg:#EEF2F7;--surface:#FFFFFF;--surface2:#F2F4F7;--surface-hover:#F1F6FC;--seg:rgba(38,63,96,.07);
+  --text:#1D232B;--text2:#454D57;--text3:#5E6670;
+  --navy:#263F60;--blue:#3F82C9;--link:#2C69AB;--teal:#59B3CF;--tint:#D8EAFD;--tint-soft:#EAF3FD;
+  --primary:#263F60;--primary-hover:#1D3250;--on-primary:#FFFFFF;
+  --panel:#263F60;--panel-card:rgba(255,255,255,.96);--on-panel:#FFFFFF;
+  --border:rgba(38,63,96,.10);--border2:rgba(38,63,96,.18);
+  --red:#C23838;--amber:#8F5C0E;--green:#1A7450;--slate:#5F6E82;
+  --red-bg:#FCECEC;--amber-bg:#FDF3E2;--green-bg:#E7F5EE;--slate-bg:#EEF1F5;--blue-bg:#E8F1FB;
+  --chart-1:#263F60;--chart-2:#3F82C9;--chart-3:#A3B0C2;--chart-4:#59B3CF;--grid:rgba(38,63,96,.08);
+  --glass-bg:rgba(255,255,255,.58);
+  --glass-border:rgba(255,255,255,.75);
+  --glass-hi:rgba(255,255,255,.9);
+  --glass-shadow:0 8px 32px rgba(38,63,96,.08),inset 0 1px 0 rgba(255,255,255,.6),inset 0 -1px 0 rgba(255,255,255,.12),inset 0 0 20px 8px rgba(255,255,255,.7);
+  --glass-solid:#F7F9FC;--row-hover:rgba(63,130,201,.06);
+  --nav-active:#FFFFFF;--nav-active-shadow:0 2px 8px rgba(38,63,96,.12);
+  --input-bg:#FFFFFF;
+  --shadow-pop:0 12px 32px rgba(38,63,96,.16);
+  --backdrop:radial-gradient(60% 50% at 10% 0%,rgba(63,130,201,.20),transparent 70%),radial-gradient(50% 45% at 95% 15%,rgba(89,179,207,.18),transparent 70%),radial-gradient(60% 50% at 60% 100%,rgba(38,63,96,.14),transparent 70%);
+  --radius:20px;--radius-sm:12px;--radius-xs:8px;
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+}
+:root[data-theme="dark"]{
+  --bg:#0B111B;--surface:#151F2C;--surface2:#1B2736;--surface-hover:#1A2533;--seg:rgba(255,255,255,.06);
+  --text:#EEF1F6;--text2:#BCC5D1;--text3:#97A2B1;
+  --navy:#9CC1EC;--blue:#5B9BE0;--link:#7DB0EA;--teal:#6CC3DD;--tint:#1F3550;--tint-soft:rgba(91,155,224,.10);
+  --primary:#3F6FB8;--primary-hover:#4E82CF;--on-primary:#FFFFFF;
+  --panel:#1B2B42;--panel-card:rgba(21,31,44,.85);--on-panel:#EEF1F6;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+  --red:#F07B7B;--amber:#EDBA55;--green:#55C893;--slate:#9AA6B6;
+  --red-bg:rgba(240,123,123,.13);--amber-bg:rgba(237,186,85,.13);--green-bg:rgba(85,200,147,.13);--slate-bg:rgba(154,166,182,.13);--blue-bg:rgba(91,155,224,.15);
+  --chart-1:#9CC1EC;--chart-2:#5B9BE0;--chart-3:#5C6B80;--chart-4:#6CC3DD;--grid:rgba(255,255,255,.06);
+  --glass-bg:rgba(22,32,46,.55);
+  --glass-border:rgba(255,255,255,.09);
+  --glass-hi:rgba(255,255,255,.22);
+  --glass-shadow:0 8px 32px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.08),inset 0 -1px 0 rgba(255,255,255,.02),inset 0 0 20px 8px rgba(255,255,255,.025);
+  --glass-solid:#131C28;--row-hover:rgba(91,155,224,.07);
+  --nav-active:rgba(255,255,255,.10);--nav-active-shadow:none;
+  --input-bg:#F1F3F7;
+  --shadow-pop:0 12px 32px rgba(0,0,0,.5);
+  --backdrop:radial-gradient(60% 50% at 10% 0%,rgba(63,111,184,.22),transparent 70%),radial-gradient(50% 45% at 95% 15%,rgba(89,179,207,.10),transparent 70%),radial-gradient(60% 50% at 60% 100%,rgba(38,63,96,.35),transparent 70%);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;background:var(--backdrop);pointer-events:none;z-index:0}
+.num,td{font-variant-numeric:tabular-nums}
+[hidden]{display:none!important}
+.glass,.card{background:var(--glass-bg);-webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);position:relative}
+.glass::before,.card::before{content:'';position:absolute;top:0;left:20px;right:20px;height:1px;background:linear-gradient(90deg,transparent,var(--glass-hi),transparent);pointer-events:none}
+.glass::after,.card::after{content:'';position:absolute;top:20px;bottom:20px;left:0;width:1px;background:linear-gradient(180deg,var(--glass-hi),transparent,rgba(255,255,255,.15));pointer-events:none}
