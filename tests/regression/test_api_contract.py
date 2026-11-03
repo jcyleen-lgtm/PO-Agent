@@ -12,6 +12,8 @@ import pytest
 from tests.conftest import ROOT
 
 BASE_REF = os.getenv("REGRESSION_BASE_REF", "e6e1e5c")
+# Removed on purpose, with approval (decision U6, 2026-11-03): unused by the dashboard.
+APPROVED_REMOVALS = {("GET", "/api/coverage")}
 
 
 def _params(fn):
@@ -59,10 +61,13 @@ def _current_routes():
 
 def test_every_reference_route_kept_with_same_parameters():
     ref, cur = _reference_routes(), _current_routes()
-    missing = sorted(set(ref) - set(cur))
+    assert not (APPROVED_REMOVALS & set(cur)), "an approved removal is still registered"
+    missing = sorted(set(ref) - set(cur) - APPROVED_REMOVALS)
     assert not missing, f"routes removed: {missing}"
     diffs = []
     for key, params in ref.items():
+        if key in APPROVED_REMOVALS:
+            continue
         now = cur[key]
         if list(params) != list(now):
             diffs.append(f"{key}: params {list(params)} -> {list(now)}")

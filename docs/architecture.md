@@ -67,7 +67,7 @@ auth.py                         login, cookie, /api/* middleware (unchanged)
 config.py                       planning parameters, env SW_* (unchanged)
 replenishment.py                pure purchasing rules (unchanged)
 metrics.py                      cost, movement, freshness, turnover (unchanged)
-forecast.py                     Holt's DES, grid search, holdout, Pareto ∪ Hero, save (unchanged)
+forecast.py                     Holt's DES, grid search, holdout, Pareto ∪ Hero, save (legacy calculate_replenishment removed)
 etl.py                          Accurate sales cleaning, name -> SKU lookup (unchanged)
 src/
   core/config.py            20   .env, DB_URL, UPLOAD_DIR, MASTER_SKU_PATH, re-export of config.settings
@@ -82,7 +82,7 @@ src/
   repositories/sales.py     42   sales layout, last sale, recent weeks, sold SKUs, weekly sales
   repositories/products.py  44   product-type filter, food rules, food-sales archive/restore
   repositories/purchase_orders.py 85  open PO lines, master-list upsert
-  services/inventory_service.py  357  build_inventory + inventory, summary, risk, legacy coverage, stockout rate
+  services/inventory_service.py       build_inventory + inventory, summary, risk, stockout rate
   services/purchasing_service.py 140  replenishment list/detail, demand plan, planning settings
   services/forecast_service.py   195  run + save, cached full/light forecast, headline numbers, forecast endpoints
   services/product_service.py    311  Hero list, best-seller scope, Master SKU, Food list, product history
@@ -110,7 +110,6 @@ All routes keep their current paths and payloads. Grouping by router:
 | scope | `GET /api/bestseller/scope` |
 | po | `POST /api/po/upload`, `GET /api/po/list`, `GET /api/po/summary`, `PATCH /api/po/{id}`, `DELETE /api/po/{id}`, `POST /api/po/receive-all` |
 | overview | `GET /api/overview`, `GET /api/weekly-analysis`, `GET /api/product/{sku}/history`, `GET /api/db/stats` |
-| legacy | `GET /api/coverage` (unused by UI; remove after approval U6) |
 
 Conventions (target): JSON errors `{"detail": str}`; unavailable metrics `{"available": false, "reason": str}`; dates ISO `YYYY-MM-DD`; numbers unrounded except where the UI contract already rounds.
 

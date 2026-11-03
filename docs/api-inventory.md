@@ -20,7 +20,6 @@ session cookie set by `POST /api/auth/login` (`auth.py` middleware) and answers 
 | POST | `/api/forecast/run` | — | — | `status`, `summary`, `saved_to_db` | forecast_results, hero_skus, products, sales | forecast |
 | GET | `/api/forecast/sku/{sku}` | — | — | `sku`, `product_name`, `alpha`, `beta`, `mape`, `trend`, `trend_direction`, `level`, `avg_weekly_demand`, `training_weeks`, `actual_data`, `fitted_data`, `forecast_data`, `holdout`, `method`, `method_reason`, `scope` | forecast_results, products | forecast |
 | GET | `/api/best-sellers-at-risk` | `product_type`='all', `limit`=50 | — | `results`, `total_understocked`, `stock_now_date`, `stock_prev_date`, `weeks_between`, `comparison_available`, `best_sellers_only`, `freshness` | forecast_results, master_cogs, products, purchase_orders, sales, stock_snapshots | inventory |
-| GET | `/api/coverage` | — | — | `results`, `stock_date`, `has_stock`, `total_skus` | products, purchase_orders, sales, stock_snapshots | inventory |
 | GET | `/api/inventory` | `sort`='priority', `product_type`='import', `scope`='all', `summary_only`=False | — | `summary`, `freshness`, `stock_date`, `has_stock`, `snapshot_count`, `sales_weeks`, `settings`, `results` | forecast_results, master_cogs, products, purchase_orders, sales, stock_snapshots | inventory |
 | GET | `/api/inventory/summary` | `product_type`='import', `scope`='all' | — | `summary`, `freshness`, `stock_date`, `has_stock`, `snapshot_count`, `sales_weeks`, `settings`, `turnover`, `top_reorder`, `order_soon`, `order_overdue` | forecast_results, master_cogs, products, purchase_orders, sales, stock_snapshots | inventory |
 | GET | `/api/db/stats` | — | — | `products`, `sales`, `date_range`, `last_update`, `unique_skus`, `forecast_entries`, `stock_date`, `stock_skus` | forecast_results, products, sales, stock_snapshots | overview |
@@ -50,5 +49,5 @@ session cookie set by `POST /api/auth/login` (`auth.py` middleware) and answers 
 | ID | Endpoint | Behaviour | Proposed fix (needs approval) |
 |---|---|---|---|
 | B1 | `GET /api/replenishment?product_type=food` | **500** (`KeyError: 'forecasted'`) when the product type has no sales, e.g. after all food sales are archived — the case in production. The dashboard only calls `product_type=import`, so users do not see it. | Return the normal shape with zero counts |
-| B2 | `GET /api/coverage` (legacy, unused by the UI) | Rows tied on coverage come back in database order, which is not deterministic | Remove the endpoint (U6) |
+| B2 | `GET /api/coverage` (legacy) | Tied rows in non-deterministic order | **Resolved 2026-11-03: endpoint removed (U6)** |
 | B3 | Runtime DDL `ensure_sales_excluded` | Would create `sales_excluded` with its own `BIGSERIAL` key; production's table has no primary key and shares `sales_id_seq` | Align in migration `0003` (docs/database.md §5) |

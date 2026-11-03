@@ -3,7 +3,6 @@
 from datetime import date, timedelta
 
 from sqlalchemy import text
-import pandas as pd
 
 from src.core.config import get_settings
 from src.core.database import get_engine
@@ -14,11 +13,6 @@ from src.services.forecast_service import get_forecast_light
 import metrics as mt
 import replenishment as rp
 
-
-
-def coverage_status(cov, stock=0):
-    """Kept for old callers; the rule itself lives in replenishment.stock_status (3 statuses only)."""
-    return rp.stock_status(cov, stock, get_settings())
 
 
 def build_inventory(engine, product_type="import", scope="all", today=None):
@@ -212,72 +206,6 @@ async def best_sellers_at_risk(product_type: str = "all", limit: int = 50):
         "comparison_available": snap_prev is not None,
         "best_sellers_only": best_only,
         "freshness": inv["freshness"],
-    }
-
-
-async def coverage_analysis():
-    """DEPRECATED: not used by the dashboard (full sales scan). Kept for any outside caller;
-    use /api/inventory instead."""
-    engine = get_engine()
-    with engine.connect() as conn:
-        wdf = pd.read_sql(text("""
-            SELECT s.sku, p.name as product_name,
-                   DATE_TRUNC('week', s.invoice_date)::date as week_start,
-                   SUM(s.quantity) as qty
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL
-            GROUP BY s.sku, p.name, DATE_TRUNC('week', s.invoice_date)::date
-        """), conn)
-        try:
-            stk = pd.read_sql(text("""
-                SELECT sku, quantity as current_stock FROM stock_snapshots
-                WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM stock_snapshots)
-            """), conn)
-        except Exception:
-            stk = pd.DataFrame(columns=["sku", "current_stock"])
-        try:
-            snap = conn.execute(text("SELECT MAX(snapshot_date) FROM stock_snapshots")).fetchone()
-        except Exception:
-            snap = (None,)
-        try:
-            po = pd.read_sql(text("""
-                SELECT sku, SUM(qty_ordered-qty_received) as ongoing
-                FROM purchase_orders WHERE status IN ('pending','partial') GROUP BY sku
-            """), conn)
-        except Exception:
-            po = pd.DataFrame(columns=["sku", "ongoing"])
-
-    if wdf.empty:
-        return {"results": [], "stock_date": None, "has_stock": False}
-
-    all_weeks = sorted(wdf["week_start"].unique())
-    r4 = all_weeks[-4:] if len(all_weeks) >= 4 else all_weeks
-
-    results = []
-    for sku in wdf["sku"].unique():
-        sd = wdf[wdf["sku"] == sku]
-        name = sd.iloc[0]["product_name"]
-        wmap = dict(zip(sd["week_start"], sd["qty"]))
-        l4w = sum(int(wmap.get(w, 0)) for w in r4)
-        avg = round(l4w / max(len(r4), 1), 1)
-
-        sr = stk[stk["sku"] == sku]
-        cs = int(sr.iloc[0]["current_stock"]) if len(sr) > 0 else 0
-        pr = po[po["sku"] == sku]
-        op = int(pr.iloc[0]["ongoing"]) if len(pr) > 0 else 0
-
-        cov = round((cs + op) / avg, 1) if avg > 0 else None
-        st = coverage_status(cov, cs)  # same 3-status rule as every other page
-
-        results.append({"sku":sku,"product_name":name,"l4w":l4w,"avg_l4w":avg,
-                        "current_stock":cs,"ongoing_po":op,"coverage":cov,
-                        "status":st,"weeks_oos":None})
-
-    results.sort(key=lambda x: x["coverage"] if x["coverage"] is not None else 9999)
-    return {
-        "results": results,
-        "stock_date": str(snap[0]) if snap and snap[0] else None,
-        "has_stock": len(stk) > 0, "total_skus": len(results),
     }
 
 

@@ -1,11 +1,9 @@
 """
 Holt's Double Exponential Smoothing (DES) Forecasting Engine — Weekly.
 Per-SKU demand forecast with grid search for optimal α/β.
-Replenishment calculation with lead-time demand + safety stock.
 """
 
 import pandas as pd
-import numpy as np
 from datetime import datetime
 
 
@@ -406,146 +404,6 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     }
 
     return {"summary": summary, "results": results}
-
-
-def calculate_replenishment(engine, forecast_data: dict) -> dict:
-    """
-    Calculate replenishment recommendations using Holt's DES forecast output.
-
-    Flow: Forecast → Lead Time Demand → Safety Stock → Available → Recommended PO
-    Lead time: 6 weeks (optimistic) / 8 weeks (conservative)
-    Safety stock: 10% of lead time demand
-    """
-    from sqlalchemy import text
-
-    results_list = forecast_data.get("results", [])
-    if not results_list:
-        return {"results": [], "summary": {}}
-
-    # Get current stock
-    with engine.connect() as conn:
-        try:
-            stk_rows = conn.execute(
-                text(
-                    """SELECT sku, quantity FROM stock_snapshots
-                       WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM stock_snapshots)"""
-                )
-            ).fetchall()
-            stock_map = {r[0]: int(r[1]) for r in stk_rows}
-        except Exception:
-            stock_map = {}
-
-        try:
-            po_rows = conn.execute(
-                text(
-                    """SELECT sku, SUM(qty_ordered - qty_received) FROM purchase_orders
-                       WHERE status IN ('pending','partial') GROUP BY sku"""
-                )
-            ).fetchall()
-            po_map = {r[0]: int(r[1]) for r in po_rows}
-        except Exception:
-            po_map = {}
-
-        try:
-            snap = conn.execute(
-                text("SELECT MAX(snapshot_date) FROM stock_snapshots")
-            ).fetchone()
-            stock_date = str(snap[0]) if snap and snap[0] else None
-        except Exception:
-            stock_date = None
-
-    replenishment = []
-
-    for r in results_list:
-        sku = r["sku"]
-        fc_qty = r["forecast_data"]["quantities"]  # 12-week forecast
-
-        # Lead time demand
-        lt_6w = sum(fc_qty[:6]) if len(fc_qty) >= 6 else sum(fc_qty)
-        lt_8w = sum(fc_qty[:8]) if len(fc_qty) >= 8 else sum(fc_qty)
-
-        # Safety stock (10%)
-        ss_6w = round(lt_6w * 0.10, 1)
-        ss_8w = round(lt_8w * 0.10, 1)
-
-        # Available stock
-        current_stock = stock_map.get(sku, 0)
-        ongoing_po = po_map.get(sku, 0)
-        available = current_stock + ongoing_po
-
-        # Recommended PO (conservative = 8w lead time)
-        req_opt = lt_6w + ss_6w
-        req_con = lt_8w + ss_8w
-        reco_opt = max(0, round(req_opt - available))
-        reco_con = max(0, round(req_con - available))
-
-        # Forecast avg weekly (from forecast, not actual)
-        fc_avg_weekly = round(sum(fc_qty[:8]) / min(len(fc_qty), 8), 1) if fc_qty else 0
-
-        # Projected stockout week
-        stockout_week = None
-        cumulative = 0
-        for w_idx, wf in enumerate(fc_qty):
-            cumulative += wf
-            if cumulative >= available:
-                stockout_week = w_idx + 1
-                break
-
-        # Status
-        if stockout_week is not None and stockout_week <= 6:
-            status = "critical"
-        elif reco_con > 0:
-            status = "understock"
-        elif available > req_con * 2:
-            status = "overstock"
-        else:
-            status = "healthy"
-
-        replenishment.append(
-            {
-                "sku": sku,
-                "product_name": r["product_name"],
-                "current_stock": current_stock,
-                "ongoing_po": ongoing_po,
-                "available": available,
-                "fc_avg_weekly": fc_avg_weekly,
-                "mape": r["mape"],
-                "trend_direction": r["trend_direction"],
-                # Optimistic (6w lead time)
-                "lt_demand_6w": round(lt_6w, 1),
-                "safety_stock_6w": ss_6w,
-                "reco_po_6w": reco_opt,
-                # Conservative (8w lead time)
-                "lt_demand_8w": round(lt_8w, 1),
-                "safety_stock_8w": ss_8w,
-                "reco_po_8w": reco_con,
-                # Projected
-                "stockout_week": stockout_week,
-                "status": status,
-            }
-        )
-
-    # Sort: critical first, then understock, then by stockout week
-    status_order = {"critical": 0, "understock": 1, "healthy": 2, "overstock": 3}
-    replenishment.sort(
-        key=lambda x: (
-            status_order.get(x["status"], 9),
-            x["stockout_week"] if x["stockout_week"] else 999,
-        )
-    )
-
-    # Summary
-    summary = {
-        "total": len(replenishment),
-        "critical": len([r for r in replenishment if r["status"] == "critical"]),
-        "understock": len([r for r in replenishment if r["status"] == "understock"]),
-        "healthy": len([r for r in replenishment if r["status"] == "healthy"]),
-        "overstock": len([r for r in replenishment if r["status"] == "overstock"]),
-        "stock_date": stock_date,
-        "has_stock": len(stock_map) > 0,
-    }
-
-    return {"results": replenishment, "summary": summary}
 
 
 def _holdout_summary(results):

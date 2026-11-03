@@ -108,7 +108,6 @@ def main():
             rec(f"{tag} forecast sku {s}", c.get(f"/api/forecast/sku/{s}"))
             rec(f"{tag} repl sku {s}", c.get(f"/api/replenishment/sku/{s}"))
             rec(f"{tag} history {s}", c.get(f"/api/product/{s}/history"))
-        rec(f"{tag} coverage", c.get("/api/coverage"), unordered_results=True)
         rec(f"{tag} settings", c.get("/api/settings"))
         rec(f"{tag} db stats", c.get("/api/db/stats"))
         rec(f"{tag} scope", c.get("/api/bestseller/scope"))

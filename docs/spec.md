@@ -290,7 +290,7 @@ Quality:
 | U3 | Source for verified HPP (`master_cogs` is empty) | Finance export → `master_cogs` upload |
 | U4 | Medium priority window 15–28 days | Accept (2 × review period) |
 | U5 | Inflow source for inflow/outflow chart | PO received qty by received_date |
-| U6 | Remove legacy files/tables/deps listed in the audit | Remove after Phase 3 tests are green |
+| U6 | Remove legacy files/tables/deps listed in the audit | **Decided 2026-11-03:** code, files, endpoint and deps removed; legacy tables wait for a migration (R8) |
 | U7 | Forecast run on ~250 SKUs inside one request | Measure in prod; if > 120 s, chunk or schedule |
 | U8 | Pareto window (all history vs last 12 months) | Keep all history (current, documented in thesis) |
 | U9 | Which Hero file is official (HERO1 = 134 SKUs with GROUP/STATUS, BEST_SELLER = 198 without) | Company to confirm |

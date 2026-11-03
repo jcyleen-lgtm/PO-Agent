@@ -1,4 +1,4 @@
-"""Inventory health: SKU list, summary, best sellers at risk, legacy coverage. HTTP only: parameters in, service call, response out."""
+"""Inventory health: SKU list, summary, best sellers at risk. HTTP only: parameters in, service call, response out."""
 
 from fastapi import APIRouter
 
@@ -10,11 +10,6 @@ router = APIRouter()
 @router.get('/api/best-sellers-at-risk')
 async def best_sellers_at_risk(product_type: str = 'all', limit: int = 50):
     return await svc.best_sellers_at_risk(product_type, limit)
-
-
-@router.get('/api/coverage')
-async def coverage_analysis():
-    return await svc.coverage_analysis()
 
 
 @router.get('/api/inventory')
