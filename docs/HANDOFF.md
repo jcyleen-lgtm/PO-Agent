@@ -114,6 +114,7 @@ TEST_DATABASE_URL=postgresql://postgres@localhost:5432/stockwise_test python -m 
 | Phase 4 frontend refactoring | **Done on branch `phase4-frontend`** 2026-11-03 (not merged): CSS/JS out of `dashboard.html` into `static/`, regression harness, dead code removed; report `docs/frontend.md`. Next: San pushes the branch, check Vercel preview `/static`, merge |
 | Phase 4 merge | **Done** 2026-11-03: `main@08fca67`, production deploy READY, `/static` served by Vercel CDN |
 | Phase 5 UI/UX redesign | **Implemented on branch `phase5-ux`** 2026-11-03 (not merged): Overview with Purchasing Action Center, Replenishment drawer, Sales moved to Product Analysis, Data page regrouped. Decisions A1–A5 in `docs/phase5/PHASE_5_INFORMATION_ARCHITECTURE.md` §6. Next: preview check on production data, then merge; gaps G1–G8 in `docs/phase5/PHASE_5_HANDOVER.md` |
+| Overview v2 (Inventory Overview) | **Implemented on branch `overview-v2`** (on top of `phase5-ux`, not merged) 2026-11-03: header with data date, 4 health KPIs, "What Needs Your Attention?" groups (Upcoming orders / Hold / Monitor renamed), Priority SKUs table, health + coverage charts, operational summary. No global filters: Store/Platform data does not exist and inventory has no date parameter. See `docs/overview-v2/OVERVIEW_REDESIGN.md` |
 | Later | R8 migrations (+ RLS if U1 approved), R9 frontend split, R10 inventory memo |
 
 ## 8. Decisions and open items
