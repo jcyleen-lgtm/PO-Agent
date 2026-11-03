@@ -1,0 +1,4 @@
+# company data (repo is public): inputs and per-SKU/revenue outputs stay local
+data/
+output/*
+!output/experiments.txt
