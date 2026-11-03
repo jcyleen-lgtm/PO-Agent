@@ -1,39 +1,86 @@
-/* Overview (Phase 5): stock health line, Purchasing Action Center, context lines. */
-.ov-health-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.ov-health-head .section-meta{margin:0 0 0 auto}
-.hbar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--seg);margin:12px 0 14px}
-.hbar span{display:block;height:100%}
-.ov-health-legend{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
-.hl-item{display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:1px solid transparent;border-radius:var(--radius-sm);padding:8px 10px;font-family:var(--font);text-align:left;color:inherit}
-button.hl-item{cursor:pointer}
-button.hl-item:hover{border-color:var(--border2);background:var(--surface-hover)}
-.hl-item .hl-l{font-size:13px;color:var(--text2);display:flex;align-items:center;gap:7px}
-.hl-item .hl-v{font-size:22px;font-weight:700;color:var(--text);line-height:1.2}
-.hl-item .hl-v small{font-size:13px;font-weight:500;color:var(--text3)}
-.hl-item .hl-h{font-size:12px;color:var(--text3)}
-.hl-item .sw{width:9px;height:9px;border-radius:3px;display:inline-block}
-.hl-sub{border-left:1px solid var(--border);border-radius:0;padding-left:14px}
+/* Inventory Overview: header, health KPIs, Action Center, Priority SKUs, insights charts, operational summary. */
+.ov-head{margin-bottom:16px}
+.ov-head h1{margin:0}
+.ov-greet{font-size:13px;font-weight:500;color:var(--text3);margin-bottom:2px}
+.ov-greet .name{color:var(--text2)}
+.ov-asof{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:13px;color:var(--text2);text-align:right}
+.ov-asof b{color:var(--text);font-weight:600}
+.ov-asof-l{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text3)}
+
+/* B: KPI cards */
+.ov-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.kc{line-height:1.4;justify-content:flex-start;display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin:0;padding:16px 18px;text-align:left;font-family:var(--font);color:inherit;min-width:0;position:relative}
+button.kc{cursor:pointer;transition:border-color 120ms,background 120ms}
+button.kc:hover{border-color:var(--border2);background:var(--surface-hover)}
+.kc-l{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--text2)}
+.kc-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.kc-v{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.15;color:var(--text);font-variant-numeric:tabular-nums}
+.kc-v small{font-size:13px;font-weight:500;color:var(--text3);margin-left:6px;letter-spacing:0}
+.kc-d{font-size:12.5px;color:var(--text3);line-height:1.35}
+.kc-bar{display:flex;width:100%;height:6px;border-radius:3px;overflow:hidden;background:var(--seg);margin-top:6px}
+.kc-bar span{display:block;height:100%}
+.kc-under .kc-v,.kc-oos .kc-v{color:var(--red)}
+
+/* C: Action Center */
 .ac .card-header{margin-bottom:14px}
-.ac-buckets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
-.ac-b{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);cursor:pointer;font-family:var(--font);text-align:left;color:inherit;transition:border-color 120ms,background 120ms}
+.ac-buckets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.ac-b{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:14px 16px 12px;border-radius:var(--radius-sm);border:1px solid var(--border2);border-top-width:3px;background:var(--surface);cursor:pointer;font-family:var(--font);text-align:left;color:inherit;transition:background 120ms}
 .ac-b:hover{background:var(--surface-hover)}
 .ac-b .ac-b-l{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:600;color:var(--text)}
 .ac-b .dot{width:9px;height:9px;border-radius:50%}
-.ac-b .ac-b-v{font-size:26px;font-weight:700;color:var(--text);line-height:1.2}
+.ac-b .ac-b-v{font-size:28px;font-weight:700;color:var(--text);line-height:1.2;font-variant-numeric:tabular-nums}
 .ac-b .ac-b-v small{font-size:13px;font-weight:500;color:var(--text3)}
+.ac-b .ac-b-h{font-size:12.5px;color:var(--text2);line-height:1.35}
 .ac-b .ac-b-s{font-size:12.5px;color:var(--text3);line-height:1.35}
+.ac-b .ac-b-go{margin-top:auto;padding-top:8px;font-size:13px;font-weight:600;color:var(--link)}
+.ac-crit{border-top-color:var(--red)}.ac-warn{border-top-color:var(--amber)}.ac-info{border-top-color:var(--blue)}.ac-ok{border-top-color:var(--green)}
 .ac-crit .dot{background:var(--red)}.ac-warn .dot{background:var(--amber)}.ac-info .dot{background:var(--blue)}.ac-ok .dot{background:var(--green)}
-.ac-b.active{border-width:2px;padding:11px 13px}
-.ac-crit.active{border-color:var(--red);background:var(--red-bg)}.ac-warn.active{border-color:var(--amber);background:var(--amber-bg)}
-.ac-info.active{border-color:var(--blue);background:var(--blue-bg)}.ac-ok.active{border-color:var(--green);background:var(--green-bg)}
-.ac-table td{vertical-align:top}
 .ac-more{text-align:right;padding:10px 4px 0}
-.ov-lines{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.ov-line{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:0;padding:14px 18px}
-.ov-line-l{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text3);min-width:120px}
-.ov-line-v{flex:1;min-width:200px;font-size:14px;color:var(--text2)}
-.ov-line-v b{color:var(--text)}
-@media(max-width:1100px){.ac-buckets{grid-template-columns:repeat(2,minmax(0,1fr))}.ov-health-legend{grid-template-columns:repeat(3,minmax(0,1fr))}.ov-lines{grid-template-columns:1fr}}
-@media(max-width:768px){.ov-health-legend{grid-template-columns:1fr 1fr}.hl-sub{border-left:none;padding-left:10px}.ac .card-header{flex-wrap:wrap}.ac-table th:nth-child(n+3),.ac-table td:nth-child(n+3){display:none}.ac-table th:nth-child(5),.ac-table td:nth-child(5){display:table-cell}}
-/* Product Analysis › Sales (moved from the Overview) */
+
+/* D: Priority SKUs */
+.pr-table td{vertical-align:middle}
+.pr-table .p-name{max-width:280px}
+.pr-act{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.pr-act .tag{white-space:nowrap}
+
+/* E: Inventory Insights */
+.ov-charts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px}
+.ov-charts .card-header{margin-bottom:10px}
+.chart-wrap.ov-chart{height:220px}
+
+/* F: Operational Summary */
+.op-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0}
+.op-t{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:2px 18px;border-left:1px solid var(--border);min-width:0}
+.op-t:first-child{border-left:none;padding-left:0}
+.op-l{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text3)}
+.op-v{font-size:17px;font-weight:700;color:var(--text)}
+.op-v small{font-size:12.5px;font-weight:500;color:var(--text3)}
+.op-d{font-size:12.5px;color:var(--text3);line-height:1.4}
+.op-d b{color:var(--text)}
+.op-t .link-btn{margin-top:4px;font-size:13px}
+.op-dot{width:8px;height:8px;border-radius:50%}
+.op-ok{background:var(--green)}.op-warn{background:var(--amber)}.op-crit{background:var(--red)}
+
+@media(max-width:1100px){
+  .ov-kpis,.ac-buckets{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ov-charts{grid-template-columns:minmax(0,1fr)}
+  .op-grid{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:16px}
+  .op-t:nth-child(3){border-left:none;padding-left:0}
+}
+@media(max-width:768px){
+  .ov-asof{align-items:flex-start;text-align:left}
+  .ov-kpis{gap:10px}
+  .kc{padding:12px 14px}.kc-v{font-size:24px}
+  .ac .card-header{flex-wrap:wrap}
+  .ac-b{padding:12px 12px 10px}.ac-b .ac-b-v{font-size:24px}.ac-b .ac-b-s{display:none}
+  .pr-table th:nth-child(n+2):nth-child(-n+5),.pr-table td:nth-child(n+2):nth-child(-n+5){display:none}
+  .pr-table th,.pr-table td{padding:10px 8px}
+  .pr-table .p-name{max-width:130px}
+  .pr-table .pr-act .ob-sub{display:none}
+  .pr-table th:nth-child(6){white-space:normal}
+  .op-grid{grid-template-columns:minmax(0,1fr)}
+  .op-t{border-left:none;padding:0 0 12px;border-bottom:1px solid var(--border)}
+  .op-t:last-child{border-bottom:none;padding-bottom:0}
+}
+/* Product Analysis › Sales (moved from the Overview in Phase 5) */
 .sales-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}

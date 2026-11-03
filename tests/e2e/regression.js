@@ -118,9 +118,7 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
 
     // Overview
     await snap('10-overview');
-    // Action Center: every bucket, and the values shown must equal what /api/replenishment returns
-    for (const i of [2, 3, 4, 1]) await click(`#acBuckets .ac-b:nth-child(${i})`, 300);
-    await snap('11-action-center', false);
+    // Overview values must equal what /api/replenishment returns (KPIs, groups, priority table, both charts)
     const check = await p.evaluate(async () => {
       const d = await (await fetch('/api/replenishment?product_type=import')).json();
       const R = d.results || [];
@@ -130,17 +128,42 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
       const num = t => parseInt(String(t).replace(/[^0-9]/g, ''), 10);
       const shown = [...document.querySelectorAll('#acBuckets .ac-b-v')].map(e => num(e.firstChild.textContent));
       const st = k => R.filter(r => (r.status || null) === k).length;
-      const expH = [st('understocked'), st('healthy'), st('overstocked'), st(null), R.filter(r => r.out_of_stock).length];
-      const shownH = [...document.querySelectorAll('#ovHealthLegend .hl-v')].map(e => num(e.firstChild.textContent));
-      const same = (a, c) => JSON.stringify(a) === JSON.stringify(c);
-      return { ok: same(exp, shown) && same(expH, shownH) && exp.reduce((a, c) => a + c, 0) === R.length, exp, shown, expH, shownH, total: R.length };
+      const expK = [R.length, st('understocked'), R.filter(r => r.out_of_stock).length, st('overstocked')];
+      const shownK = [...document.querySelectorAll('#ovKpis .kc-v')].map(e => num(e.firstChild.textContent));
+      // priority table: Order now then Upcoming, each by order-by date (estimates last), then L4W revenue
+      const pri = (x, y) => { const ex = x.order_by_is_estimate ? 1 : 0, ey = y.order_by_is_estimate ? 1 : 0; if (ex !== ey) return ex - ey;
+        const dx = x.order_by || '9999-12-31', dy = y.order_by || '9999-12-31'; if (dx !== dy) return dx < dy ? -1 : 1; return (y.l4w_revenue || 0) - (x.l4w_revenue || 0); };
+      const att = R.filter(r => ['now', 'soon'].includes(b(r))).sort((x, y) => b(x) === b(y) ? pri(x, y) : b(x) === 'now' ? -1 : 1).slice(0, 8);
+      const expP = att.map(r => [r.sku, r.reco_po || 0]);
+      const shownP = [...document.querySelectorAll('#prList tbody tr')].map(tr => [tr.querySelector('.p-sku').textContent.trim(), num(tr.children[5].textContent)]);
+      const hc = Chart.getChart('ovHealthChart'), cc = Chart.getChart('ovCovChart');
+      const chartH = hc ? hc.data.datasets[0].data.slice(0, 3) : null;
+      const covSum = cc ? cc.data.datasets[0].data.reduce((x, y) => x + y, 0) : null;
+      const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+      const ok = same(exp, shown) && same(expK, shownK) && same(expP, shownP) && same(chartH, [st('understocked'), st('healthy'), st('overstocked')])
+        && covSum === R.length && exp.reduce((x, y) => x + y, 0) === R.length;
+      return { ok, exp, shown, expK, shownK, expP, shownP, chartH, covSum, total: R.length };
     });
     if (!check.ok) errors.push(`${C.name}: overview values differ from API ${JSON.stringify(check)}`);
     states.push({ id: `${C.name}__11-values`, text: JSON.stringify(check), calls: [], theme: '', activeNav: '', scrollWidth: 0, canvases: 0 });
-    await click('#ovHealthLegend button.hl-item'); await snap('12-health-to-repl', false);
-    await click('.nav-item[data-tab="overview"]');
-    const acRow = await p.$('#acList tbody tr');
-    if (acRow) { await acRow.click(); await snap('13-ac-row-drawer'); await p.keyboard.press('Escape'); await settle(); }
+    // every Action Center card opens Replenishment on the same group
+    for (const [i, k] of [[1, 'now'], [2, 'soon'], [3, 'hold'], [4, 'none']]) {
+      await click(`#acBuckets .ac-b:nth-child(${i})`, 300);
+      const t = await p.evaluate(() => [document.querySelector('.nav-item.active').dataset.tab, (document.querySelector('#rpTabs button.active') || {}).dataset?.v]);
+      if (t[0] !== 'replenishment' || t[1] !== k) errors.push(`${C.name}: action card ${k} opened ${t}`);
+      if (i === 3) await snap('12-ac-to-repl', false);
+      await click('.nav-item[data-tab="overview"]', 200);
+    }
+    await click('#ovKpis button.kc-under'); 
+    const ks = await p.evaluate(() => (document.querySelector('#rpStatus button.active') || {}).dataset?.v);
+    if (ks !== 'understocked') errors.push(`${C.name}: understocked KPI opened status ${ks}`);
+    await click('.nav-item[data-tab="overview"]', 200);
+    const prRow = await p.$('#prList tbody tr');
+    if (prRow) { await prRow.click(); await snap('13-priority-row-drawer'); await p.keyboard.press('Escape'); await settle(); }
+    await click('.nav-item[data-tab="overview"]', 200);
+    await click('#tab-overview .link-btn[onclick="openReplBucket(\'all\')"]');
+    const va = await p.evaluate(() => (document.querySelector('#rpTabs button.active') || {}).dataset?.v);
+    if (va !== 'all') errors.push(`${C.name}: View all opened tab ${va}`);
 
     // Replenishment
     await click('.nav-item[data-tab="replenishment"]'); await snap('20-repl');

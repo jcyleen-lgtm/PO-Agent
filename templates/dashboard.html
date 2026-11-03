@@ -60,28 +60,36 @@
 
 <!-- ═══ TAB 1: OVERVIEW ═══ -->
 <div id="tab-overview" class="tab-content active">
-  <div class="page-head">
-    <div><h1 id="greeting">Good morning</h1><div class="page-sub" id="ovContext">Checking data status…</div></div>
-    <div class="head-right"><button class="avatar" id="headAvatar" onclick="openSettings()" title="Account settings" aria-label="Account settings">?</button></div>
+  <div class="page-head ov-head">
+    <div><div class="ov-greet" id="greeting">Good morning</div><h1>Inventory Overview</h1><div class="page-sub">Monitor inventory health and identify purchasing priorities.</div></div>
+    <div class="head-right"><div class="ov-asof" id="ovAsOf"><span class="text-dim">Checking data status…</span></div><button class="avatar" id="headAvatar" onclick="openSettings()" title="Account settings" aria-label="Account settings">?</button></div>
   </div>
   <div class="fresh-line" id="ovFresh" hidden></div>
 
-  <section class="card ov-health" aria-labelledby="ovHealthTitle">
-    <div class="ov-health-head"><h2 class="section-label" id="ovHealthTitle">Stock health</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks.&#10;Understocked: 8 weeks or less · Healthy: more than 8 up to 20 weeks · Overstocked: more than 20 weeks, or stock without sales in 4 weeks.&#10;Not classified: no sales in 4 weeks and no stock.&#10;Out of stock is a count inside these statuses, not a separate status.">i</span><span class="section-meta" id="ovHealthMeta"></span></div>
-    <div class="hbar" id="ovHealthBar" role="img" aria-label="Stock health distribution"></div>
-    <div class="ov-health-legend" id="ovHealthLegend"><span class="text-dim">Loading…</span></div>
-  </section>
+  <section class="ov-kpis" id="ovKpis" aria-label="Inventory health"></section>
 
   <section class="card ac" aria-labelledby="acTitle">
-    <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="acTitle">Purchasing Action Center</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Every best-seller SKU is in exactly one group, from the order-by date and status the system already calculated:&#10;Order now: order-by date has passed.&#10;Order within 2 weeks: order-by date in the next 14 days.&#10;Hold: overstocked, or recommended 0 with a confirmed incoming PO.&#10;No action needed: everything else.&#10;&#10;Stockwise does not place orders: the purchase is done outside Stockwise; record it later with the PO list upload.">i</span></div><div class="section-meta" id="acMeta">Which SKUs need a purchasing decision</div></div><button class="link-btn" onclick="openReplBucket(acSel)">Open in Replenishment →</button></div>
-    <div class="ac-buckets" id="acBuckets" role="tablist" aria-label="Action groups"></div>
-    <div id="acList" role="tabpanel"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
+    <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="acTitle">What Needs Your Attention?</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Every best-seller SKU is in exactly one group, from the order-by date and status the system already calculated:&#10;Order Now: order-by date has passed.&#10;Upcoming Orders: order-by date in the next 14 days.&#10;Hold / Monitor: overstocked, or recommended 0 with a confirmed incoming PO.&#10;No Action Needed: everything else.&#10;&#10;Stockwise recommends; purchasing decides. Orders are placed outside Stockwise.">i</span></div><div class="section-meta" id="acMeta">Purchasing action groups</div></div></div>
+    <div class="ac-buckets" id="acBuckets"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
   </section>
 
-  <div class="ov-lines">
-    <section class="card ov-line" aria-label="Demand context"><div class="ov-line-l">Demand forecast</div><div class="ov-line-v" id="ovDemand"><span class="text-dim">Loading…</span></div><button class="link-btn" onclick="switchTab('analysis');setSub('forecast')">Demand plan →</button></section>
-    <section class="card ov-line" aria-label="Purchase orders"><div class="ov-line-l">Purchase orders</div><div class="ov-line-v" id="ovPo"><span class="text-dim">Loading…</span></div><button class="link-btn" onclick="switchTab('po')">PO Tracking →</button></section>
-  </div>
+  <section class="card" aria-labelledby="prTitle">
+    <div class="card-header"><div><h2 class="section-label" id="prTitle">Priority SKUs</h2><div class="section-meta" id="prMeta">SKUs requiring purchasing attention.</div></div><button class="link-btn" onclick="openReplBucket('all')">View all Replenishment →</button></div>
+    <div id="prList"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
+  </section>
+
+  <section aria-labelledby="insTitle">
+    <h2 class="group-h" id="insTitle">Inventory Insights</h2>
+    <div class="ov-charts">
+      <div class="card"><div class="card-header"><div><div class="section-label">Inventory Health Distribution</div><div class="section-meta" id="chHealthMeta">SKUs per stock status</div></div></div><div class="chart-wrap ov-chart" id="chHealthWrap"><canvas id="ovHealthChart" aria-label="Inventory health distribution chart" role="img"></canvas></div></div>
+      <div class="card"><div class="card-header"><div><div style="display:flex;align-items:center"><div class="section-label">Stock Coverage Distribution</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks. Bars are coloured by the status the range falls in. &quot;No sales&quot;: no sales in 4 weeks, so coverage cannot be calculated.">i</span></div><div class="section-meta">SKUs per coverage range, in weeks</div></div></div><div class="chart-wrap ov-chart" id="chCovWrap"><canvas id="ovCovChart" aria-label="Stock coverage distribution chart" role="img"></canvas></div></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="opTitle">
+    <div class="card-header"><h2 class="section-label" id="opTitle">Operational Summary</h2></div>
+    <div class="op-grid" id="ovOps"><span class="text-dim">Loading…</span></div>
+  </section>
 </div>
 <!-- ═══ TAB 2: REPLENISHMENT PLANNING ═══ -->
 <div id="tab-replenishment" class="tab-content">
@@ -94,10 +102,10 @@
   <div class="fresh-line fresh-banner" hidden></div>
   <div class="card">
     <div class="filter-bar" style="flex-wrap:wrap">
-      <div class="tabs-count" id="rpTabs" role="tablist" aria-label="Action groups"><button data-v="now" class="active">Order now <span class="cnt" data-c="now">0</span></button><button data-v="soon">Within 2 weeks <span class="cnt" data-c="soon">0</span></button><button data-v="hold">Hold <span class="cnt" data-c="hold">0</span></button><button data-v="none">No action needed <span class="cnt" data-c="none">0</span></button><button data-v="all">All <span class="cnt" data-c="all">0</span></button></div>
+      <div class="tabs-count" id="rpTabs" role="tablist" aria-label="Action groups"><button data-v="now" class="active">Order now <span class="cnt" data-c="now">0</span></button><button data-v="soon">Upcoming orders <span class="cnt" data-c="soon">0</span></button><button data-v="hold">Hold / Monitor <span class="cnt" data-c="hold">0</span></button><button data-v="none">No action needed <span class="cnt" data-c="none">0</span></button><button data-v="all">All <span class="cnt" data-c="all">0</span></button></div>
       <input class="search-box" id="rpSearch" placeholder="Search SKU or product  ( / )" oninput="replPage=0;renderRepl()">
       <div class="seg" id="rpStatus" role="group" aria-label="Status"><button data-v="" class="active">All status</button><button data-v="understocked">Understocked</button><button data-v="healthy">Healthy</button><button data-v="overstocked">Overstocked</button></div>
-      <span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Groups are the same as on the Overview (each SKU in exactly one):&#10;Order now: order-by date has passed.&#10;Within 2 weeks: order-by date in the next 14 days.&#10;Hold: overstocked, or recommended 0 with a confirmed incoming PO.&#10;No action needed: everything else.">i</span>
+      <span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Groups are the same as on the Overview (each SKU in exactly one):&#10;Order now: order-by date has passed.&#10;Upcoming orders: order-by date in the next 14 days.&#10;Hold / Monitor: overstocked, or recommended 0 with a confirmed incoming PO.&#10;No action needed: everything else.">i</span>
     </div>
     <div class="tbl-wrap" id="rpTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading...</div></div>
     <div class="paging" id="rpPaging"></div>

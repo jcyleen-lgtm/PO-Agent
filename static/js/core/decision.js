@@ -5,9 +5,9 @@
    Nothing here changes a calculation: it labels and explains the values the API already computed. */
 const BUCKETS = [
   { key: 'now', label: 'Order now', tone: 'crit', hint: 'Order-by date has passed' },
-  { key: 'soon', label: 'Order within 2 weeks', tone: 'warn', hint: 'Order-by date in the next 14 days' },
-  { key: 'hold', label: 'Hold', tone: 'info', hint: 'Overstocked, or incoming PO already covers the need' },
-  { key: 'none', label: 'No action needed', tone: 'ok', hint: 'Order-by date is more than 2 weeks away' },
+  { key: 'soon', label: 'Upcoming orders', tone: 'warn', hint: 'Order-by date in the next 14 days' },
+  { key: 'hold', label: 'Hold / Monitor', tone: 'info', hint: 'Overstocked, or incoming PO already covers the need' },
+  { key: 'none', label: 'No action needed', tone: 'ok', hint: 'Order-by date more than 2 weeks away, or no stockout in the forecast' },
 ];
 const BUCKET = Object.fromEntries(BUCKETS.map(b => [b.key, b]));
 
