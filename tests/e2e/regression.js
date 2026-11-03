@@ -81,8 +81,10 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
         const running = document.getAnimations().filter(a => a.playState === 'running');
         running.forEach(a => { try { a.pause(); a.currentTime = 0; } catch (e) {} });
         const h = s => { let x = 0x811c9dc5; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return (x >>> 0).toString(36); };
-        const all = (el, pseudo) => { const cs = getComputedStyle(el, pseudo); let v = ''; for (let i = 0; i < cs.length; i++) v += cs[i] + ':' + cs.getPropertyValue(cs[i]) + ';'; return v; };
-        const res = [...document.querySelectorAll('body *')].map(el => {
+        // properties sorted by name: the enumeration order of custom properties depends on which file
+        // declared them, which is not a visual change
+        const all = (el, pseudo) => { const cs = getComputedStyle(el, pseudo); const k = []; for (let i = 0; i < cs.length; i++) k.push(cs[i]); return k.sort().map(n => n + ':' + cs.getPropertyValue(n)).join(';'); };
+        const res = [...document.querySelectorAll('body *')].filter(el => el.tagName !== 'SCRIPT').map(el => {
           const d = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).join('.') : '');
           return d + ' ' + h(all(el, null) + '|' + all(el, '::before') + '|' + all(el, '::after'));
         });
