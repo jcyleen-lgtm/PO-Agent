@@ -64,11 +64,15 @@ def main():
     c = TestClient(A.app, raise_server_exceptions=False)   # record 500s as production would return them
     out = []
 
-    def rec(name, resp):
+    def rec(name, resp, unordered_results=False):
         try:
             body = resp.json()
         except Exception:
             body = {"_text_len": len(resp.text)}
+        if unordered_results and isinstance(body, dict) and isinstance(body.get("results"), list):
+            # legacy /api/coverage sorts by coverage only; ties keep the SQL GROUP BY order, which is not
+            # deterministic -> compare as a set (pre-existing behaviour, documented in docs/audit.md)
+            body = dict(body, results=sorted(body["results"], key=lambda r: str(r.get("sku"))))
         out.append({"step": name, "status": resp.status_code, "body": mask(body)})
         return body
 
@@ -104,7 +108,7 @@ def main():
             rec(f"{tag} forecast sku {s}", c.get(f"/api/forecast/sku/{s}"))
             rec(f"{tag} repl sku {s}", c.get(f"/api/replenishment/sku/{s}"))
             rec(f"{tag} history {s}", c.get(f"/api/product/{s}/history"))
-        rec(f"{tag} coverage", c.get("/api/coverage"))
+        rec(f"{tag} coverage", c.get("/api/coverage"), unordered_results=True)
         rec(f"{tag} settings", c.get("/api/settings"))
         rec(f"{tag} db stats", c.get("/api/db/stats"))
         rec(f"{tag} scope", c.get("/api/bestseller/scope"))
