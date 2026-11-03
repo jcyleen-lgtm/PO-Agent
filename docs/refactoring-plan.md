@@ -5,6 +5,9 @@ Version 1.1 · 2026-11-03 · decisions D1–D8 approved; open items U1–U10 in 
 **Status:** R0–R6 done (branch `phase3-backend-refactor`, module names per the Phase 3 brief — see
 `docs/architecture.md` §4). R7 done for the items approved on 2026-11-03 (index.html, .DS_Store, `calculate_replenishment`, `/api/coverage`, unused deps; schema.sql kept until R8), R8 (migrations) for Phase 3b / approval, R9 is
 Phase 4, R10 partly done (engine reuse; inventory memo and forecast timing still open).
+R4 completed on 2026-11-03: every query of the services and of the root rule modules (`metrics.py`,
+`forecast.py`, `etl.py`) now lives in `src/repositories/`; the only SQL outside it is the runtime DDL fallback
+in `src/core/ddl.py` (infrastructure) and the test fixtures. Enforced by `tests/unit/test_layering.py`.
 
 Goal: split `app.py` (2,386 lines) and `templates/dashboard.html` (217 KB) into the modules of `docs/architecture.md` **without changing behaviour**, backend first (D8). The app stays deployable after every step: each step is one commit (or a small PR), tests green, deployed, checked in production before the next.
 

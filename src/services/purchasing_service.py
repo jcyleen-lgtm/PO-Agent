@@ -3,12 +3,11 @@
 import json
 
 from fastapi import HTTPException
-from sqlalchemy import text
 
 from src.core.config import get_settings
 from src.core.database import get_engine
 from src.repositories.forecast import load_forecast_from_db
-from src.repositories import inventory as stock_repo, sales as sales_repo
+from src.repositories import forecast as forecast_repo, inventory as stock_repo, sales as sales_repo
 from src.repositories.products import _type_filter
 from src.repositories.purchase_orders import _fetch_po_lines
 from src.services.forecast_service import get_forecast_light
@@ -46,22 +45,8 @@ async def forecast_plan(product_type: str = "import"):
     engine = get_engine()
     tf = _type_filter(product_type)
     with engine.connect() as conn:
-        rows = conn.execute(text(f"""
-            SELECT f.sku, COALESCE(p.name, f.sku), f.alpha, f.beta, f.mape, f.training_months,
-                   f.forecast_data::jsonb -> 'forecast',
-                   f.forecast_data::jsonb -> 'actual',
-                   f.forecast_data::jsonb -> 'holdout',
-                   f.forecast_data::jsonb ->> 'level', f.forecast_data::jsonb ->> 'trend',
-                   f.calculated_at
-            FROM forecast_results f LEFT JOIN products p ON p.sku = f.sku
-            WHERE 1=1 {tf}
-            ORDER BY f.id
-        """)).fetchall()
-        price = {r[0]: float(r[1]) for r in conn.execute(text("""
-            WITH mx AS (SELECT MAX(invoice_date) d FROM sales)
-            SELECT sku, SUM(amount) / NULLIF(SUM(quantity), 0) FROM sales, mx
-            WHERE invoice_date > mx.d - 84 AND quantity > 0 GROUP BY sku
-        """)).fetchall() if r[1] is not None}
+        rows = forecast_repo.plan_rows(conn, tf)
+        price = sales_repo.avg_selling_price_12w(conn)
     light = {r["sku"]: r for r in get_forecast_light(engine)}
     out, calc = [], None
     for sku, name, a, b, mape, tw, fc, act, ho, level, trend, calc_at in rows:
@@ -101,8 +86,7 @@ async def replenishment_sku(sku: str):
         raise HTTPException(404, f"SKU {sku} has no forecast (not a forecasted best seller)")
     with engine.connect() as conn:
         snap = stock_repo.latest_snapshot_date(conn)
-        cs = conn.execute(text("SELECT COALESCE(SUM(quantity),0) FROM stock_snapshots WHERE sku=:s AND snapshot_date=:d"),
-                          {"s": sku, "d": snap}).scalar() if snap else 0
+        cs = stock_repo.stock_for_sku(conn, sku, snap) if snap else 0
         lines = _fetch_po_lines(conn, sku).get(sku, [])
         cost = mt.unit_costs(conn, cfg, [sku]).get(sku)
         last_sale = sales_repo.last_sale_date(conn)

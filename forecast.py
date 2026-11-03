@@ -10,12 +10,10 @@ from datetime import datetime
 def load_hero_skus(engine) -> dict:
     """Company best-seller list (Hero SKU), uploaded on the Upload Data page.
     {sku: {"group", "status"}}; empty when the table does not exist yet."""
-    from sqlalchemy import text
+    from src.repositories import hero as hero_repo
     try:
         with engine.connect() as conn:
-            rows = conn.execute(text(
-                "SELECT h.sku, h.group_name, h.status FROM hero_skus h JOIN products p ON p.sku = h.sku "
-                "WHERE COALESCE(p.product_type, 'import') = 'import'")).fetchall()
+            rows = hero_repo.import_skus(conn)
         return {r[0]: {"group": r[1], "status": r[2]} for r in rows}
     except Exception:
         return {}
@@ -140,26 +138,12 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     Returns:
         dict with summary stats and per-SKU results
     """
-    from sqlalchemy import text
 
+    from src.repositories import forecast as forecast_repo
     # Weekly sales per SKU — research scope is IMPORT products only (food is excluded),
     # so the Pareto 80/20 below is computed on import revenue.
-    query = """
-        SELECT s.sku,
-               DATE_TRUNC('week', s.invoice_date)::date AS week_start,
-               SUM(s.quantity) AS total_qty,
-               SUM(s.amount) AS total_amount,
-               COUNT(*) AS transaction_count
-        FROM sales s
-        JOIN products p ON p.sku = s.sku
-        WHERE s.invoice_date IS NOT NULL
-          AND COALESCE(p.product_type, 'import') = 'import'
-        GROUP BY s.sku, DATE_TRUNC('week', s.invoice_date)::date
-        ORDER BY s.sku, week_start
-    """
-
     with engine.connect() as conn:
-        df = pd.read_sql(text(query), conn)
+        df = forecast_repo.weekly_import_sales_df(conn)
 
     if df.empty:
         return {"error": "No sales data found", "results": []}
@@ -197,7 +181,7 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
 
     # Product names
     with engine.connect() as conn:
-        products = pd.read_sql(text("SELECT sku, name FROM products"), conn)
+        products = forecast_repo.product_names_df(conn)
     name_map = dict(zip(products["sku"], products["name"]))
 
     # All weeks in range
@@ -422,48 +406,37 @@ def _holdout_summary(results):
 
 
 def save_forecast_to_db(engine, forecast_data: dict):
-    """Save forecast results to database."""
-    from sqlalchemy import text
+    """Save forecast results to database (the whole table is replaced)."""
     import json
+    from src.repositories import forecast as forecast_repo
 
     results = forecast_data.get("results", [])
     if not results:
         return 0
 
-    with engine.begin() as conn:
-        conn.execute(text("TRUNCATE TABLE forecast_results RESTART IDENTITY"))
-
-        # One executemany call (batched by SQLAlchemy) instead of one round trip per SKU.
-        conn.execute(
-            text(
-                """INSERT INTO forecast_results (sku, alpha, beta, mape, forecast_data, training_months)
-                   VALUES (:sku, :alpha, :beta, :mape, :forecast_data, :training_months)"""
-            ),
-            [
+    forecast_repo.replace_all(engine, [
+        {
+            "sku": r["sku"],
+            "alpha": r["alpha"],
+            "beta": r["beta"],
+            "mape": r["mape"],
+            "forecast_data": json.dumps(
                 {
-                    "sku": r["sku"],
-                    "alpha": r["alpha"],
-                    "beta": r["beta"],
-                    "mape": r["mape"],
-                    "forecast_data": json.dumps(
-                        {
-                            "trend": r["trend"],
-                            "trend_direction": r["trend_direction"],
-                            "level": r["level"],
-                            "avg_weekly_demand": r["avg_weekly_demand"],
-                            "actual": r["actual_data"],
-                            "fitted": r["fitted_data"],
-                            "forecast": r["forecast_data"],
-                            "holdout": r.get("holdout"),
-                            "method": r.get("method", "holt"),
-                            "method_reason": r.get("method_reason"),
-                            "scope": r.get("scope"),
-                        }
-                    ),
-                    "training_months": r["training_weeks"],
+                    "trend": r["trend"],
+                    "trend_direction": r["trend_direction"],
+                    "level": r["level"],
+                    "avg_weekly_demand": r["avg_weekly_demand"],
+                    "actual": r["actual_data"],
+                    "fitted": r["fitted_data"],
+                    "forecast": r["forecast_data"],
+                    "holdout": r.get("holdout"),
+                    "method": r.get("method", "holt"),
+                    "method_reason": r.get("method_reason"),
+                    "scope": r.get("scope"),
                 }
-                for r in results
-            ],
-        )
-
+            ),
+            "training_months": r["training_weeks"],
+        }
+        for r in results
+    ])
     return len(results)

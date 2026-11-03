@@ -33,21 +33,9 @@ def load_product_lookup_from_db(engine) -> dict:
     This is the primary SKU resolver since Accurate exports use plain
     product names without SKU prefixes."""
     try:
-        from sqlalchemy import text
+        from src.repositories import products as product_repo
         with engine.connect() as conn:
-            # Same name under several SKUs (old code without dots, AUTO- placeholder, current code):
-            # the preferred SKU must win, so rows are ordered worst -> best and the last one is kept.
-            # Preference: in the latest stock snapshot > dotted Accurate code > digits only > AUTO-.
-            rows = conn.execute(text("""
-                SELECT p.sku, p.name FROM products p
-                WHERE p.sku != '0'
-                ORDER BY
-                    EXISTS (SELECT 1 FROM stock_snapshots s
-                            WHERE s.sku = p.sku
-                              AND s.snapshot_date = (SELECT MAX(snapshot_date) FROM stock_snapshots)),
-                    CASE WHEN p.sku LIKE 'AUTO-%' THEN 0 WHEN p.sku NOT LIKE '%.%' THEN 1 ELSE 2 END,
-                    p.sku
-            """)).fetchall()
+            rows = product_repo.lookup_rows_worst_first(conn)
             mapping = NameLookup()
             for r in rows:
                 if r[1]:

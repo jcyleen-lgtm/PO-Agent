@@ -5,15 +5,14 @@ import os
 import uuid
 
 from fastapi import HTTPException
-from psycopg2.extras import execute_values
-from sqlalchemy import text
 import pandas as pd
 
 from src.core.config import UPLOAD_DIR, get_settings
-from src.core.database import get_engine, get_raw_conn
+from src.core.database import get_engine
 from src.core.ddl import ensure_po_columns
 from src.core.state import master_sku
 from src.parsers.po_master import _is_po_master, _parse_po_master, map_po_columns
+from src.repositories import products as product_repo, purchase_orders as po_repo
 from src.repositories.purchase_orders import _import_po_master
 from src.services.inventory_service import _stockout_rate
 import replenishment as rp
@@ -70,7 +69,7 @@ async def po_upload(filename: str, content: bytes):
         engine = get_engine()
         product_lookup = {}
         with engine.connect() as c:
-            rows = c.execute(text("SELECT sku, name FROM products")).fetchall()
+            rows = product_repo.all_names(c)
             for r in rows:
                 product_lookup[r[1].strip().lower()] = r[0]
 
@@ -126,31 +125,12 @@ async def po_upload(filename: str, content: bytes):
             raise HTTPException(400, f"Tidak ada produk yang bisa di-match. Unmatched: {unmatched[:10]}")
 
         # Insert into purchase_orders — mark old pending as cancelled, then insert new
-        conn = get_raw_conn()
-        conn.autocommit = False
-        cur = conn.cursor()
-        try:
-            # Auto-insert new products found via master_sku
-            if new_products:
-                execute_values(cur, "INSERT INTO products (sku, name) VALUES %s ON CONFLICT (sku) DO NOTHING",
-                               list({p_["sku"]: (p_["sku"], p_["name"]) for p_ in new_products}.values()))
-            # The file is the new list of open POs. Previously open lines are marked 'superseded'
-            # (NOT 'cancelled'), so a replaced line can be told apart from a real cancellation and
-            # the history stays. Upsert by PO number arrives with the P2 migration (po_number column).
-            cur.execute("UPDATE purchase_orders SET status = 'superseded', updated_at = NOW() WHERE status IN ('pending', 'partial')")
-            execute_values(cur, """
-                INSERT INTO purchase_orders (sku, qty_ordered, supplier, order_date, expected_date, status) VALUES %s
-            """, [(po["sku"], po["qty_ordered"], po["supplier"],
-                   po["order_date"].date() if pd.notna(po["order_date"]) else None,
-                   po["expected_date"].date() if pd.notna(po["expected_date"]) else None,
-                   po["status"]) for po in resolved])
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            cur.close()
-            conn.close()
+        po_repo.replace_open_lines(
+            list({p_["sku"]: (p_["sku"], p_["name"]) for p_ in new_products}.values()),
+            [(po["sku"], po["qty_ordered"], po["supplier"],
+              po["order_date"].date() if pd.notna(po["order_date"]) else None,
+              po["expected_date"].date() if pd.notna(po["expected_date"]) else None,
+              po["status"]) for po in resolved])
 
         os.remove(tmp)
         return {
@@ -180,14 +160,7 @@ async def po_list(status: str = "open"):
     engine = get_engine()
     with engine.begin() as conn:
         ensure_po_columns(conn)
-        rows = conn.execute(text("""
-            SELECT po.id, po.sku, COALESCE(p.name, po.description, po.sku), po.qty_ordered, COALESCE(po.qty_received, 0),
-                   po.supplier, po.status, po.order_date, po.expected_date, po.received_date,
-                   po.po_number, po.courier, po.notes
-            FROM purchase_orders po LEFT JOIN products p ON p.sku = po.sku
-            WHERE po.status <> 'superseded'
-            ORDER BY po.order_date DESC NULLS LAST, po.po_number, po.id
-        """)).fetchall()
+        rows = po_repo.list_lines(conn)
     data = []
     for r in rows:
         is_open = r[6] in ("pending", "partial") and r[3] > r[4]
@@ -224,11 +197,7 @@ async def po_summary():
     engine = get_engine()
     with engine.begin() as conn:
         ensure_po_columns(conn)
-        rows = conn.execute(text("""
-            SELECT id, sku, qty_ordered, COALESCE(qty_received,0), status, order_date, expected_date,
-                   received_date, supplier, po_number
-            FROM purchase_orders
-        """)).fetchall()
+        rows = po_repo.summary_rows(conn)
     open_rows = [r for r in rows if r[4] in ("pending", "partial") and r[2] > r[3]]
     aging = sum(1 for r in open_rows if r[5] and (today - r[5]).days > cfg["po_aging_warn_days"])
     overdue = unknown = estimated = 0
@@ -293,9 +262,7 @@ async def po_summary():
 
 async def po_delete(po_id: int):
     engine = get_engine()
-    with engine.connect() as conn:
-        conn.execute(text("DELETE FROM purchase_orders WHERE id = :id"), {"id": po_id})
-        conn.commit()
+    po_repo.delete_line(engine, po_id)
     return {"status": "deleted", "id": po_id}
 
 
@@ -304,8 +271,7 @@ async def po_update(po_id: int, body: dict = None):
     and stamps the receipt date (today, or body.received_date) when goods are received for the first time."""
     if not body:
         raise HTTPException(400, "Body kosong")
-    sets = []
-    params = {"id": po_id}
+    changes = []          # validated edits, in the order they are applied (see po_repo.update_line)
     if "qty_received" in body:
         try:
             q = int(body["qty_received"])
@@ -313,47 +279,33 @@ async def po_update(po_id: int, body: dict = None):
             raise HTTPException(400, "qty_received harus angka")
         if q < 0:
             raise HTTPException(400, "qty_received tidak boleh minus")
-        params["qty_received"] = q
-        sets.append("qty_received = :qty_received")
+        changes.append(("qty_received", q))
         if "status" not in body:
-            sets.append("""status = CASE WHEN status IN ('cancelled','superseded') THEN status
-                                         WHEN :qty_received >= qty_ordered THEN 'completed'
-                                         WHEN status = 'closed' THEN 'closed'
-                                         WHEN :qty_received > 0 THEN 'partial' ELSE 'pending' END""")
+            changes.append(("status_from_qty", None))
         rd = body.get("received_date")
         try:
-            params["rd"] = date.fromisoformat(rd) if rd else date.today()
+            changes.append(("received_date_on_receipt", date.fromisoformat(rd) if rd else date.today()))
         except ValueError:
             raise HTTPException(400, "received_date harus YYYY-MM-DD")
-        sets.append("received_date = CASE WHEN :qty_received > 0 THEN COALESCE(received_date, :rd) ELSE NULL END")
     elif body.get("received_date"):
         # correct the receipt date of a line that already has goods in (used for actual lead time)
         try:
-            params["rd"] = date.fromisoformat(body["received_date"])
+            changes.append(("received_date_fix", date.fromisoformat(body["received_date"])))
         except ValueError:
             raise HTTPException(400, "received_date harus YYYY-MM-DD")
-        sets.append("received_date = CASE WHEN COALESCE(qty_received, 0) > 0 THEN :rd ELSE received_date END")
     if "status" in body:
         st = body["status"]
         if st == "reopen":      # undo "close short": back to pending / partial from the received qty
-            sets.append("status = CASE WHEN COALESCE(qty_received,0) >= qty_ordered THEN 'completed' "
-                        "WHEN COALESCE(qty_received,0) > 0 THEN 'partial' ELSE 'pending' END")
+            changes.append(("status_reopen", None))
         elif st in ("pending", "partial", "completed", "cancelled", "closed"):
-            sets.append("status = :status")
-            params["status"] = st
+            changes.append(("status", st))
         else:
             raise HTTPException(400, "status tidak dikenal")
     if "notes" in body:
-        sets.append("notes = :notes")
-        params["notes"] = (str(body["notes"]).strip() or None) if body["notes"] is not None else None
-    if not sets:
+        changes.append(("notes", (str(body["notes"]).strip() or None) if body["notes"] is not None else None))
+    if not changes:
         raise HTTPException(400, "Tidak ada field yang di-update")
-    sets.append("updated_at = NOW()")
-    engine = get_engine()
-    with engine.connect() as conn:
-        row = conn.execute(text(f"UPDATE purchase_orders SET {', '.join(sets)} WHERE id = :id "
-                                "RETURNING id, qty_ordered, qty_received, status, received_date"), params).fetchone()
-        conn.commit()
+    row = po_repo.update_line(get_engine(), po_id, changes)
     if not row:
         raise HTTPException(404, "PO line tidak ditemukan")
     return {"status": "updated", "id": row[0], "qty_ordered": row[1], "qty_received": row[2],
@@ -369,9 +321,5 @@ async def po_receive_all(body: dict = None):
     engine = get_engine()
     with engine.begin() as conn:
         ensure_po_columns(conn)
-        n = conn.execute(text("""
-            UPDATE purchase_orders SET qty_received = qty_ordered, status = 'completed',
-                   received_date = COALESCE(received_date, :rd), updated_at = NOW()
-            WHERE po_number = :po AND status IN ('pending', 'partial')
-        """), {"po": po, "rd": date.fromisoformat(rd) if rd else date.today()}).rowcount
+        n = po_repo.receive_all(conn, po, date.fromisoformat(rd) if rd else date.today())
     return {"status": "updated", "po_number": po, "lines": n}

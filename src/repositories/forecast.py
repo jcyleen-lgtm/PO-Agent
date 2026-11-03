@@ -87,3 +87,58 @@ def light_rows(conn):
 
 def max_calculated_at(conn):
     return conn.execute(text("SELECT MAX(calculated_at) FROM forecast_results")).scalar()
+
+
+def count_rows(conn):
+    return conn.execute(text("SELECT COUNT(*) FROM forecast_results")).fetchone()[0]
+
+
+def plan_rows(conn, type_filter):
+    """Forecast rows with model parameters and holdout for the Demand Plan page."""
+    return conn.execute(text(f"""
+            SELECT f.sku, COALESCE(p.name, f.sku), f.alpha, f.beta, f.mape, f.training_months,
+                   f.forecast_data::jsonb -> 'forecast',
+                   f.forecast_data::jsonb -> 'actual',
+                   f.forecast_data::jsonb -> 'holdout',
+                   f.forecast_data::jsonb ->> 'level', f.forecast_data::jsonb ->> 'trend',
+                   f.calculated_at
+            FROM forecast_results f LEFT JOIN products p ON p.sku = f.sku
+            WHERE 1=1 {type_filter}
+            ORDER BY f.id
+        """)).fetchall()
+
+
+def weekly_import_sales_df(conn):
+    """DataFrame: sku, week_start, total_qty, total_amount, transaction_count for import products."""
+    import pandas as pd
+    return pd.read_sql(text("""
+        SELECT s.sku,
+               DATE_TRUNC('week', s.invoice_date)::date AS week_start,
+               SUM(s.quantity) AS total_qty,
+               SUM(s.amount) AS total_amount,
+               COUNT(*) AS transaction_count
+        FROM sales s
+        JOIN products p ON p.sku = s.sku
+        WHERE s.invoice_date IS NOT NULL
+          AND COALESCE(p.product_type, 'import') = 'import'
+        GROUP BY s.sku, DATE_TRUNC('week', s.invoice_date)::date
+        ORDER BY s.sku, week_start
+    """), conn)
+
+
+def product_names_df(conn):
+    import pandas as pd
+    return pd.read_sql(text("SELECT sku, name FROM products"), conn)
+
+
+def replace_all(engine, rows):
+    """Truncate forecast_results and insert the new rows in one executemany (one transaction)."""
+    with engine.begin() as conn:
+        conn.execute(text("TRUNCATE TABLE forecast_results RESTART IDENTITY"))
+        conn.execute(
+            text(
+                """INSERT INTO forecast_results (sku, alpha, beta, mape, forecast_data, training_months)
+                   VALUES (:sku, :alpha, :beta, :mape, :forecast_data, :training_months)"""
+            ),
+            rows,
+        )

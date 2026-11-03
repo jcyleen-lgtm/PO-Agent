@@ -3,10 +3,9 @@
 from datetime import date, timedelta
 import math
 
-from sqlalchemy import text
-
 from src.core.logging import get_logger
 from src.core.database import get_engine
+from src.repositories import forecast as forecast_repo, inventory as stock_repo, sales_reports as reports
 from src.services.forecast_service import forecast_summary_fast, get_forecast_light
 
 
@@ -16,19 +15,15 @@ log = get_logger("overview")
 async def db_stats():
     engine = get_engine()
     with engine.connect() as conn:
-        row = conn.execute(text("""
-            SELECT (SELECT COUNT(*) FROM products),(SELECT COUNT(*) FROM sales),
-                   (SELECT MIN(invoice_date) FROM sales),(SELECT MAX(invoice_date) FROM sales),
-                   (SELECT COUNT(DISTINCT sku) FROM sales)
-        """)).fetchone()
+        row = reports.db_counts(conn)
         fc = 0
         try:
-            fc = conn.execute(text("SELECT COUNT(*) FROM forecast_results")).fetchone()[0]
+            fc = forecast_repo.count_rows(conn)
         except Exception:
             pass
         snap_date, snap_skus = None, 0
         try:
-            snap = conn.execute(text("SELECT MAX(snapshot_date),COUNT(DISTINCT sku) FROM stock_snapshots")).fetchone()
+            snap = stock_repo.latest_snapshot_stats(conn)
             snap_date, snap_skus = snap[0], snap[1] or 0
         except Exception:
             pass
@@ -49,7 +44,7 @@ async def overview_summary(
 ):
     engine = get_engine()
     with engine.connect() as conn:
-        mx = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).fetchone()
+        mx = reports.max_sale_row(conn)
         max_date = mx[0] if mx and mx[0] else None
         if not max_date:
             return {"error":"No sales data","kpis":{},"comparison":{},"trend":[],"top_products":[],"period":{},"forecast_summary":None}
@@ -80,10 +75,7 @@ async def overview_summary(
         prev_start = prev_end - timedelta(days=period_days - 1)
 
         # KPIs
-        kpi = conn.execute(text(f"""
-            SELECT COALESCE(SUM(s.quantity),0), COALESCE(SUM(s.amount),0), COUNT(DISTINCT s.sku)
-            FROM {SRC} WHERE s.invoice_date >= :s AND s.invoice_date <= :e {tf}
-        """), {"s": dt_start, "e": dt_end}).fetchone()
+        kpi = reports.period_kpis(conn, SRC, tf, dt_start, dt_end)
         total_sales = int(kpi[0]); revenue = float(kpi[1]); active = int(kpi[2])
         avg_weekly = round(total_sales / period_weeks)
 
@@ -91,19 +83,12 @@ async def overview_summary(
         mid = dt_start + timedelta(days=period_days // 2)
         trending = (0,)
         try:
-            trending = conn.execute(text(f"""
-                WITH fh AS (SELECT s.sku,SUM(s.quantity) q FROM {SRC} WHERE s.invoice_date>=:s AND s.invoice_date<:m {tf} GROUP BY s.sku),
-                     sh AS (SELECT s.sku,SUM(s.quantity) q FROM {SRC} WHERE s.invoice_date>=:m AND s.invoice_date<=:e {tf} GROUP BY s.sku)
-                SELECT COUNT(*) FROM sh JOIN fh ON sh.sku=fh.sku WHERE fh.q>0 AND sh.q>fh.q
-            """), {"s": dt_start, "m": mid, "e": dt_end}).fetchone()
+            trending = reports.trending_up_count(conn, SRC, tf, dt_start, mid, dt_end)
         except Exception:
             trending = (0,)
 
         # Previous period KPIs
-        prev = conn.execute(text(f"""
-            SELECT COALESCE(SUM(s.quantity),0), COALESCE(SUM(s.amount),0), COUNT(DISTINCT s.sku)
-            FROM {SRC} WHERE s.invoice_date >= :s AND s.invoice_date <= :e {tf}
-        """), {"s": prev_start, "e": prev_end}).fetchone()
+        prev = reports.period_kpis(conn, SRC, tf, prev_start, prev_end)
         p_sales = int(prev[0]); p_rev = float(prev[1]); p_active = int(prev[2])
         p_avg = round(p_sales / period_weeks) if period_weeks else 0
 
@@ -113,36 +98,23 @@ async def overview_summary(
         # Trend chart
         if period_days <= 14:
             agg = "day"
-            tq = text(f"SELECT s.invoice_date::date d,SUM(s.quantity) q,SUM(s.amount) r FROM {SRC} WHERE s.invoice_date>=:s AND s.invoice_date<=:e {tf} GROUP BY d ORDER BY d")
         elif period_days <= 90:
             agg = "week"
-            tq = text(f"SELECT DATE_TRUNC('week',s.invoice_date)::date d,SUM(s.quantity) q,SUM(s.amount) r FROM {SRC} WHERE s.invoice_date>=:s AND s.invoice_date<=:e {tf} GROUP BY d ORDER BY d")
         else:
             agg = "month"
-            tq = text(f"SELECT DATE_TRUNC('month',s.invoice_date)::date d,SUM(s.quantity) q,SUM(s.amount) r FROM {SRC} WHERE s.invoice_date>=:s AND s.invoice_date<=:e {tf} GROUP BY d ORDER BY d")
-        trend = conn.execute(tq, {"s": dt_start, "e": dt_end}).fetchall()
+        trend = reports.trend(conn, SRC, tf, agg, dt_start, dt_end)
 
         # Top products
         order_col = "r" if top_sort == "revenue" else "q"
         top_type_filter = tf
-        top_all = conn.execute(text(f"""
-            SELECT s.sku,p.name,SUM(s.quantity) q,SUM(s.amount) r
-            FROM sales s JOIN products p ON s.sku=p.sku
-            WHERE s.invoice_date>=:s AND s.invoice_date<=:e {top_type_filter}
-            GROUP BY s.sku,p.name ORDER BY {order_col} DESC LIMIT 50
-        """), {"s": dt_start, "e": dt_end}).fetchall()
+        top_all = reports.top_products(conn, top_type_filter, order_col, dt_start, dt_end)
         # Previous-period qty and first sale date for all top SKUs in 2 queries
         # (was 2 queries per SKU = ~100 round trips to Supabase).
         top_skus = [r[0] for r in top_all]
         prev_map, first_map = {}, {}
         if top_skus:
-            prev_map = {k: v for k, v in conn.execute(text("""
-                SELECT sku, COALESCE(SUM(quantity),0) FROM sales
-                WHERE sku = ANY(:k) AND invoice_date>=:s AND invoice_date<=:e GROUP BY sku
-            """), {"k": top_skus, "s": prev_start, "e": prev_end}).fetchall()}
-            first_map = {k: v for k, v in conn.execute(text("""
-                SELECT sku, MIN(invoice_date) FROM sales WHERE sku = ANY(:k) GROUP BY sku
-            """), {"k": top_skus}).fetchall()}
+            prev_map = reports.qty_by_sku(conn, top_skus, prev_start, prev_end)
+            first_map = reports.first_sale_by_sku(conn, top_skus)
         top_g = []
         for r in top_all:
             prev_qty = int(prev_map.get(r[0], 0))
@@ -190,33 +162,13 @@ async def weekly_analysis(product_type: str = "import", scope: str = "all"):
         type_filter = f"AND COALESCE(p.product_type, 'import') = '{product_type}'"
     with engine.connect() as conn:
         # Only the last 8 weeks are needed week-by-week; lifetime figures come pre-aggregated.
-        week_rows = conn.execute(text(f"""
-            SELECT DISTINCT DATE_TRUNC('week', s.invoice_date)::date AS w
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL {type_filter}
-            ORDER BY w DESC LIMIT 8
-        """)).fetchall()
+        week_rows = reports.last_weeks(conn, type_filter, 8)
         if not week_rows:
             return {"results": [], "week_labels": {}}
         spark_w = sorted(r[0] for r in week_rows)
-        totals = conn.execute(text(f"""
-            SELECT s.sku, MIN(p.name), SUM(s.quantity),
-                   COUNT(DISTINCT DATE_TRUNC('week', s.invoice_date))
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL {type_filter}
-            GROUP BY s.sku ORDER BY s.sku
-        """)).fetchall()
-        recent = conn.execute(text(f"""
-            SELECT s.sku, DATE_TRUNC('week', s.invoice_date)::date AS w, SUM(s.quantity)
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date >= :w8 {type_filter}
-            GROUP BY s.sku, w
-        """), {"w8": spark_w[0]}).fetchall()
-        n_weeks = conn.execute(text(f"""
-            SELECT COUNT(DISTINCT DATE_TRUNC('week', s.invoice_date))
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL {type_filter}
-        """)).scalar()
+        totals = reports.lifetime_by_sku(conn, type_filter)
+        recent = reports.weekly_qty_since(conn, type_filter, spark_w[0])
+        n_weeks = reports.count_sales_weeks(conn, type_filter)
 
     if scope == "bestseller":
         try:

@@ -5,15 +5,14 @@ import io
 import os
 
 from fastapi import HTTPException
-from psycopg2.extras import execute_values
-from sqlalchemy import text
 import pandas as pd
 
-from src.core.database import get_engine, get_raw_conn
+from src.core.database import get_engine
 from src.core.ddl import ensure_food_tables, ensure_hero_table
 from src.core.state import forecast_cache, master_sku
 from src.parsers.sku_lists import _hero_columns, _norm_name, is_food, read_sku_name_sheet
-from src.repositories import inventory as stock_repo, sales as sales_repo
+from src.repositories import (hero as hero_repo, inventory as stock_repo, products as product_repo,
+                              purchase_orders as po_repo, sales as sales_repo)
 from src.repositories.products import move_food_sales
 from src.services.forecast_service import get_forecast_light
 
@@ -41,10 +40,9 @@ async def upload_hero_sku(filename: str, content: bytes):
     engine = get_engine()
     with engine.begin() as conn:
         ensure_hero_table(conn)
-        prods = {r[0]: r[1] for r in conn.execute(text("SELECT sku, name FROM products WHERE sku <> '0'")).fetchall()}
+        prods = product_repo.names_by_sku(conn)
         snap = stock_repo.latest_snapshot_date(conn)
-        in_stock = {r[0] for r in conn.execute(text("SELECT sku FROM stock_snapshots WHERE snapshot_date = :d"),
-                                               {"d": snap}).fetchall()} if snap else set()
+        in_stock = stock_repo.skus_in_snapshot(conn, snap) if snap else set()
         nodot = {}
         for sku in prods:
             nodot.setdefault(sku.replace(".", ""), []).append(sku)
@@ -87,10 +85,8 @@ async def upload_hero_sku(filename: str, content: bytes):
         if not saved:
             raise HTTPException(400, "Tidak ada SKU yang bisa dicocokkan dengan data produk.")
         if new_products:
-            conn.execute(text("INSERT INTO products (sku, name) VALUES (:s, :n) ON CONFLICT (sku) DO NOTHING"), new_products)
-        conn.execute(text("DELETE FROM hero_skus"))
-        conn.execute(text("""INSERT INTO hero_skus (sku, group_name, status, source_code, product_name)
-                             VALUES (:sku, :g, :st, :src, :n)"""), list(saved.values()))
+            product_repo.insert_missing(conn, new_products)
+        hero_repo.replace_list(conn, list(saved.values()))
     forecast_cache.clear()
     return {
         "status": "success", "skus_saved": len(saved), "bundles_split": bundles,
@@ -108,15 +104,8 @@ async def bestseller_scope():
     engine = get_engine()
     with engine.begin() as conn:
         ensure_hero_table(conn)
-        sales = conn.execute(text("""
-            SELECT s.sku, MIN(p.name), SUM(s.amount), SUM(s.quantity), MIN(s.invoice_date), MAX(s.invoice_date)
-            FROM sales s JOIN products p ON p.sku = s.sku
-            WHERE s.invoice_date IS NOT NULL AND COALESCE(p.product_type, 'import') = 'import'
-            GROUP BY s.sku ORDER BY SUM(s.amount) DESC, s.sku
-        """)).fetchall()
-        hero = {r[0]: {"group": r[1], "status": r[2], "name": r[3], "src": r[4]} for r in conn.execute(text(
-            "SELECT h.sku, h.group_name, h.status, COALESCE(p.name, h.product_name), h.source_code "
-            "FROM hero_skus h LEFT JOIN products p ON p.sku = h.sku")).fetchall()}
+        sales = sales_repo.import_revenue_ranking(conn)
+        hero = hero_repo.list_with_names(conn)
     try:
         fc = {r["sku"]: r for r in get_forecast_light(engine)}
     except Exception:
@@ -203,20 +192,7 @@ async def upload_master_sku(filename: str, content: bytes):
         # this instance's in-memory mapping (description -> SKU), used next to the products table
         master_sku.update({n.lower(): k for k, n in products_by_sku.items() if n})
 
-        conn = get_raw_conn()
-        cur = conn.cursor()
-        try:
-            execute_values(cur, """
-                INSERT INTO products (sku, name) VALUES %s
-                ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name
-            """, list(products_by_sku.items()), page_size=1000)
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            cur.close()
-            conn.close()
+        product_repo.upsert_names(list(products_by_sku.items()))
 
         return {
             "status": "success",
@@ -253,20 +229,16 @@ async def upload_food_sku(filename: str, content: bytes):
     engine = get_engine()
     with engine.begin() as conn:
         ensure_food_tables(conn)
-        conn.execute(text("DELETE FROM food_skus"))
-        conn.execute(text("INSERT INTO food_skus (code, name) VALUES (:c, :n)"),
-                     [{"c": c, "n": n} for c, n in entries.items()])
+        product_repo.replace_food_list(conn, entries)
         codes, names = set(entries), {_norm_name(n) for n in entries.values() if n}
 
-        products = conn.execute(text("SELECT sku, name FROM products")).fetchall()
+        products = product_repo.all_names(conn)
         food = [sku for sku, name in products if is_food(sku, name, codes, names)]
         food_set = set(food)
         auto_matched = sorted({name for sku, name in products
                                if sku in food_set and str(sku).startswith("AUTO-")})
 
-        conn.execute(text("UPDATE products SET product_type = 'import' WHERE product_type IS DISTINCT FROM 'import'"))
-        if food:
-            conn.execute(text("UPDATE products SET product_type = 'food' WHERE sku = ANY(:k)"), {"k": food})
+        product_repo.set_product_types(conn, food)
 
         archived, restored = move_food_sales(conn, food)
 
@@ -287,21 +259,13 @@ async def product_history(sku: str, weeks: int = 52):
     """Product Analysis drill-down: weekly sales, stock snapshots and PO lines for one SKU."""
     engine = get_engine()
     with engine.connect() as conn:
-        name = conn.execute(text("SELECT name FROM products WHERE sku=:s"), {"s": sku}).scalar()
+        name = product_repo.name_of(conn, sku)
         if name is None:
             raise HTTPException(404, f"SKU {sku} not found")
         mx = sales_repo.last_sale_date(conn)
-        sales = conn.execute(text("""
-            SELECT DATE_TRUNC('week', invoice_date)::date w, SUM(quantity), SUM(amount)
-            FROM sales WHERE sku=:s AND invoice_date > :a GROUP BY w ORDER BY w
-        """), {"s": sku, "a": (mx - timedelta(weeks=weeks)) if mx else date(1900, 1, 1)}).fetchall()
-        snaps = conn.execute(text("""
-            SELECT snapshot_date, SUM(quantity) FROM stock_snapshots WHERE sku=:s GROUP BY snapshot_date ORDER BY snapshot_date
-        """), {"s": sku}).fetchall()
-        pos = conn.execute(text("""
-            SELECT id, qty_ordered, COALESCE(qty_received,0), status, order_date, expected_date, received_date, supplier
-            FROM purchase_orders WHERE sku=:s ORDER BY COALESCE(order_date, created_at::date) DESC, id DESC
-        """), {"s": sku}).fetchall()
+        sales = sales_repo.weekly_for_sku(conn, sku, (mx - timedelta(weeks=weeks)) if mx else date(1900, 1, 1))
+        snaps = stock_repo.history_for_sku(conn, sku)
+        pos = po_repo.lines_for_sku(conn, sku)
     return {"sku": sku, "product_name": name,
             "weekly_sales": [{"week": str(w), "qty": int(q or 0), "revenue": float(a or 0)} for w, q, a in sales],
             "stock_snapshots": [{"date": str(d), "qty": int(q)} for d, q in snaps],

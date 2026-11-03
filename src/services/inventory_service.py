@@ -2,7 +2,6 @@
 
 from datetime import date, timedelta
 
-from sqlalchemy import text
 
 from src.core.config import get_settings
 from src.core.database import get_engine
@@ -175,15 +174,11 @@ async def best_sellers_at_risk(product_type: str = "all", limit: int = 50):
     snap_prev, prev_stk = None, {}
     if snap_now and inv["snapshot_count"] >= 2:
         with engine.connect() as conn:
-            dates = [r[0] for r in conn.execute(text(
-                "SELECT DISTINCT snapshot_date FROM stock_snapshots WHERE snapshot_date < :d ORDER BY snapshot_date DESC"),
-                {"d": snap_now}).fetchall()]
+            dates = stock_repo.snapshot_dates_before(conn, snap_now)
             older = [d for d in dates if (snap_now - d).days >= 49]
             snap_prev = older[0] if older else (dates[-1] if dates else None)
             if snap_prev:
-                prev_stk = {r[0]: int(r[1]) for r in conn.execute(text(
-                    "SELECT sku, SUM(quantity) FROM stock_snapshots WHERE snapshot_date = :d GROUP BY sku"),
-                    {"d": snap_prev}).fetchall()}
+                prev_stk = stock_repo.stock_by_sku(conn, snap_prev)
     results = []
     for r in res:
         ps = prev_stk.get(r["sku"]) if snap_prev else None
@@ -269,10 +264,7 @@ def _stockout_rate(engine, min_snapshots=4, weeks=12):
         mx = stock_repo.latest_snapshot_date(conn)
         if not mx:
             return {"available": False, "reason": "no_snapshots", "snapshots": 0, "required": min_snapshots}
-        rows = conn.execute(text("""
-            SELECT snapshot_date, sku, SUM(quantity) FROM stock_snapshots
-            WHERE snapshot_date > :a GROUP BY snapshot_date, sku
-        """), {"a": mx - timedelta(weeks=weeks)}).fetchall()
+        rows = stock_repo.stock_rows_after(conn, mx - timedelta(weeks=weeks))
     dates = {r[0] for r in rows}
     if len(dates) < min_snapshots:
         return {"available": False, "reason": "needs_weekly_stock_snapshots", "snapshots": len(dates),

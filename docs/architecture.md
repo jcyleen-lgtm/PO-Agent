@@ -66,9 +66,9 @@ app.py                      57   entry: FastAPI app, middleware, page route, rou
 auth.py                         login, cookie, /api/* middleware (unchanged)
 config.py                       planning parameters, env SW_* (unchanged)
 replenishment.py                pure purchasing rules (unchanged)
-metrics.py                      cost, movement, freshness, turnover (unchanged)
-forecast.py                     Holt's DES, grid search, holdout, Pareto ∪ Hero, save (legacy calculate_replenishment removed)
-etl.py                          Accurate sales cleaning, name -> SKU lookup (unchanged)
+metrics.py                      cost, movement, freshness, turnover (queries via costs/inventory repositories)
+forecast.py                     Holt's DES, grid search, holdout, Pareto ∪ Hero (queries via forecast/hero repositories)
+etl.py                          Accurate sales cleaning, name -> SKU lookup (lookup query via products repository)
 src/
   core/config.py            20   .env, DB_URL, UPLOAD_DIR, MASTER_SKU_PATH, re-export of config.settings
   core/database.py          49   get_engine (one engine per process, pool_pre_ping), get_raw_conn
@@ -77,23 +77,32 @@ src/
   core/logging.py           16   get_logger
   parsers/po_master.py     116   PO column mapping, master-list detection and parsing
   parsers/sku_lists.py      58   SKU-name sheet reader, Hero header detection, food-name rules
-  repositories/forecast.py  89   load saved forecast, light rows, max calculated_at
-  repositories/inventory.py 19   stock snapshot dates and stock per SKU
-  repositories/sales.py     42   sales layout, last sale, recent weeks, sold SKUs, weekly sales
-  repositories/products.py  44   product-type filter, food rules, food-sales archive/restore
-  repositories/purchase_orders.py 85  open PO lines, master-list upsert
-  services/inventory_service.py       build_inventory + inventory, summary, risk, stockout rate
-  services/purchasing_service.py 140  replenishment list/detail, demand plan, planning settings
+  repositories/forecast.py      144  saved forecast (full/light), plan rows, weekly import sales, replace_all
+  repositories/inventory.py      92  snapshot dates/stats, stock per SKU, stock history, replace_snapshot
+  repositories/sales.py         163  sales layout, recent weeks, weekly sales, revenue ranking, import_sales (ETL transaction)
+  repositories/sales_reports.py 110  Overview/weekly-analysis aggregates: KPIs, trend buckets, top products, lifetime
+  repositories/products.py      113  type filter, names, upsert, food list + routing, lookup rows for etl.py
+  repositories/purchase_orders.py 200 open lines, master-list upsert, list/summary, update_line, receive_all, delete
+  repositories/hero.py           24  Hero list replace/read, Hero SKUs for the forecast scope
+  repositories/costs.py          41  COGS/qty per SKU, master HPP, COGS between dates (for metrics.py)
+  services/inventory_service.py  277  build_inventory + inventory, summary, risk, stockout rate
+  services/purchasing_service.py 124  replenishment list/detail, demand plan, planning settings
   services/forecast_service.py   195  run + save, cached full/light forecast, headline numbers, forecast endpoints
-  services/product_service.py    311  Hero list, best-seller scope, Master SKU, Food list, product history
-  services/sales_service.py      290  sales ETL upload/confirm, stock snapshot upload
-  services/purchase_order_service.py 377  PO upload, list, summary, edit, delete, receive-all
-  services/overview_service.py   267  db stats, overview, weekly analysis
+  services/product_service.py    275  Hero list, best-seller scope, Master SKU, Food list, product history
+  services/sales_service.py      186  sales ETL upload/confirm, stock snapshot upload
+  services/purchase_order_service.py 325  PO upload, list, summary, edit (validation), delete, receive-all
+  services/overview_service.py   219  db stats, overview, weekly analysis
   routers/*.py              22–37 one file per area, HTTP only
 ```
 
 Dependency rules in force: routers → services; services → repositories, parsers, core, top-level rule modules;
 repositories → core; parsers → nothing internal. No circular imports (checked by importing every module).
+The root rule modules reach the database only through repositories, imported lazily inside the function that
+needs them, so their pure functions (and the unit tests) still import without a database.
+SQL placement: all queries in `src/repositories/`; `src/core/ddl.py` keeps the runtime `CREATE/ALTER … IF NOT
+EXISTS` fallbacks as infrastructure (to be replaced by `migrations/` in R8). `tests/unit/test_layering.py`
+fails if `text()`, `execute()`, `read_sql`, `execute_values`, `copy_from` or `create_engine` appear in routers,
+services, parsers, `app.py` or the rule modules, or if a router imports a repository.
 Services receive `(filename, content)` for uploads instead of `UploadFile`; they still raise `HTTPException`
 for user errors (kept to preserve messages and status codes).
 

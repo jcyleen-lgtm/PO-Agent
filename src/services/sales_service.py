@@ -1,20 +1,17 @@
 """Data imports: Accurate sales ETL (preview + confirm) and stock snapshot upload."""
 
 from datetime import date, datetime
-import csv
-import io
 import os
 import uuid
 
 from fastapi import HTTPException
-from psycopg2.extras import execute_values
-from sqlalchemy import text
 import pandas as pd
 
 from etl import clean_sales_data, load_product_lookup_from_db
 from src.core.config import UPLOAD_DIR
 from src.core.logging import get_logger
-from src.core.database import get_engine, get_raw_conn
+from src.core.database import get_engine
+from src.repositories import inventory as stock_repo, sales as sales_repo, sales_reports as reports
 from src.core.ddl import ensure_sales_excluded
 from src.core.state import forecast_cache, master_sku, processed_cache
 from src.parsers.sku_lists import is_food
@@ -108,100 +105,20 @@ async def etl_confirm(file_id: str):
         sales = sales[keep_cols]
         products = df[["SKU", "product_name"]].drop_duplicates(subset=["SKU"])
         products = products.groupby("SKU").first().reset_index()
-        conn = get_raw_conn()
-        conn.autocommit = False
-        cur = conn.cursor()
-        try:
-            food_tagged = 0
-            prod_rows = []
-            for sku_, pname in zip(products["SKU"], products["product_name"]):
-                ptype = None
-                if has_food_rules:
-                    ptype = "food" if is_food(sku_, pname, food_codes, food_names) else "import"
-                    food_tagged += ptype == "food"
-                prod_rows.append((str(sku_), pname, ptype))
-            # One statement for all products (was one network round trip per product)
-            execute_values(cur, """
-                INSERT INTO products (sku, name, product_type) VALUES %s
-                ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name,
-                    product_type = COALESCE(EXCLUDED.product_type, products.product_type),
-                    updated_at = NOW()
-            """, prod_rows, page_size=1000)
-            # ── Append mode: load into temp table, then INSERT ... ON CONFLICT DO NOTHING ──
-            cur.execute("""
-                CREATE TEMP TABLE _sales_stage (LIKE sales INCLUDING DEFAULTS)
-                ON COMMIT DROP
-            """)
-            buffer = io.StringIO()
-            writer = csv.writer(buffer, delimiter='\t', quoting=csv.QUOTE_MINIMAL)
-            for _, row in sales.iterrows():
-                writer.writerow([
-                    str(row["sku"]),
-                    str(row["invoice_date"]) if pd.notna(row["invoice_date"]) else r'\N',
-                    int(row["quantity"]) if pd.notna(row["quantity"]) else r'\N',
-                    str(row["unit"]) if pd.notna(row["unit"]) else r'\N',
-                    float(row["amount"]) if pd.notna(row["amount"]) else r'\N',
-                    float(row["cogs_accurate"]) if pd.notna(row["cogs_accurate"]) else r'\N',
-                    float(row["gpao_accurate"]) if pd.notna(row["gpao_accurate"]) else r'\N',
-                    float(row["gpao_pct_acc"]) if pd.notna(row["gpao_pct_acc"]) else r'\N',
-                    str(row["week_label"]) if pd.notna(row["week_label"]) else r'\N',
-                    str(row["month_label"]) if pd.notna(row["month_label"]) else r'\N',
-                    str(row["quarter_label"]) if pd.notna(row["quarter_label"]) else r'\N',
-                    int(row["year_val"]) if pd.notna(row["year_val"]) else r'\N',
-                ])
-            buffer.seek(0)
-            cur.copy_from(buffer, '_sales_stage', sep='\t', null=r'\N',
-                          columns=('sku','invoice_date','quantity','unit','amount',
-                                   'cogs_accurate','gpao_accurate','gpao_pct_acc',
-                                   'week_label','month_label','quarter_label','year_val'))
-            # Food products never enter the sales table: their rows go to the archive (reason 'food').
-            food_list = [p_[0] for p_ in prod_rows if p_[2] == "food"]
-            food_rows = 0
-            if food_list:
-                cur.execute("""
-                    INSERT INTO sales_excluded (sku, invoice_date, quantity, unit, amount, cogs_accurate,
-                        gpao_accurate, gpao_pct_acc, week_label, month_label, quarter_label, year_val, reason)
-                    SELECT sku, invoice_date, quantity, unit, amount, cogs_accurate, gpao_accurate, gpao_pct_acc,
-                           week_label, month_label, quarter_label, year_val, 'food'
-                    FROM _sales_stage WHERE sku = ANY(%s)
-                """, (food_list,))
-                food_rows = cur.rowcount
-                cur.execute("DELETE FROM _sales_stage WHERE sku = ANY(%s)", (food_list,))
-            # Deduplicate: skip rows that already exist (same sku + date + qty + amount)
-            cur.execute("""
-                INSERT INTO sales (sku, invoice_date, quantity, unit, amount,
-                                   cogs_accurate, gpao_accurate, gpao_pct_acc,
-                                   week_label, month_label, quarter_label, year_val)
-                SELECT s.sku, s.invoice_date, s.quantity, s.unit, s.amount,
-                       s.cogs_accurate, s.gpao_accurate, s.gpao_pct_acc,
-                       s.week_label, s.month_label, s.quarter_label, s.year_val
-                FROM _sales_stage s
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM sales e
-                    WHERE e.sku = s.sku
-                      AND e.invoice_date = s.invoice_date
-                      AND e.quantity = s.quantity
-                      AND e.amount = s.amount
-                )
-            """)
-            inserted = cur.rowcount
-            skipped = len(sales) - inserted - food_rows
-            conn.commit()
-            total = inserted
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            cur.close()
-            conn.close()
+        food_tagged = 0
+        prod_rows = []
+        for sku_, pname in zip(products["SKU"], products["product_name"]):
+            ptype = None
+            if has_food_rules:
+                ptype = "food" if is_food(sku_, pname, food_codes, food_names) else "import"
+                food_tagged += ptype == "food"
+            prod_rows.append((str(sku_), pname, ptype))
+        inserted, food_rows = sales_repo.import_sales(prod_rows, sales)
+        skipped = len(sales) - inserted - food_rows
+        total = inserted
         engine = get_engine()
         with engine.connect() as c:
-            r = c.execute(text("""
-                SELECT (SELECT COUNT(*) FROM products),(SELECT COUNT(*) FROM sales),
-                       (SELECT MIN(invoice_date) FROM sales),(SELECT MAX(invoice_date) FROM sales),
-                       (SELECT COUNT(DISTINCT sku) FROM sales)
-            """))
-            row = r.fetchone()
+            row = reports.db_counts(c)
         if os.path.exists(cached["filepath"]):
             os.remove(cached["filepath"])
         del processed_cache[file_id]
@@ -256,33 +173,12 @@ async def stock_upload(filename: str, content: bytes, report_date: str = None):
         df = df.rename(columns={0:"sku", 1:"product", 2:"quantity"})
         df["quantity"] = df["quantity"].astype(int)
         today = snap_day
-        conn = get_raw_conn()
-        cur = conn.cursor()
-        conn.autocommit = False
-        try:
-            # Auto-insert missing SKUs into products table so stock upload
-            # doesn't fail on FK constraint. Product name taken from stock file.
-            stock_skus = sorted(set(df["sku"].astype(str).str.strip()))
-            cur.execute("SELECT sku FROM products WHERE sku = ANY(%s)", (stock_skus,))
-            existing_skus = {r[0] for r in cur.fetchall()}
-            missing_skus = [sku for sku in stock_skus if sku not in existing_skus]
-            if missing_skus:
-                # Build SKU -> product name mapping from the stock file
-                sku_name_map = df.drop_duplicates(subset=["sku"]).set_index("sku")["product"].to_dict()
-                execute_values(cur, "INSERT INTO products (sku, name) VALUES %s ON CONFLICT DO NOTHING",
-                               [(m, sku_name_map.get(m, m)) for m in missing_skus], page_size=1000)
-
-            cur.execute("DELETE FROM stock_snapshots WHERE snapshot_date = %s", (today,))
-            execute_values(cur, "INSERT INTO stock_snapshots (sku, quantity, snapshot_date) VALUES %s ON CONFLICT DO NOTHING",
-                           [(str(s_), int(q_), today) for s_, q_ in zip(df["sku"], df["quantity"])], page_size=1000)
-            conn.commit()
-            saved = len(df)
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            cur.close()
-            conn.close()
+        stock_skus = sorted(set(df["sku"].astype(str).str.strip()))
+        stock_repo.replace_snapshot(
+            today, stock_skus,
+            lambda: df.drop_duplicates(subset=["sku"]).set_index("sku")["product"].to_dict(),
+            [(str(s_), int(q_), today) for s_, q_ in zip(df["sku"], df["quantity"])])
+        saved = len(df)
         os.remove(tmp)
         return {"status":"success","message":f"{saved} SKU stock saved for {today}","date":str(today),"total_skus":saved}
     except Exception as e:

@@ -4,7 +4,6 @@ Calculated once here and reused by every endpoint.
 """
 
 from datetime import date
-from sqlalchemy import text
 
 
 def unit_costs(conn, cfg, skus=None):
@@ -14,28 +13,15 @@ def unit_costs(conn, cfg, skus=None):
        (its ratio to amount is the same for qty 1 and qty > 5), so the ratio of sums is the weighted
        average unit cost. Verified only when finance has confirmed it (SW_COST_VERIFIED=true).
     SKUs with neither get no entry -> shown as 'No cost', never as 0."""
+    from src.repositories import costs as cost_repo
     out = {}
-    params = {"w": cfg["cost_window_weeks"]}
-    sku_filter = ""
-    if skus is not None:
-        sku_filter = "AND sku = ANY(:k)"
-        params["k"] = list(skus)
-    rows = conn.execute(text(f"""
-        WITH mx AS (SELECT MAX(invoice_date) d FROM sales)
-        SELECT sku, SUM(cogs_accurate), SUM(quantity)
-        FROM sales, mx
-        WHERE invoice_date > mx.d - (:w * 7) AND cogs_accurate IS NOT NULL AND cogs_accurate > 0
-          AND quantity > 0 {sku_filter}
-        GROUP BY sku
-    """), params).fetchall()
+    rows = cost_repo.cogs_and_qty_by_sku(conn, cfg["cost_window_weeks"], skus)
     for sku, c, q in rows:
         if q and c:
             out[sku] = {"cost": round(float(c) / float(q), 2), "source": "cogs_accurate",
                         "verified": bool(cfg["cost_verified"])}
     try:
-        for sku, hpp in conn.execute(text(
-                f"SELECT sku, hpp FROM master_cogs WHERE hpp IS NOT NULL AND hpp > 0 {sku_filter}"),
-                params).fetchall():
+        for sku, hpp in cost_repo.master_hpp(conn, cfg["cost_window_weeks"], skus):
             out[sku] = {"cost": float(hpp), "source": "master_cogs", "verified": True}
     except Exception:
         conn.rollback()   # master_cogs may not exist on older databases
@@ -74,8 +60,8 @@ def inventory_turnover(conn, costs, product_skus=None):
     """Annualised turnover = (COGS in period x 52 / weeks) / average inventory value.
     Needs >= 2 stock snapshots; the period runs from the first to the last snapshot.
     Inventory value at each snapshot uses the same unit cost basis as Inventory Value."""
-    counts = conn.execute(text(
-        "SELECT snapshot_date, COUNT(DISTINCT sku) FROM stock_snapshots GROUP BY snapshot_date ORDER BY snapshot_date")).fetchall()
+    from src.repositories import costs as cost_repo, inventory as stock_repo
+    counts = stock_repo.sku_count_per_snapshot(conn)
     # a partial upload (far fewer SKUs than the fullest snapshot) would distort the average -> skipped
     full = max((n for _, n in counts), default=0)
     dates = [d for d, n in counts if n >= 0.5 * full]
@@ -90,9 +76,7 @@ def inventory_turnover(conn, costs, product_skus=None):
     values = []
     for d in dates:
         v = 0.0
-        for sku, q in conn.execute(text(
-                "SELECT sku, SUM(quantity) FROM stock_snapshots WHERE snapshot_date = :d GROUP BY sku"),
-                {"d": d}).fetchall():
+        for sku, q in stock_repo.stock_by_sku(conn, d).items():
             if product_skus is not None and sku not in product_skus:
                 continue
             c = costs.get(sku)
@@ -100,12 +84,8 @@ def inventory_turnover(conn, costs, product_skus=None):
                 v += float(q) * c["cost"]
         values.append(v)
     avg_val = sum(values) / len(values)
-    params = {"a": d0, "b": d1}
     cogs = 0.0
-    for sku, c in conn.execute(text("""
-            SELECT sku, SUM(cogs_accurate) FROM sales
-            WHERE invoice_date > :a AND invoice_date <= :b AND cogs_accurate IS NOT NULL GROUP BY sku"""),
-            params).fetchall():
+    for sku, c in cost_repo.cogs_between(conn, d0, d1):
         if product_skus is None or sku in product_skus:
             cogs += float(c or 0)
     if avg_val <= 0:
