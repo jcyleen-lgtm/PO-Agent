@@ -1,6 +1,6 @@
 # Stockwise — Architecture
 
-Version 1.0 · 2026-11-03. Section 2 describes the system **as it is** (`e6e1e5c`). Section 3 onward describes the **target** reached through `docs/refactoring-plan.md`. Nothing in the target exists yet unless marked *[Current]*.
+Version 1.1 · 2026-11-03. Section 2 describes the system before Phase 3 (`e6e1e5c`). **Section 4 describes the backend as implemented in Phase 3** (branch `phase3-backend-refactor`). The frontend split (§9) is still a target.
 
 ---
 
@@ -55,54 +55,47 @@ routers → services → domain
 parsers ← services
 ```
 
-## 4. Target module map
+## 4. Module map — implemented in Phase 3
+
+The Phase 3 brief fixed the folder names (`src/core`, `repositories`, `services`, `routers`) and kept the
+pure business modules at the top level. This replaces the Phase 2 proposal (`infra/`, `domain/`): same
+layering, different names, and no move of the rule modules (moving them would only change import paths).
 
 ```
-app.py                      # entry: create app, middleware, include routers (~80 lines)
-infra/
-  db.py                     # get_engine, get_raw_conn (moved verbatim)
-  cache.py                  # forecast_cache + inventory memo (versioned key)
-  settings.py               # config.settings (re-export of config.py)
-  auth.py                   # current auth.py
-  ddl.py                    # ensure_* guarded runtime DDL (kept as fallback)
-domain/
-  replenishment.py          # current file, unchanged
-  metrics.py                # pure parts (movement, freshness, turnover maths)
-  holt.py                   # holts_des, grid_search_holts, holdout_wmape
-  scope.py                  # Pareto ranking + Hero union (pure)
-  actions.py                # [Phase 4] bucket, priority, reason
-parsers/
-  accurate_sales.py         # current etl.py
-  stock_report.py
-  po_master.py              # _is_po_master, _parse_po_master, map_po_columns
-  sku_lists.py              # read_sku_name_sheet, _hero_columns, food list
-repositories/
-  sales_repo.py  stock_repo.py  po_repo.py  product_repo.py
-  forecast_repo.py  hero_repo.py  food_repo.py
-services/
-  inventory_service.py      # build_inventory
-  forecast_service.py       # run_forecast, load, light, summary
-  scope_service.py          # bestseller_scope
-  etl_service.py            # sales upload/confirm, stock upload
-  sku_list_service.py       # master, food (move/restore sales), hero
-  po_service.py             # import, list, summary, update, receive-all
-  overview_service.py       # overview, weekly analysis, product history
-routers/
-  auth.py  uploads.py  inventory.py  forecast.py  po.py  overview.py  scope.py
-schemas/
-  po.py  auth.py
-static/
-  css/tokens.css  css/base.css  css/components.css  css/pages.css
-  js/api.js  js/state.js  js/format.js  js/ui/*.js  js/charts/*.js  js/pages/*.js
-templates/
-  dashboard.html            # shell: markup + <link>/<script type="module">
-tests/
-  unit/  integration/  e2e/
-migrations/
-  0001_baseline.sql …
+app.py                      57   entry: FastAPI app, middleware, page route, router registration, compat re-exports
+auth.py                         login, cookie, /api/* middleware (unchanged)
+config.py                       planning parameters, env SW_* (unchanged)
+replenishment.py                pure purchasing rules (unchanged)
+metrics.py                      cost, movement, freshness, turnover (unchanged)
+forecast.py                     Holt's DES, grid search, holdout, Pareto ∪ Hero, save (unchanged)
+etl.py                          Accurate sales cleaning, name -> SKU lookup (unchanged)
+src/
+  core/config.py            20   .env, DB_URL, UPLOAD_DIR, MASTER_SKU_PATH, re-export of config.settings
+  core/database.py          49   get_engine (one engine per process, pool_pre_ping), get_raw_conn
+  core/state.py             31   per-process caches: forecast_cache, processed_cache, master_sku; reset_runtime_state()
+  core/ddl.py               68   runtime CREATE/ALTER fallbacks (hero, food, sales_excluded, PO columns)
+  core/logging.py           16   get_logger
+  parsers/po_master.py     116   PO column mapping, master-list detection and parsing
+  parsers/sku_lists.py      58   SKU-name sheet reader, Hero header detection, food-name rules
+  repositories/forecast.py  89   load saved forecast, light rows, max calculated_at
+  repositories/inventory.py 19   stock snapshot dates and stock per SKU
+  repositories/sales.py     42   sales layout, last sale, recent weeks, sold SKUs, weekly sales
+  repositories/products.py  44   product-type filter, food rules, food-sales archive/restore
+  repositories/purchase_orders.py 85  open PO lines, master-list upsert
+  services/inventory_service.py  357  build_inventory + inventory, summary, risk, legacy coverage, stockout rate
+  services/purchasing_service.py 140  replenishment list/detail, demand plan, planning settings
+  services/forecast_service.py   195  run + save, cached full/light forecast, headline numbers, forecast endpoints
+  services/product_service.py    311  Hero list, best-seller scope, Master SKU, Food list, product history
+  services/sales_service.py      290  sales ETL upload/confirm, stock snapshot upload
+  services/purchase_order_service.py 377  PO upload, list, summary, edit, delete, receive-all
+  services/overview_service.py   267  db stats, overview, weekly analysis
+  routers/*.py              22–37 one file per area, HTTP only
 ```
 
-Target size: 150–400 lines per file; cohesion beats line count.
+Dependency rules in force: routers → services; services → repositories, parsers, core, top-level rule modules;
+repositories → core; parsers → nothing internal. No circular imports (checked by importing every module).
+Services receive `(filename, content)` for uploads instead of `UploadFile`; they still raise `HTTPException`
+for user errors (kept to preserve messages and status codes).
 
 ## 5. API architecture
 
@@ -139,7 +132,7 @@ Page request → inventory_service.build(scope, type)
 
 ## 7. Database access patterns
 
-- *[Current]* `get_engine()` calls `create_engine()` on **every call**, so each request builds a new engine and connection pool (extra connection setup to the pooler). Target: one cached engine per process with `pool_pre_ping=True` and a small pool suited to the Supabase transaction pooler; behaviour otherwise unchanged.
+- *[Done in Phase 3]* `get_engine()` used to call `create_engine()` on every call (new pool per request). It now builds one engine per process with `pool_pre_ping=True`.
 - psycopg2 raw connection with `execute_values` for bulk writes.
 - Repositories own SQL. Only whitelisted literals may be interpolated (product type); everything else is bound.
 - Bulk loads: staging temp table + `INSERT … WHERE NOT EXISTS` (sales), delete-by-date + insert (stock), `ON CONFLICT (line_key)` upsert (PO).
@@ -149,7 +142,7 @@ Page request → inventory_service.build(scope, type)
 
 | Cache | Today | Target |
 |---|---|---|
-| Forecast (full + light) | module dict per Vercel instance; cleared on run/upload | same, in `infra/cache.py` |
+| Forecast (full + light) | module dict per Vercel instance; cleared on run/upload | done: `src/core/state.py` |
 | Inventory build | none (recomputed per request) | memo keyed by (type, scope, max snapshot date, max sale date, PO max updated_at, forecast calculated_at); TTL 5 min |
 
 Caches are an optimisation only; a cold instance must give the same answer.
@@ -194,4 +187,4 @@ The 31 broad `except Exception` blocks in `app.py` are reviewed one by one durin
 | Contract / golden | pytest | local | JSON of key endpoints on a fixed seed compared before vs after each refactor step |
 | E2E | Playwright | local | page load, filters, edits, exports, 390 px, light/dark, no console errors |
 
-The integration and e2e suites currently live only in a scratch environment; moving them into `tests/` is the first refactor step.
+Implemented in Phase 3: `tests/unit` (22), `tests/integration` (7, need `TEST_DATABASE_URL`), `tests/regression` (API contract + old-vs-new run of 248 requests against `e6e1e5c`). E2E Playwright scripts are still outside the repo.

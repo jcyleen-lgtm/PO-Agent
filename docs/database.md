@@ -139,7 +139,7 @@ Consequence: a new environment built from `schema.sql` would not run the current
 
 ## 5. Migration requirements
 
-Phase 3 introduces `migrations/` with plain, numbered SQL files and a `schema_migrations` table. Files are applied in order (Supabase SQL editor or a small `scripts/migrate.py`), each one idempotent where possible.
+Step R8 (after Phase 3, needs approval; Phase 3 changes no schema) introduces `migrations/` with plain, numbered SQL files and a `schema_migrations` table. Files are applied in order (Supabase SQL editor or a small `scripts/migrate.py`), each one idempotent where possible.
 
 | File | Content | Changes prod? | Needs approval |
 |---|---|---|---|

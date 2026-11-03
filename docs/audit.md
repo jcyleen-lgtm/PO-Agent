@@ -111,6 +111,14 @@ Known, intentional differences that must stay documented:
 | T9 | No integration tests in the repo (DB tests and e2e live only in a scratch environment) | Regressions only caught manually | Add `tests/integration` (Postgres in CI or local) and `tests/e2e` (Playwright) to the repo |
 | T10 | `README.md` describes a removed workflow | Onboarding wrong | Rewrite with the real run/deploy steps |
 
+Found during Phase 3 (behaviour preserved, fixes need approval — see `docs/api-inventory.md`):
+
+| # | Issue | Impact |
+|---|---|---|
+| B1 | `/api/replenishment?product_type=food` returns 500 when the type has no sales (true in production since food sales are archived) | Not reachable from the dashboard today |
+| B2 | `/api/coverage` order of tied rows not deterministic | Legacy endpoint only |
+| B3 | `ensure_sales_excluded` DDL differs from the production table (PK / sequence) | Only matters on a fresh database |
+
 ### Security
 
 | # | Finding | Severity | Fix |

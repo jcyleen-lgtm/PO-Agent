@@ -1,93 +1,59 @@
-# PO Agent — Database Setup
+# Stockwise
 
-## Prerequisites
+Inventory & purchasing decision system for PT X's import best sellers: Holt's DES forecast,
+coverage status (≤ 8 / 8–20 / > 20 weeks), order-by date and recommended order quantity, PO tracking.
+FastAPI + Supabase Postgres, deployed on Vercel (`app.py` is the entry point).
 
-- Python 3.10+
-- Supabase account (free tier: https://supabase.com)
+Documentation: `docs/spec.md` (rules and KPIs), `docs/architecture.md`, `docs/database.md`,
+`docs/api-inventory.md`, `docs/refactoring-plan.md`, `docs/audit.md`.
 
-## Quick Start
+## Layout
 
-### 1. Create Supabase Project
-
-1. Go to https://supabase.com → New Project
-2. Note your database password
-3. Go to **Settings → Database → Connection string → URI**
-4. Copy the URI (starts with `postgresql://`)
-
-### 2. Install Dependencies
-
-```bash
-pip install pandas openpyxl psycopg2-binary sqlalchemy
+```
+app.py              FastAPI app: middleware, page route, routers
+auth.py             login + /api/* protection
+config.py           planning parameters (env SW_* overrides)
+replenishment.py    purchasing rules (pure)      metrics.py   cost / turnover / freshness
+forecast.py         Holt's DES + Pareto ∪ Hero    etl.py       Accurate sales cleaning
+src/core            config, database engine, runtime caches, runtime DDL, logging
+src/parsers         Excel readers (PO master list, SKU lists)
+src/repositories    shared SQL
+src/services        use cases (inventory, purchasing, forecast, products, imports, PO, overview)
+src/routers         HTTP endpoints
+templates/          dashboard.html (single-page UI)
+tests/              unit, integration, regression
 ```
 
-### 3. Set Environment Variable
+## Run locally
 
-```bash
-export SUPABASE_DB_URL="postgresql://postgres.[project]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres"
+```
+pip install -r requirements.txt
+```
+Create `.env` (never commit it):
+```
+SUPABASE_DB_URL=postgresql://...
+APP_USERNAME=...
+APP_PASSWORD_HASH=...      # python make_password_hash.py
+SESSION_SECRET=...         # 40+ random characters
+```
+```
+uvicorn app:app --reload
 ```
 
-### 4. Place Data Files
+## Tests
 
-Put these in the same directory as `migrate.py`:
-- `SALES_2025-2026.xlsx` — cleaned sales data
-- `MARGIN_IMPOR.xlsx` — margin calculator with Master COGS
-
-### 5. Run Migration
-
-```bash
-python migrate.py
+Unit tests need nothing:
 ```
-
-This will:
-1. Create all tables (idempotent — safe to re-run)
-2. Ingest 87k+ sales transactions
-3. Ingest Master COGS (HPP + ongkir)
-4. Ingest selling prices (Shopee + TikTok)
-5. Auto-calculate all margins (GPBO + GPAO)
-6. Print validation summary
-
-## Schema Overview
-
-| Table | Purpose | Rows (est.) |
-|-------|---------|-------------|
-| `products` | Master SKU list | ~1,100 |
-| `sales` | Transaction-level sales | 87,000+ |
-| `stock_snapshots` | Inventory snapshots | TBD |
-| `purchase_orders` | PO tracking | TBD |
-| `master_cogs` | HPP + ongkir per SKU | ~960 |
-| `marketplace_fees` | Fee config per platform | 4 |
-| `selling_prices` | Harga jual per SKU per marketplace | ~1,900 |
-| `margin_results` | Calculated GPBO/GPAO | ~1,900 |
-| `abc_results` | ABC dual-criteria results | TBD |
-| `forecast_results` | Holt's DES forecasts | TBD |
-| `restock_recommendations` | PO recommendations | TBD |
-
-## Margin Calculator
-
-Margins are calculated via PostgreSQL functions:
-
-```sql
--- Recalculate one SKU on one marketplace
-SELECT calc_margin('299.028.001', 'shopee');
-
--- Recalculate all SKUs on Shopee
-SELECT calc_margin_all('shopee');
-
--- Recalculate everything
-SELECT calc_margin_global();
+python -m pytest tests/unit -q
 ```
-
-### Update Flow
-
-When HPP changes (new shipment arrives):
-1. Update `master_cogs` table (via upload or direct edit)
-2. Run `SELECT calc_margin_global();`
-3. All GPBO/GPAO recalculated automatically
-
-### Fee Rate Changes
-
-If Shopee changes admin fee from 21% to 22%:
-```sql
-UPDATE marketplace_fees SET admin_fee_pct = 0.2200 WHERE marketplace = 'shopee';
-SELECT calc_margin_all('shopee');
+Integration and regression tests need an **empty local** PostgreSQL database (they reset it; Supabase URLs are refused):
 ```
+createdb stockwise_test
+TEST_DATABASE_URL=postgresql://postgres@localhost:5432/stockwise_test python -m pytest -q
+```
+`tests/regression/test_old_vs_new.py` runs the same 248 requests on the reference commit
+(`REGRESSION_BASE_REF`, default `e6e1e5c`) and on the working tree and requires identical responses.
+
+## Deploy
+
+Push to `main`; Vercel builds `app.py` (region `sin1`). Environment variables are set in the Vercel project.
