@@ -46,11 +46,11 @@
 
 <!-- SIDEBAR -->
 <nav class="sidebar glass" aria-label="Main">
-  <button class="nav-item active" data-tab="overview" onclick="switchTab('overview')" aria-label="Inventory Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span class="tip">Inventory Overview<kbd>1</kbd></span></button>
-  <button class="nav-item" data-tab="replenishment" onclick="switchTab('replenishment')" aria-label="Replenishment Planning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="tip">Replenishment<kbd>2</kbd></span></button>
-  <button class="nav-item" data-tab="analysis" onclick="switchTab('analysis')" aria-label="Product Analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg><span class="tip">Product Analysis<kbd>3</kbd></span></button>
-  <button class="nav-item" data-tab="po" onclick="switchTab('po')" aria-label="PO and Supplier"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><span class="tip">PO &amp; Supplier<kbd>4</kbd></span></button>
-  <button class="nav-item" data-tab="upload" onclick="switchTab('upload')" aria-label="Upload Data"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span class="tip">Upload Data<kbd>5</kbd></span></button>
+  <button class="nav-item active" data-tab="overview" onclick="switchTab('overview')" aria-label="Inventory Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span class="nav-l">Overview</span><span class="tip">Overview<kbd>1</kbd></span></button>
+  <button class="nav-item" data-tab="replenishment" onclick="switchTab('replenishment')" aria-label="Replenishment Planning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="nav-l">Replenish</span><span class="tip">Replenishment<kbd>2</kbd></span></button>
+  <button class="nav-item" data-tab="analysis" onclick="switchTab('analysis')" aria-label="Product Analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg><span class="nav-l">Analysis</span><span class="tip">Product Analysis<kbd>3</kbd></span></button>
+  <button class="nav-item" data-tab="po" onclick="switchTab('po')" aria-label="PO Tracking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><span class="nav-l">PO</span><span class="tip">PO Tracking<kbd>4</kbd></span></button>
+  <button class="nav-item" data-tab="upload" onclick="switchTab('upload')" aria-label="Data"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span class="nav-l">Data</span><span class="tip">Data<kbd>5</kbd></span></button>
   <div class="sidebar-divider"></div>
   <button class="nav-item" onclick="toggleTheme()" aria-label="Toggle light or dark mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><span class="tip">Light / Dark</span></button>
   <button class="nav-item" onclick="openSettings()" aria-label="Account settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="tip">Account settings</span></button>
@@ -61,45 +61,75 @@
 <!-- ═══ TAB 1: OVERVIEW ═══ -->
 <div id="tab-overview" class="tab-content active">
   <div class="page-head">
-    <div><h1 id="greeting">Good morning</h1><div class="page-sub" id="periodInfo">Business overview</div></div>
-    <div class="head-right"><div class="date-filter-wrap">
+    <div><h1 id="greeting">Good morning</h1><div class="page-sub" id="ovContext">Checking data status…</div></div>
+    <div class="head-right"><button class="avatar" id="headAvatar" onclick="openSettings()" title="Account settings" aria-label="Account settings">?</button></div>
+  </div>
+  <div class="fresh-line" id="ovFresh" hidden></div>
+
+  <section class="card ov-health" aria-labelledby="ovHealthTitle">
+    <div class="ov-health-head"><h2 class="section-label" id="ovHealthTitle">Stock health</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks.&#10;Understocked: 8 weeks or less · Healthy: more than 8 up to 20 weeks · Overstocked: more than 20 weeks, or stock without sales in 4 weeks.&#10;Not classified: no sales in 4 weeks and no stock.&#10;Out of stock is a count inside these statuses, not a separate status.">i</span><span class="section-meta" id="ovHealthMeta"></span></div>
+    <div class="hbar" id="ovHealthBar" role="img" aria-label="Stock health distribution"></div>
+    <div class="ov-health-legend" id="ovHealthLegend"><span class="text-dim">Loading…</span></div>
+  </section>
+
+  <section class="card ac" aria-labelledby="acTitle">
+    <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="acTitle">Purchasing Action Center</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Every best-seller SKU is in exactly one group, from the order-by date and status the system already calculated:&#10;Order now: order-by date has passed.&#10;Order within 2 weeks: order-by date in the next 14 days.&#10;Hold: overstocked, or recommended 0 with a confirmed incoming PO.&#10;No action needed: everything else.&#10;&#10;Stockwise does not place orders: the purchase is done outside Stockwise; record it later with the PO list upload.">i</span></div><div class="section-meta" id="acMeta">Which SKUs need a purchasing decision</div></div><button class="link-btn" onclick="openReplBucket(acSel)">Open in Replenishment →</button></div>
+    <div class="ac-buckets" id="acBuckets" role="tablist" aria-label="Action groups"></div>
+    <div id="acList" role="tabpanel"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
+  </section>
+
+  <div class="ov-lines">
+    <section class="card ov-line" aria-label="Demand context"><div class="ov-line-l">Demand forecast</div><div class="ov-line-v" id="ovDemand"><span class="text-dim">Loading…</span></div><button class="link-btn" onclick="switchTab('analysis');setSub('forecast')">Demand plan →</button></section>
+    <section class="card ov-line" aria-label="Purchase orders"><div class="ov-line-l">Purchase orders</div><div class="ov-line-v" id="ovPo"><span class="text-dim">Loading…</span></div><button class="link-btn" onclick="switchTab('po')">PO Tracking →</button></section>
+  </div>
+</div>
+<!-- ═══ TAB 2: REPLENISHMENT PLANNING ═══ -->
+<div id="tab-replenishment" class="tab-content">
+  <div class="page-head">
+    <div><h1>Replenishment Planning<span class="info" id="rpSub" tabindex="0" role="button" aria-label="More info" data-tip="What to buy, by when, and how much. Follow the Order by date: it is the projected stockout date minus the supplier lead time, so the goods arrive before stock runs out. The system recommends; purchasing decides.">i</span></h1></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-ghost" onclick="exportReplenishment()" title="CSV of the rows shown with the current filters"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export list</button>
+    </div>
+  </div>
+  <div class="fresh-line fresh-banner" hidden></div>
+  <div class="card">
+    <div class="filter-bar" style="flex-wrap:wrap">
+      <div class="tabs-count" id="rpTabs" role="tablist" aria-label="Action groups"><button data-v="now" class="active">Order now <span class="cnt" data-c="now">0</span></button><button data-v="soon">Within 2 weeks <span class="cnt" data-c="soon">0</span></button><button data-v="hold">Hold <span class="cnt" data-c="hold">0</span></button><button data-v="none">No action needed <span class="cnt" data-c="none">0</span></button><button data-v="all">All <span class="cnt" data-c="all">0</span></button></div>
+      <input class="search-box" id="rpSearch" placeholder="Search SKU or product  ( / )" oninput="replPage=0;renderRepl()">
+      <div class="seg" id="rpStatus" role="group" aria-label="Status"><button data-v="" class="active">All status</button><button data-v="understocked">Understocked</button><button data-v="healthy">Healthy</button><button data-v="overstocked">Overstocked</button></div>
+      <span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Groups are the same as on the Overview (each SKU in exactly one):&#10;Order now: order-by date has passed.&#10;Within 2 weeks: order-by date in the next 14 days.&#10;Hold: overstocked, or recommended 0 with a confirmed incoming PO.&#10;No action needed: everything else.">i</span>
+    </div>
+    <div class="tbl-wrap" id="rpTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading...</div></div>
+    <div class="paging" id="rpPaging"></div>
+  </div>
+  <div class="sel-bar" id="rpSelBar">
+    <div><div class="sb-v" id="sbCount">0 SKUs</div><div class="sb-l">selected</div></div>
+    <div><div class="sb-v" id="sbUnits">0</div><div class="sb-l">units to order</div></div>
+    <div><div class="sb-v" id="sbCost">Rp 0</div><div class="sb-l" id="sbCostL">estimated cost</div></div>
+    <div class="sb-note">SKUs with a recommended quantity are pre-selected. Stockwise does not place orders: export the list and order outside Stockwise.</div><button class="btn btn-ghost" onclick="exportReplenishment(true)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export order list</button>
+  </div>
+</div>
+
+<!-- ═══ TAB 3: PRODUCT ANALYSIS ═══ -->
+<div id="tab-analysis" class="tab-content">
+  <div class="page-head">
+    <div><h1>Product Analysis<span class="info" id="anSub" tabindex="0" role="button" aria-label="More info" data-tip="Stock & Coverage: condition of every SKU today (coverage, days of inventory, value, movement). Demand Plan: Holt's DES forecast per month and how accurate it was. Click a row or a number for detail.">i</span></h1></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-brand" onclick="exportInventory()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
+    </div>
+  </div>
+  <div class="fresh-line fresh-banner" hidden></div>
+  <div class="seg sub-seg" id="anSeg" role="group" aria-label="View"><button data-v="stock" class="active">Stock &amp; Coverage</button><button data-v="forecast">Demand Plan</button><button data-v="sales">Sales</button></div>
+
+  <div id="sub-sales" class="subpage">
+  <div class="sales-head">
+    <div class="page-sub" id="periodInfo">Sales history</div>
+    <div class="date-filter-wrap">
       <div class="pill-bar"><button class="pill" data-p="l7d">7D</button><button class="pill active" data-p="l4w">4W</button><button class="pill" data-p="l8w">8W</button><button class="pill" data-p="custom">Custom</button><button class="pill" id="pillMonth" onclick="toggleMonthGrid()">Month</button></div>
       <div class="date-dropdown" id="customRange"><div class="dd-title">Custom date range</div><div class="dd-row"><input type="date" id="dateStart"><span style="color:var(--text3)">to</span><input type="date" id="dateEnd"></div><button class="btn btn-brand dd-apply" onclick="applyCustom()">Apply</button></div>
       <div class="month-grid" id="monthGrid"><div class="mg-head"><span class="mg-year" id="mgYear">2026</span><div class="mg-nav"><button onclick="mgShiftYear(-1)">&#8249;</button><button onclick="mgShiftYear(1)">&#8250;</button></div></div><div class="mg-grid" id="mgButtons"></div></div>
     </div>
-    <button class="avatar" id="headAvatar" onclick="openSettings()" title="Account settings" aria-label="Account settings">?</button></div>
   </div>
-  <div class="db-bar glass"><div class="dot"></div><span id="dbInfo">Connecting...</span><span style="margin-left:auto;font-size:12px;color:var(--text3)">Updated: <strong id="lastUpdate" style="color:var(--text)">--</strong></span></div>
-
-  <div class="fresh-line" id="ovFresh" hidden></div>
-
-  <!-- Stock health KPIs -->
-  <div class="card kpi-strip k6" id="invKpiStrip" style="margin-bottom:18px">
-    <div class="kpi-cell"><div class="kpi-label">Best-seller SKUs</div><div class="kpi-value skel" id="ivTotal">--</div><div class="kpi-help" id="ivTotalSub">with sales history</div></div>
-    <div class="kpi-cell"><div class="kpi-label">Stock on Hand</div><div class="kpi-value skel" id="ivSoh">--</div><div class="kpi-help" id="ivSohSub">units, physical</div></div>
-    <div class="kpi-cell"><div class="kpi-label" title="Physical stock x unit cost (weighted average COGS, last 12 weeks)">Inventory Value</div><div class="kpi-value skel" id="ivValue">--</div><div class="kpi-help" id="ivValueSub"></div></div>
-    <div class="kpi-cell"><div class="kpi-label" title="Stock on hand is 0 or below">Out of Stock</div><div class="kpi-value skel" id="ivOos" style="color:var(--red)">--</div><div class="kpi-help">SKUs with stock ≤ 0</div></div>
-    <div class="kpi-cell"><div class="kpi-label" title="Coverage of 8 weeks or less">Understocked</div><div class="kpi-value skel" id="ivUnder" style="color:var(--red)">--</div><div class="kpi-help">≤ 8 weeks coverage</div></div>
-    <div class="kpi-cell"><div class="kpi-label" title="Coverage above 20 weeks, or stock with no sales in 4 weeks">Overstocked</div><div class="kpi-value skel" id="ivOver">--</div><div class="kpi-help">&gt; 20 weeks coverage</div></div>
-  </div>
-
-  <div class="ov-row3">
-    <div class="card">
-      <div style="display:flex;align-items:center"><div class="section-label">Stock Health Distribution</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ avg weekly sales of the last 4 weeks. ≤ 8 weeks Understocked · > 8–20 Healthy · > 20 Overstocked. Not classified = no sales in 4 weeks and no stock.">i</span></div>
-      <div class="hbar" id="healthBar"></div>
-      <div class="hlegend" id="healthLegend"></div>
-    </div>
-    <div class="card">
-      <div style="display:flex;align-items:center"><div class="section-label">Financial Metrics</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Valued at unit cost (weighted average COGS from Accurate, last 12 weeks), never at selling price. Marked Unverified until finance confirms the cost equals HPP.">i</span></div>
-      <div style="margin-top:8px" id="finRows"><div class="empty-state">Loading...</div></div>
-    </div>
-    <div class="card">
-      <div class="card-header" style="margin-bottom:0"><div><div class="section-label">Purchase Recommendations</div><div class="section-meta" id="recoMeta">Most urgent best sellers</div></div><button class="link-btn" onclick="switchTab('replenishment')">Open →</button></div>
-      <ul class="mini-list" id="recoList"><li><span class="text-dim">Loading...</span></li></ul>
-    </div>
-  </div>
-
-  <!-- Sales KPI strip -->
   <div class="card kpi-strip">
     <div class="kpi-cell"><div class="kpi-label">Total Sales (units)</div><div class="kpi-value skel" id="kpiSales">--</div><div class="kpi-cmp" id="cmpSales"></div></div>
     <div class="kpi-cell kpi-wide"><div class="kpi-label">Revenue</div><div class="kpi-value skel" id="kpiRevenue">--</div><div class="kpi-cmp" id="cmpRevenue"></div></div>
@@ -108,113 +138,20 @@
     <div class="kpi-cell"><div class="kpi-label">Trending Up</div><div class="kpi-value skel" id="kpiTrending" style="color:var(--green)">--</div><div class="kpi-cmp">SKU with rising sales</div></div>
   </div>
 
-  <!-- Insight + health rings -->
-  <div class="ov-row">
-    <div class="card">
-      <div class="insight-head"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></div><div><div class="section-label">Insights</div><div class="section-meta">Generated from this period's data</div></div></div>
-      <ul class="insight-list" id="insightList"><li><span class="text-dim">Loading...</span></li></ul>
-    </div>
-    <div class="panel-navy">
-      <div class="panel-title">System Health</div>
-      <div class="ring-card"><div id="ringAcc"></div><div><div class="r-label">Forecast accuracy</div><div class="r-value skel" id="ringAccVal">--</div><div class="r-sub" id="ringAccSub">100 − avg MAPE (Holt's DES)</div></div></div>
-      <div class="ring-card"><div id="ringHealth"></div><div><div class="r-label">Inventory health</div><div class="r-value skel" id="ringHealthVal">--</div><div class="r-sub" id="ringHealthSub">Share of import SKUs in healthy status</div></div></div>
-    </div>
-  </div>
-
-  <!-- Best sellers at risk (moved up) -->
-  <div class="card" id="riskSection" style="display:none">
-    <div class="card-header"><div><div style="display:flex;align-items:center"><div class="section-label">Best Sellers at Risk</div><span class="info" id="riskTip" tabindex="0" role="button" aria-label="More info" data-tip="Best sellers (Pareto 80% import revenue) with ≤ 8 weeks of coverage. Most urgent = earliest Order by date. The bar marker is the 8-week lead time.">i</span></div><div class="section-meta" id="riskMeta">Understocked best sellers</div></div><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="seg" id="riskSort" role="group" aria-label="Sort"><button data-v="urgent" class="active">Most urgent</button><button data-v="revenue">Highest revenue</button></div><button class="link-btn" onclick="switchTab('replenishment')">Open Replenishment →</button></div></div>
-    <div class="risk-grid" id="riskGrid"></div>
-    <div style="text-align:center;margin-top:14px"><button class="btn btn-ghost" id="riskMore" onclick="toggleRiskAll()" hidden></button></div>
-  </div>
-
-  <!-- Actual vs forecast + statistics -->
-  <div class="ov-row2">
-    <div class="card">
-      <div class="card-header"><div><div class="section-label">Actual vs Forecast</div><div class="section-meta"><span id="projMeta">Weekly units, import SKUs</span> · Holt's DES</div></div><div class="legend"><span><i style="border-color:var(--chart-1)"></i>Actual</span><span><i class="dash" style="border-color:var(--chart-2)"></i>Forecast</span></div></div>
-      <div class="chart-wrap tall" id="projWrap"><canvas id="projChart"></canvas></div>
-    </div>
-    <div class="card" id="fcSummaryRow">
-      <div class="section-label" style="margin-bottom:6px">Forecast Statistics</div>
-      <div class="stat-row"><div><div class="s-label">Forecast demand, next 8W</div><div class="s-value skel" id="fcsDemand8w">--</div></div><div id="fcsSpark"></div></div>
-      <div class="stat-row"><div><div class="s-label">SKUs forecasted</div><div class="s-value skel" id="fcsTotal">--</div></div></div>
-      <div class="stat-row"><div><div class="s-label">Average MAPE</div><div class="s-value skel" id="fcsMape">--</div></div></div>
-      <div class="stat-row"><div><div class="s-label">SKUs forecast to decline</div><div class="s-value skel" id="fcsTrendDown" style="color:var(--red)">--</div></div></div>
-    </div>
-  </div>
-
-  <!-- Revenue / sales trend -->
   <div class="chart-row">
     <div class="card"><div class="section-label">Revenue Trend</div><div class="section-meta" id="chRevMeta" style="margin-bottom:12px">--</div><div class="chart-wrap"><canvas id="revChart"></canvas></div></div>
     <div class="card"><div class="section-label">Sales Trend</div><div class="section-meta" id="chSalesMeta" style="margin-bottom:12px">--</div><div class="chart-wrap"><canvas id="salesChart"></canvas></div></div>
   </div>
 
-  <!-- Best-seller scope: how the Pareto set + company list are formed -->
-  <div class="card" id="scopeSection">
-    <div class="card-header"><div><div style="display:flex;align-items:center"><div class="section-label">Best Seller Scope</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Which SKUs Stockwise analyses.&#10;&#10;1. Pareto 80/20: import SKUs are ranked by revenue (all sales history in the system). The top SKUs that together make up 80% of import revenue are best sellers.&#10;&#10;2. Company Hero SKU list (Upload Data): every SKU on it is analysed too, even when it is outside the Pareto set.&#10;&#10;Hero SKUs with too little or no recent sales history get a simple forecast (average of the last 4 weeks), marked est.">i</span></div><div class="section-meta" id="scopeMeta">--</div></div>
-      <button class="btn btn-ghost" id="scopeListBtn" onclick="toggleScopeList()">Show SKU list</button></div>
-    <div id="scopeWarn"></div>
-    <div class="scope-grid">
-      <div><div class="chart-wrap"><canvas id="paretoChart"></canvas></div><div class="section-meta" style="margin-top:6px">Cumulative share of import revenue by SKU rank. Dashed line = 80%.</div></div>
-      <div class="scope-stats" id="scopeStats"><div class="empty-state">Loading...</div></div>
+  <div class="card">
+      <div class="card-header"><div><div class="section-label">Actual vs Forecast</div><div class="section-meta"><span id="projMeta">Weekly units, import SKUs</span></div></div><div class="legend"><span><i style="border-color:var(--chart-1)"></i>Actual</span><span><i class="dash" style="border-color:var(--chart-2)"></i>Forecast</span></div></div>
+      <div class="chart-wrap tall" id="projWrap"><canvas id="projChart"></canvas></div>
     </div>
-    <div id="scopeListWrap" hidden>
-      <div class="filter-bar" style="margin-top:16px">
-        <input class="search-box" id="scopeSearch" placeholder="Search SKU, product or group" oninput="scopePage=0;renderScopeList()">
-        <div class="seg" id="scopeSeg" role="group" aria-label="Source"><button data-v="" class="active">All</button><button data-v="both">Pareto + company</button><button data-v="pareto">Pareto only</button><button data-v="hero">Company list only</button></div>
-      </div>
-      <div class="tbl-wrap tbl-scroll"><table class="tbl-sticky"><thead><tr><th class="r" title="Revenue rank among all import SKUs sold">Rank</th><th>SKU</th><th>Product</th><th>Group / company status</th><th class="r">Revenue</th><th class="r" title="Share of total import revenue">Share</th><th class="r" title="Cumulative share up to this rank; Pareto cut at 80%">Cum.</th><th>Source</th><th title="Holt's DES, or est. = simple average for SKUs with too little history">Forecast</th></tr></thead><tbody id="scopeBody"></tbody></table></div>
-      <div class="paging" id="scopePaging"></div>
-    </div>
-  </div>
-
-  <!-- Top 10 -->
   <div class="card"><div class="card-header"><div class="section-label">Top 10 Products</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><div class="cdrop" data-id="topSortSelect"><button class="cdrop-btn" onclick="toggleCdrop(this)"><span class="cdrop-label">Revenue</span><svg class="cdrop-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button><div class="cdrop-menu right"><div class="cdrop-opt active" data-val="revenue" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Revenue</div><div class="cdrop-opt" data-val="sales" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Sales</div><div class="cdrop-opt" data-val="growth" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Growth</div></div></div></div>
   </div><div class="tbl-wrap"><table id="topTable"></table></div></div>
-</div>
 
-<!-- ═══ TAB 2: REPLENISHMENT PLANNING ═══ -->
-<div id="tab-replenishment" class="tab-content">
-  <div class="page-head">
-    <div><h1>Replenishment Planning<span class="info" id="rpSub" tabindex="0" role="button" aria-label="More info" data-tip="What to buy, by when, and how much. Follow the Order by date: it is the projected stockout date minus the supplier lead time, so the goods arrive before stock runs out. The system recommends; purchasing decides.">i</span></h1></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-brand" onclick="exportReplenishment()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
-    </div>
   </div>
-  <div class="fresh-line fresh-banner" hidden></div>
-  <div class="card">
-    <div class="filter-bar" style="flex-wrap:wrap">
-      <div class="tabs-count" id="rpTabs"><button data-v="all">All <span class="cnt" id="rpCntAll">0</span></button><button data-v="reorder" class="active">Order now <span class="cnt" id="rpCntRe">0</span></button></div>
-      <input class="search-box" id="rpSearch" placeholder="Search SKU or product  ( / )" oninput="replPage=0;renderRepl()">
-      <div class="seg" id="rpSource" role="group" aria-label="Source"><button data-v="" class="active">All SKUs</button><button data-v="hero" title="SKUs on the company Hero SKU list">Company list</button><button data-v="pareto" title="Pareto best sellers that are not on the company list">Pareto only</button></div>
-      <div class="seg" id="rpStatus" role="group" aria-label="Status"><button data-v="" class="active">All status</button><button data-v="understocked">Understocked</button><button data-v="healthy">Healthy</button><button data-v="overstocked">Overstocked</button></div>
-      <span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Order now = the system recommends a quantity, OR the stock is Understocked, OR the Order by date is within 14 days (one review period).">i</span>
-    </div>
-    <div class="tbl-wrap tbl-scroll" id="rpTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading...</div></div>
-    <div class="paging" id="rpPaging"></div>
-  </div>
-  <div class="sel-bar" id="rpSelBar">
-    <div><div class="sb-v" id="sbCount">0 SKUs</div><div class="sb-l">selected</div></div>
-    <div><div class="sb-v" id="sbUnits">0</div><div class="sb-l">units to order</div></div>
-    <div><div class="sb-v" id="sbCost">Rp 0</div><div class="sb-l" id="sbCostL">estimated cost</div></div>
-    <button class="btn btn-ghost" onclick="exportReplenishment(true)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export selected</button>
-  </div>
-  <div class="card" id="rpDetail" style="display:none;margin-top:18px"></div>
-</div>
-
-<!-- ═══ TAB 3: PRODUCT ANALYSIS ═══ -->
-<div id="tab-analysis" class="tab-content">
-  <div class="page-head">
-    <div><h1>Product Analysis<span class="info" id="anSub" tabindex="0" role="button" aria-label="More info" data-tip="Stock & Coverage: condition of every SKU today (coverage, days of inventory, value, movement). Demand Plan: Holt's DES forecast per month and how accurate it was. Click a row or a number for detail.">i</span></h1></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-ghost" onclick="refreshForecast()" id="btnRefresh"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6M3 22v-6h6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>Refresh forecast</button>
-      <button class="btn btn-brand" onclick="exportInventory()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
-    </div>
-  </div>
-  <div class="fresh-line fresh-banner" hidden></div>
-  <div class="seg sub-seg" id="anSeg" role="group" aria-label="View"><button data-v="stock" class="active">Stock &amp; Coverage</button><button data-v="forecast">Demand Plan</button></div>
-
   <div id="sub-forecast" class="subpage">
   <div class="card" style="margin-bottom:18px">
     <div class="card-header" style="margin-bottom:12px;flex-wrap:wrap;gap:10px">
@@ -257,11 +194,9 @@
   <div class="card">
     <div class="filter-bar">
       <input class="search-box" id="invSearch" placeholder="Search SKU or product  ( / )" oninput="filterInv()">
-      <div class="cdrop" data-id="invStatus"><button class="cdrop-btn" onclick="toggleCdrop(this)"><span class="cdrop-label">All Status</span><svg class="cdrop-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button><div class="cdrop-menu"><div class="cdrop-opt active" data-val="" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>All Status</div><div class="cdrop-opt" data-val="understocked" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Understocked</div><div class="cdrop-opt" data-val="healthy" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Healthy</div><div class="cdrop-opt" data-val="overstocked" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Overstocked</div></div></div>
+      <div class="cdrop" data-id="invStatus"><button class="cdrop-btn" onclick="toggleCdrop(this)"><span class="cdrop-label">Understocked</span><svg class="cdrop-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button><div class="cdrop-menu"><div class="cdrop-opt" data-val="" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>All Status</div><div class="cdrop-opt active" data-val="understocked" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Understocked</div><div class="cdrop-opt" data-val="healthy" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Healthy</div><div class="cdrop-opt" data-val="overstocked" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Overstocked</div></div></div>
       <div class="cdrop" data-id="invMove"><button class="cdrop-btn" onclick="toggleCdrop(this)"><span class="cdrop-label">All Movement</span><svg class="cdrop-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button><div class="cdrop-menu"><div class="cdrop-opt active" data-val="" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>All Movement</div><div class="cdrop-opt" data-val="fast" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Fast moving</div><div class="cdrop-opt" data-val="medium" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Medium</div><div class="cdrop-opt" data-val="slow" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Slow moving</div><div class="cdrop-opt" data-val="non_moving" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Non-moving</div></div></div>
       <div class="cdrop" data-id="invSort"><button class="cdrop-btn" onclick="toggleCdrop(this)"><span class="cdrop-label">Priority</span><svg class="cdrop-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button><div class="cdrop-menu"><div class="cdrop-opt active" data-val="priority" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Priority</div><div class="cdrop-opt" data-val="revenue" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>L4W Revenue</div><div class="cdrop-opt" data-val="coverage" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Coverage</div><div class="cdrop-opt" data-val="stockout" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Stockout Risk</div><div class="cdrop-opt" data-val="value" onclick="selectCdrop(this)"><span class="cdrop-dot"></span>Inventory Value</div></div></div>
-      
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);cursor:pointer"><input type="checkbox" id="invActionOnly" onchange="filterInv()" checked style="accent-color:var(--navy)"> Understocked only</label>
     </div>
     <div class="tbl-wrap tbl-scroll" id="invTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading inventory...</div></div>
     <div class="paging" id="invPaging"></div>
@@ -271,7 +206,7 @@
 
 <!-- ═══ TAB 4: PO & SUPPLIER ═══ -->
 <div id="tab-po" class="tab-content">
-  <div class="page-head"><div><h1>Purchase Orders &amp; Suppliers<span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Which goods have arrived and which have not, per PO line, from the purchasing PO list.&#10;&#10;Type the quantity that actually arrived in Received: full = Complete, less = Partial (still open), more = Over. If the rest will never come, use Close short.&#10;&#10;Open lines older than 60 days since the PO date get a warning. All orders go through one agent, so lead time is measured per PO line (each shop ships separately).">i</span></h1></div></div>
+  <div class="page-head"><div><h1>PO Tracking<span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Which goods have arrived and which have not, per PO line, from the purchasing PO list.&#10;&#10;Type the quantity that actually arrived in Received: full = Complete, less = Partial (still open), more = Over. If the rest will never come, use Close short.&#10;&#10;Open lines older than 60 days since the PO date get a warning. All orders go through one agent, so lead time is measured per PO line (each shop ships separately).">i</span></h1></div></div>
   <div class="card kpi-strip" style="margin-bottom:18px">
     <div class="kpi-cell"><div class="kpi-label">Open POs</div><div class="kpi-value skel" id="poOpen">--</div><div class="kpi-help" id="poOpenSub">PO numbers with goods still to come</div></div>
     <div class="kpi-cell"><div class="kpi-label" title="Ordered minus received on open lines">Incoming Units</div><div class="kpi-value skel" id="poIncoming">--</div><div class="kpi-help" id="poIncomingSub">units still to arrive</div></div>
@@ -284,6 +219,7 @@
       <input class="search-box" id="poSearch" placeholder="Search SKU, product or PO number  ( / )" oninput="poPage=0;renderPoTable()">
       <div class="seg" id="poViewSeg" role="group" aria-label="View"><button data-v="po" class="active">By PO</button><button data-v="sku">By product</button></div>
       <div class="seg" id="poStatusSeg" role="group" aria-label="PO line filter"><button data-v="open" class="active">Open</button><button data-v="overdue">Overdue</button><button data-v="aging">&gt; 60 days</button><button data-v="diff" title="Partial, over-received or closed short">Short / Over</button><button data-v="done">Completed</button><button data-v="all">All</button></div>
+    <div class="po-legend" aria-label="Line status legend"><span><span class="tag" style="background:var(--surface2);color:var(--text3)">Not received</span> nothing arrived yet</span><span><span class="tag tag-info">Partial</span> part arrived, rest still open</span><span><span class="tag tag-hero">Completed</span> fully received</span><span><span class="tag tag-mute">Closed short / Cancelled</span> rest will not arrive</span><span class="text-dim">Overdue = ETA passed · &gt; 60 days = PO older than 60 days</span></div>
     </div>
     <div id="poEmpty" class="empty-state" style="display:none">No purchase orders yet. Upload the PO list on the Upload Data page.</div>
     <div class="tbl-wrap tbl-scroll"><table id="poTable" class="tbl-sticky" style="display:none">
@@ -300,19 +236,23 @@
 
 <!-- ═══ TAB 5: UPLOAD DATA ═══ -->
 <div id="tab-upload" class="tab-content">
-  <div class="page-head"><div><h1>Upload Data<span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Every import runs through parse → validate → preview → confirm (ETL) before it reaches the database. Upload the stock report weekly with its report date.">i</span></h1></div></div>
+  <div class="page-head"><div><h1>Data<span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Keep the data behind every recommendation current. Weekly: sales, stock (with its report date), then Refresh forecast. Lists and the PO master list only when they change. Sales uploads show a preview before anything is saved.">i</span></h1><div class="page-sub">Data status, uploads and forecast refresh</div></div></div>
   <div class="card" style="margin-bottom:18px">
     <div style="display:flex;align-items:center;margin-bottom:14px"><div class="section-label">Data Status</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="How current the data behind every recommendation is.">i</span></div>
     <div class="status-list" id="dataStatus"><div class="empty-state">Loading...</div></div>
   </div>
+  <h2 class="group-h">Weekly routine</h2>
   <div class="upload-grid">
-    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div><div class="u-title">Sales Data</div><p>Upload .xls/.xlsx sales export dari Accurate</p><input type="file" id="salesFile" accept=".xls,.xlsx" style="display:none" onchange="uploadSales()"><button class="btn btn-ghost" onclick="document.getElementById('salesFile').click()" id="btnSalesUpload">Upload Sales</button><div class="drop-hint">or drop a file here</div></div>
-    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="u-title">Stock Snapshot</div><p>Upload stock terbaru dari Accurate, sebaiknya tiap minggu</p><label class="date-in">Tanggal laporan stok<input type="date" id="stockDate"></label><input type="file" id="stockFile" accept=".xls,.xlsx" style="display:none" onchange="uploadStock()"><button class="btn btn-ghost" onclick="document.getElementById('stockFile').click()" id="btnStockUpload">Upload Stock</button><div class="drop-hint">or drop a file here</div></div>
-    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg></div><div class="u-title">Master SKU</div><p>Daftar SKU + nama produk. Kolom A = SKU, kolom B = nama.</p><input type="file" id="masterFile" accept=".xls,.xlsx" style="display:none" onchange="uploadMaster()"><button class="btn btn-ghost" onclick="document.getElementById('masterFile').click()" id="btnMasterUpload">Upload Master</button><div class="drop-hint">or drop a file here</div></div>
-    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M8 7c0-1.5 1-2 1-3.5M12 7c0-1.5 1-2 1-3.5M16 7c0-1.5 1-2 1-3.5"/></svg></div><div class="u-title">Food SKU List</div><p>Daftar produk makanan. Penjualannya otomatis dikeluarkan dari sistem. Kolom A = SKU, kolom B = nama.</p><input type="file" id="foodFile" accept=".xls,.xlsx" style="display:none" onchange="uploadFood()"><button class="btn btn-ghost" onclick="document.getElementById('foodFile').click()" id="btnFoodUpload">Upload Food</button><div class="drop-hint">or drop a file here</div></div>
-    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div><div class="u-title">Hero SKU List</div><p>Daftar best seller perusahaan (sheet HERO SKU): kolom SKU wajib, PRODUK / GROUP / STATUS opsional. Semua SKU di daftar ini ikut dianalisis.</p><input type="file" id="heroFile" accept=".xls,.xlsx" style="display:none" onchange="uploadHero()"><button class="btn btn-ghost" id="btnHeroUpload" onclick="document.getElementById('heroFile').click()">Upload Hero SKU</button></div>
-    <div class="card upload-card disabled" title="Needs the P2 database migration (po_receipts table)"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v8H4v-8"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/></svg></div><div class="u-title">PO Receipts</div><p>Penerimaan barang per PO (tanggal + qty). Aktif setelah migrasi database (P2).</p><button class="btn btn-ghost" disabled>Coming in P2</button></div>
-    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div><div class="u-title">Purchase Orders</div><p>PO list dari purchasing (sheet Master List): PO Number, Tgl PO, Item, QTY, Received, ETA Date. Upload ulang kapan saja, tidak dobel.</p><input type="file" id="poFile" accept=".xls,.xlsx,.csv" style="display:none" onchange="uploadPO()"><button class="btn btn-ghost" onclick="document.getElementById('poFile').click()" id="btnPoUpload">Upload PO</button><div class="drop-hint">or drop a file here</div></div>
+    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div><div class="u-title"><span class="step-n">1</span>Sales Data</div><p>Sales by Item Detail export from Accurate (.xls / .xlsx). You get a preview first, then confirm.</p><input type="file" id="salesFile" accept=".xls,.xlsx" style="display:none" onchange="uploadSales()"><button class="btn btn-ghost" onclick="document.getElementById('salesFile').click()" id="btnSalesUpload">Upload Sales</button><div class="drop-hint">or drop a file here</div></div>
+    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="u-title"><span class="step-n">2</span>Stock Snapshot</div><p>Stock report from Accurate, every week. Set the report date first.</p><label class="date-in">Stock report date<input type="date" id="stockDate"></label><input type="file" id="stockFile" accept=".xls,.xlsx" style="display:none" onchange="uploadStock()"><button class="btn btn-ghost" onclick="document.getElementById('stockFile').click()" id="btnStockUpload">Upload Stock</button><div class="drop-hint">or drop a file here</div></div>
+    <div class="card upload-card"><div class="icon-tile"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6M3 22v-6h6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></div><div class="u-title"><span class="step-n">3</span>Refresh forecast</div><p>Recalculate the forecast and recommendations after new sales data or a list change.</p><button class="btn btn-ghost" onclick="refreshForecast()" id="btnRefresh"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6M3 22v-6h6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>Refresh forecast</button></div>
+  </div>
+  <h2 class="group-h">When something changes</h2>
+  <div class="upload-grid">
+    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div><div class="u-title">Purchase Orders</div><p>Purchasing "Master List" sheet: PO Number, PO date, Item, QTY, Received, ETA. Re-upload any time; lines are not duplicated.</p><input type="file" id="poFile" accept=".xls,.xlsx,.csv" style="display:none" onchange="uploadPO()"><button class="btn btn-ghost" onclick="document.getElementById('poFile').click()" id="btnPoUpload">Upload PO</button><div class="drop-hint">or drop a file here</div></div>
+    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div><div class="u-title">Hero SKU List</div><p>Company best-seller list (sheet HERO SKU): SKU required; PRODUK, GROUP, STATUS optional. Run Refresh forecast afterwards.</p><input type="file" id="heroFile" accept=".xls,.xlsx" style="display:none" onchange="uploadHero()"><button class="btn btn-ghost" id="btnHeroUpload" onclick="document.getElementById('heroFile').click()">Upload Hero SKU</button></div>
+    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M8 7c0-1.5 1-2 1-3.5M12 7c0-1.5 1-2 1-3.5M16 7c0-1.5 1-2 1-3.5"/></svg></div><div class="u-title">Food SKU List</div><p>Food products. Their sales are kept out of the analysis. Column A = SKU, column B = name.</p><input type="file" id="foodFile" accept=".xls,.xlsx" style="display:none" onchange="uploadFood()"><button class="btn btn-ghost" onclick="document.getElementById('foodFile').click()" id="btnFoodUpload">Upload Food</button><div class="drop-hint">or drop a file here</div></div>
+    <div class="card upload-card"><div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg></div><div class="u-title">Master SKU</div><p>SKU code and product name. Column A = SKU, column B = name.</p><input type="file" id="masterFile" accept=".xls,.xlsx" style="display:none" onchange="uploadMaster()"><button class="btn btn-ghost" onclick="document.getElementById('masterFile').click()" id="btnMasterUpload">Upload Master</button><div class="drop-hint">or drop a file here</div></div>
   </div>
   <div class="card" id="etlStatus" style="display:none"><div id="etlStatusContent"></div></div>
   <div class="card" id="etlPreview" style="display:none">
@@ -324,9 +264,11 @@
 </div>
 
 <!-- SKU DRAWER -->
+<!-- REPLENISHMENT SKU DETAIL (side drawer) -->
+<div class="drawer-backdrop" id="rpDrawer" hidden onclick="if(event.target===this)closeReplDetail()"><aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="rpdTitle"><div id="rpDetail"></div></aside></div>
 <div class="modal-backdrop" id="skuDrawer" hidden onclick="if(event.target===this)closeSkuDrawer()">
   <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="sdTitle">
-    <div class="modal-head"><div><h2 id="sdTitle">SKU</h2><div class="section-meta" id="sdSub"></div></div><button class="icon-btn" onclick="closeSkuDrawer()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+    <div class="modal-head"><div><h2 id="sdTitle">SKU</h2><div class="section-meta" id="sdSub"></div></div><div style="display:flex;gap:8px;align-items:center"><button class="btn btn-ghost" id="sdPlan" onclick="const k=sdSku;closeSkuDrawer();openReplSku(k)" title="Open this SKU in Replenishment">Replenishment →</button><button class="icon-btn" onclick="closeSkuDrawer()" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
     <div id="sdBody"><div class="empty-state">Loading...</div></div>
   </div>
 </div>
@@ -357,7 +299,9 @@
 <script src="/static/js/core/charts.js"></script>
 <script src="/static/js/core/settings.js"></script>
 <script src="/static/js/core/auth.js"></script>
+<script src="/static/js/core/decision.js"></script>
 <script src="/static/js/pages/overview.js"></script>
+<script src="/static/js/pages/sales.js"></script>
 <script src="/static/js/pages/replenishment.js"></script>
 <script src="/static/js/pages/analysis.js"></script>
 <script src="/static/js/pages/po.js"></script>

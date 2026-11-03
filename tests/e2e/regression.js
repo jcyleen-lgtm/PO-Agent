@@ -118,16 +118,35 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
 
     // Overview
     await snap('10-overview');
-    await click('.pill[data-p="l8w"]'); await snap('11-overview-8w', false);
-    await click('#riskSort button[data-v="revenue"]'); await snap('13-risk-revenue', false);
-    await click('#scopeListBtn'); await snap('14-scope-list');
-    await click('#scopeSeg button[data-v="hero"]'); await snap('15-scope-hero', false);
+    // Action Center: every bucket, and the values shown must equal what /api/replenishment returns
+    for (const i of [2, 3, 4, 1]) await click(`#acBuckets .ac-b:nth-child(${i})`, 300);
+    await snap('11-action-center', false);
+    const check = await p.evaluate(async () => {
+      const d = await (await fetch('/api/replenishment?product_type=import')).json();
+      const R = d.results || [];
+      const b = r => { const x = r.order_by_days, f = r.order_by_is_estimate === false && x != null;
+        return f && x <= 0 ? 'now' : f && x >= 1 && x <= 14 ? 'soon' : (r.status === 'overstocked' || ((r.reco_po || 0) === 0 && (r.confirmed_incoming || 0) > 0)) ? 'hold' : 'none'; };
+      const exp = ['now', 'soon', 'hold', 'none'].map(k => R.filter(r => b(r) === k).length);
+      const num = t => parseInt(String(t).replace(/[^0-9]/g, ''), 10);
+      const shown = [...document.querySelectorAll('#acBuckets .ac-b-v')].map(e => num(e.firstChild.textContent));
+      const st = k => R.filter(r => (r.status || null) === k).length;
+      const expH = [st('understocked'), st('healthy'), st('overstocked'), st(null), R.filter(r => r.out_of_stock).length];
+      const shownH = [...document.querySelectorAll('#ovHealthLegend .hl-v')].map(e => num(e.firstChild.textContent));
+      const same = (a, c) => JSON.stringify(a) === JSON.stringify(c);
+      return { ok: same(exp, shown) && same(expH, shownH) && exp.reduce((a, c) => a + c, 0) === R.length, exp, shown, expH, shownH, total: R.length };
+    });
+    if (!check.ok) errors.push(`${C.name}: overview values differ from API ${JSON.stringify(check)}`);
+    states.push({ id: `${C.name}__11-values`, text: JSON.stringify(check), calls: [], theme: '', activeNav: '', scrollWidth: 0, canvases: 0 });
+    await click('#ovHealthLegend button.hl-item'); await snap('12-health-to-repl', false);
+    await click('.nav-item[data-tab="overview"]');
+    const acRow = await p.$('#acList tbody tr');
+    if (acRow) { await acRow.click(); await snap('13-ac-row-drawer'); await p.keyboard.press('Escape'); await settle(); }
 
     // Replenishment
     await click('.nav-item[data-tab="replenishment"]'); await snap('20-repl');
     await click('#rpTabs button[data-v="all"]'); await snap('21-repl-all', false);
-    await click('#rpSource button[data-v="hero"]'); await snap('22-repl-hero', false);
-    await click('#rpSource button[data-v=""]');
+    await click('#rpTabs button[data-v="hold"]'); await snap('22-repl-hold', false);
+    await click('#rpTabs button[data-v="all"]');
     await click('#rpStatus button[data-v="understocked"]'); await snap('23-repl-under', false);
     await click('#rpStatus button[data-v=""]');
     const qty = await p.$('#rpTableWrap tbody tr:nth-child(2) .qty-in');
@@ -135,7 +154,11 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
     await snap('24-repl-qty', false);
     if (C.mutate) await download('repl-export', 'button[onclick^="exportReplenishment"]');
     const row = await p.$('#rpTableWrap tbody tr');
-    if (row) { await row.click(); await snap('25-repl-detail'); }
+    if (row) {
+      await row.click(); await snap('25-repl-detail');
+      for (const d of await p.$$('#rpDetail details')) await d.evaluate(e => { e.open = true; });
+      await snap('26-repl-detail-open', false); await p.keyboard.press('Escape'); await settle();
+    }
 
     // Product analysis
     await click('.nav-item[data-tab="analysis"]'); await snap('30-analysis-stock');
@@ -145,6 +168,8 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
     await click('#anSeg button[data-v="forecast"]'); await snap('32-demand-plan');
     await click('#dpMetric button[data-v="sales"]'); await snap('33-plan-sales', false);
     await click('#dpView button[data-v="weekly"]'); await snap('34-plan-weekly');
+    await click('#anSeg button[data-v="sales"]'); await snap('35-sales');
+    await click('.pill[data-p="l8w"]'); await snap('36-sales-8w', false);
 
     // PO
     await click('.nav-item[data-tab="po"]'); await snap('40-po');

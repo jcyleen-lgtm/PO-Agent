@@ -18,7 +18,10 @@
   --input-bg:#FFFFFF;
   --shadow-pop:0 12px 32px rgba(38,63,96,.16);
   --backdrop:radial-gradient(60% 50% at 10% 0%,rgba(63,130,201,.20),transparent 70%),radial-gradient(50% 45% at 95% 15%,rgba(89,179,207,.18),transparent 70%),radial-gradient(60% 50% at 60% 100%,rgba(38,63,96,.14),transparent 70%);
-  --radius:20px;--radius-sm:12px;--radius-xs:8px;
+  --radius:14px;--radius-sm:10px;--radius-xs:6px;
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;
+  --card-shadow:0 1px 2px rgba(16,24,40,.05);
+  --focus:0 0 0 3px rgba(63,130,201,.35);
   --font:'Inter',system-ui,-apple-system,sans-serif;
 }
 :root[data-theme="dark"]{
@@ -39,6 +42,7 @@
   --nav-active:rgba(255,255,255,.10);--nav-active-shadow:none;
   --input-bg:#F1F3F7;
   --shadow-pop:0 12px 32px rgba(0,0,0,.5);
+  --card-shadow:0 1px 2px rgba(0,0,0,.35);
   --backdrop:radial-gradient(60% 50% at 10% 0%,rgba(63,111,184,.22),transparent 70%),radial-gradient(50% 45% at 95% 15%,rgba(89,179,207,.10),transparent 70%),radial-gradient(60% 50% at 60% 100%,rgba(38,63,96,.35),transparent 70%);
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -46,6 +50,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 body::before{content:'';position:fixed;inset:0;background:var(--backdrop);pointer-events:none;z-index:0}
 .num,td{font-variant-numeric:tabular-nums}
 [hidden]{display:none!important}
-.glass,.card{background:var(--glass-bg);-webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);position:relative}
-.glass::before,.card::before{content:'';position:absolute;top:0;left:20px;right:20px;height:1px;background:linear-gradient(90deg,transparent,var(--glass-hi),transparent);pointer-events:none}
-.glass::after,.card::after{content:'';position:absolute;top:20px;bottom:20px;left:0;width:1px;background:linear-gradient(180deg,var(--glass-hi),transparent,rgba(255,255,255,.15));pointer-events:none}
+.glass{background:var(--glass-bg);-webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);position:relative}
+.card{background:var(--surface);border:1px solid var(--border);box-shadow:var(--card-shadow);position:relative}
+.glass::before{content:'';position:absolute;top:0;left:20px;right:20px;height:1px;background:linear-gradient(90deg,transparent,var(--glass-hi),transparent);pointer-events:none}
+.glass::after{content:'';position:absolute;top:20px;bottom:20px;left:0;width:1px;background:linear-gradient(180deg,var(--glass-hi),transparent,rgba(255,255,255,.15));pointer-events:none}
+:focus-visible{outline:none;box-shadow:var(--focus)}

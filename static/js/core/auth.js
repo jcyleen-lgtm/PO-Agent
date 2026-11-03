@@ -8,7 +8,7 @@ async function startApp(username){sessionExpiredShown=false;const s=getSettings(
   const t0=Date.now();
   const capped=pr=>Promise.race([pr,new Promise(r=>setTimeout(r,3000))]);
   if(!appStarted){appStarted=true;renderMonthGrid();loadPoList();await capped(loadOverview())}
-  else{invSummaryCache=null;invOv=null;replData=null;planData=null;weeklyData=[];weeklyByCat={};weeklyShownCat=null;fcDataMap={};loadPoList();await capped(loadOverview());reloadActive();if(activeTab()==='po')loadPoPage();if(activeTab()==='upload')loadDataStatus()}
+  else{invSummaryCache=null;replData=null;salesLoaded=false;planData=null;weeklyData=[];weeklyByCat={};weeklyShownCat=null;fcDataMap={};loadPoList();await capped(loadOverview());reloadActive();if(activeTab()==='po')loadPoPage();if(activeTab()==='upload')loadDataStatus()}
   setTimeout(()=>ws.classList.remove('active'),Math.max(0,600-(Date.now()-t0)))}
 async function doLogin(){const btn=document.getElementById('loginBtn'),status=document.getElementById('loginStatus');
   const username=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPass').value;
