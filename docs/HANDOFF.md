@@ -112,7 +112,8 @@ TEST_DATABASE_URL=postgresql://postgres@localhost:5432/stockwise_test python -m 
 | Data step: Refresh forecast | **Done** 2026-11-03 13:46 WIB: 194 SKUs (134 Hero + 60 Pareto-only), all Hero SKUs present, 9 naive; run took **≈ 5 s** (U7 answered) |
 | Forecast accuracy analysis | **Done** 2026-11-03 → `docs/forecast-accuracy.md`; **next: decisions F1–F6** |
 | Phase 4 frontend refactoring | **Done on branch `phase4-frontend`** 2026-11-03 (not merged): CSS/JS out of `dashboard.html` into `static/`, regression harness, dead code removed; report `docs/frontend.md`. Next: San pushes the branch, check Vercel preview `/static`, merge |
-| Phase 5 UI/UX redesign | After F1–F6. Action Center buckets (D2), reasons per SKU, clickable KPIs, insufficient-data states (D7), forecast reliability label |
+| Phase 4 merge | **Done** 2026-11-03: `main@08fca67`, production deploy READY, `/static` served by Vercel CDN |
+| Phase 5 UI/UX redesign | **Stage 1–3 done** (audit, user flow, IA) in `docs/phase5/` — **waiting for San's review** before design system and implementation. Decisions: no Order/Hold/Monitor feature, all SKUs only (Pareto/company-list split hidden, logic to be discussed). Open approvals A1–A5 in the IA doc |
 | Later | R8 migrations (+ RLS if U1 approved), R9 frontend split, R10 inventory memo |
 
 ## 8. Decisions and open items
