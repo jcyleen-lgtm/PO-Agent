@@ -64,3 +64,26 @@ def load_forecast_from_db(engine, sku=None):
         "source": "database",
     }
     return {"summary": summary, "results": results}
+
+
+def light_rows(conn):
+    """One row per forecast SKU with only the fields the dashboard tables need (JSON paths, no history)."""
+    return conn.execute(text("""
+            SELECT f.sku, COALESCE(p.name, f.sku), f.mape,
+                   f.forecast_data::jsonb -> 'forecast',
+                   f.forecast_data::jsonb ->> 'trend',
+                   f.forecast_data::jsonb ->> 'trend_direction',
+                   f.forecast_data::jsonb ->> 'avg_weekly_demand',
+                   f.forecast_data::jsonb -> 'actual' -> 'quantities',
+                   f.forecast_data::jsonb -> 'holdout',
+                   p.product_type,
+                   f.forecast_data::jsonb ->> 'method',
+                   f.forecast_data::jsonb ->> 'method_reason',
+                   f.forecast_data::jsonb -> 'scope'
+            FROM forecast_results f LEFT JOIN products p ON p.sku = f.sku
+            ORDER BY f.id
+        """)).fetchall()
+
+
+def max_calculated_at(conn):
+    return conn.execute(text("SELECT MAX(calculated_at) FROM forecast_results")).scalar()

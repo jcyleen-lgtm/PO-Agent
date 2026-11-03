@@ -8,6 +8,7 @@ from sqlalchemy import text
 from src.core.config import get_settings
 from src.core.database import get_engine
 from src.repositories.forecast import load_forecast_from_db
+from src.repositories import inventory as stock_repo, sales as sales_repo
 from src.repositories.products import _type_filter
 from src.repositories.purchase_orders import _fetch_po_lines
 from src.services.forecast_service import get_forecast_light
@@ -99,12 +100,12 @@ async def replenishment_sku(sku: str):
     if not fc:
         raise HTTPException(404, f"SKU {sku} has no forecast (not a forecasted best seller)")
     with engine.connect() as conn:
-        snap = conn.execute(text("SELECT MAX(snapshot_date) FROM stock_snapshots")).scalar()
+        snap = stock_repo.latest_snapshot_date(conn)
         cs = conn.execute(text("SELECT COALESCE(SUM(quantity),0) FROM stock_snapshots WHERE sku=:s AND snapshot_date=:d"),
                           {"s": sku, "d": snap}).scalar() if snap else 0
         lines = _fetch_po_lines(conn, sku).get(sku, [])
         cost = mt.unit_costs(conn, cfg, [sku]).get(sku)
-        last_sale = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).scalar()
+        last_sale = sales_repo.last_sale_date(conn)
     fq, fw = fc["forecast_data"]["quantities"], fc["forecast_data"].get("weeks", [])
     plan = rp.plan_sku(int(cs or 0), lines, fq, fw, cfg)
     scen = []

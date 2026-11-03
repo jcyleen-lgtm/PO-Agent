@@ -13,6 +13,7 @@ import pandas as pd
 
 from etl import clean_sales_data, load_product_lookup_from_db
 from src.core.config import UPLOAD_DIR
+from src.core.logging import get_logger
 from src.core.database import get_engine, get_raw_conn
 from src.core.ddl import ensure_sales_excluded
 from src.core.state import forecast_cache, master_sku, processed_cache
@@ -20,6 +21,8 @@ from src.parsers.sku_lists import is_food
 from src.repositories.products import load_food_rules
 from src.services.forecast_service import _run_auto_forecast
 
+
+log = get_logger("etl")
 
 
 async def etl_upload(filename: str, content: bytes):
@@ -81,7 +84,7 @@ async def etl_confirm(file_id: str):
         })
         dup = sales.columns[sales.columns.duplicated()].tolist()
         if dup:  # any other repeated header: keep the first occurrence
-            print(f"[etl_confirm] duplicate columns dropped: {dup}")
+            log.info(f"duplicate columns dropped: {dup}")
             sales = sales.loc[:, ~sales.columns.duplicated()]
         sales["sku"] = sales["sku"].astype(str)
         if "invoice_date" in sales.columns:

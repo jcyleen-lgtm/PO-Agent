@@ -7,6 +7,7 @@ import pandas as pd
 
 from src.core.config import get_settings
 from src.core.database import get_engine
+from src.repositories import inventory as stock_repo, sales as sales_repo
 from src.repositories.products import _type_filter
 from src.repositories.purchase_orders import _fetch_po_lines
 from src.services.forecast_service import get_forecast_light
@@ -28,19 +29,11 @@ def build_inventory(engine, product_type="import", scope="all", today=None):
     tf = _type_filter(product_type)
     n_hist = max(12, cfg["movement_window_weeks"])
     with engine.connect() as conn:
-        weeks = sorted(r[0] for r in conn.execute(text(f"""
-            SELECT DISTINCT DATE_TRUNC('week', s.invoice_date)::date AS w
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL {tf}
-            ORDER BY w DESC LIMIT :n
-        """), {"n": n_hist}).fetchall())
-        last_sale = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).scalar()
-        snap_dates = [r[0] for r in conn.execute(text(
-            "SELECT DISTINCT snapshot_date FROM stock_snapshots ORDER BY snapshot_date DESC")).fetchall()]
+        weeks = sales_repo.recent_sales_weeks(conn, tf, n_hist)
+        last_sale = sales_repo.last_sale_date(conn)
+        snap_dates = stock_repo.snapshot_dates_desc(conn)
         snap_date = snap_dates[0] if snap_dates else None
-        stk = {r[0]: int(r[1]) for r in conn.execute(text(
-            "SELECT sku, SUM(quantity) FROM stock_snapshots WHERE snapshot_date = :d GROUP BY sku"),
-            {"d": snap_date}).fetchall()} if snap_date else {}
+        stk = stock_repo.stock_by_sku(conn, snap_date) if snap_date else {}
         po_lines = _fetch_po_lines(conn)
         if not weeks:
             return {"rows": [], "summary": {}, "freshness": mt.freshness(snap_date, last_sale, cfg, today),
@@ -48,18 +41,8 @@ def build_inventory(engine, product_type="import", scope="all", today=None):
                     "snapshot_count": len(snap_dates), "settings": cfg}
         r4 = weeks[-4:]
         rmov = weeks[-cfg["movement_window_weeks"]:]
-        sku_rows = conn.execute(text(f"""
-            SELECT s.sku, MIN(p.name)
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL {tf}
-            GROUP BY s.sku ORDER BY s.sku
-        """)).fetchall()
-        recent = conn.execute(text(f"""
-            SELECT s.sku, DATE_TRUNC('week', s.invoice_date)::date AS w, SUM(s.quantity), SUM(s.amount)
-            FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date >= :w0 {tf}
-            GROUP BY s.sku, w
-        """), {"w0": weeks[0]}).fetchall()
+        sku_rows = sales_repo.sold_skus(conn, tf)
+        recent = sales_repo.weekly_sales_since(conn, tf, weeks[0])
         costs = mt.unit_costs(conn, cfg)
 
     qty_by, rev_by = {}, {}
@@ -355,7 +338,7 @@ def _stockout_rate(engine, min_snapshots=4, weeks=12):
     except Exception:
         best = set()
     with engine.connect() as conn:
-        mx = conn.execute(text("SELECT MAX(snapshot_date) FROM stock_snapshots")).scalar()
+        mx = stock_repo.latest_snapshot_date(conn)
         if not mx:
             return {"available": False, "reason": "no_snapshots", "snapshots": 0, "required": min_snapshots}
         rows = conn.execute(text("""

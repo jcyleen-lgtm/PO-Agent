@@ -5,9 +5,12 @@ import math
 
 from sqlalchemy import text
 
+from src.core.logging import get_logger
 from src.core.database import get_engine
 from src.services.forecast_service import forecast_summary_fast, get_forecast_light
 
+
+log = get_logger("overview")
 
 
 async def db_stats():
@@ -165,7 +168,7 @@ async def overview_summary(
     try:
         fc_summary = forecast_summary_fast(engine, product_type)
     except Exception as e:
-        print(f"[overview] forecast summary skipped: {e}")
+        log.warning(f"forecast summary skipped: {e}")
         fc_summary = None
 
     return {

@@ -13,6 +13,7 @@ from src.core.database import get_engine, get_raw_conn
 from src.core.ddl import ensure_food_tables, ensure_hero_table
 from src.core.state import forecast_cache, master_sku
 from src.parsers.sku_lists import _hero_columns, _norm_name, is_food, read_sku_name_sheet
+from src.repositories import inventory as stock_repo, sales as sales_repo
 from src.repositories.products import move_food_sales
 from src.services.forecast_service import get_forecast_light
 
@@ -41,7 +42,7 @@ async def upload_hero_sku(filename: str, content: bytes):
     with engine.begin() as conn:
         ensure_hero_table(conn)
         prods = {r[0]: r[1] for r in conn.execute(text("SELECT sku, name FROM products WHERE sku <> '0'")).fetchall()}
-        snap = conn.execute(text("SELECT MAX(snapshot_date) FROM stock_snapshots")).scalar()
+        snap = stock_repo.latest_snapshot_date(conn)
         in_stock = {r[0] for r in conn.execute(text("SELECT sku FROM stock_snapshots WHERE snapshot_date = :d"),
                                                {"d": snap}).fetchall()} if snap else set()
         nodot = {}
@@ -289,7 +290,7 @@ async def product_history(sku: str, weeks: int = 52):
         name = conn.execute(text("SELECT name FROM products WHERE sku=:s"), {"s": sku}).scalar()
         if name is None:
             raise HTTPException(404, f"SKU {sku} not found")
-        mx = conn.execute(text("SELECT MAX(invoice_date) FROM sales")).scalar()
+        mx = sales_repo.last_sale_date(conn)
         sales = conn.execute(text("""
             SELECT DATE_TRUNC('week', invoice_date)::date w, SUM(quantity), SUM(amount)
             FROM sales WHERE sku=:s AND invoice_date > :a GROUP BY w ORDER BY w

@@ -4,14 +4,17 @@ import json
 import traceback
 
 from fastapi import HTTPException
-from sqlalchemy import text
 
 from forecast import run_forecast, save_forecast_to_db
+from src.core.logging import get_logger
 from src.core.database import get_engine
 from src.core.state import forecast_cache
+from src.repositories import forecast as forecast_repo
 from src.repositories.forecast import load_forecast_from_db
 import replenishment as rp
 
+
+log = get_logger("forecast")
 
 
 def _run_auto_forecast(engine):
@@ -22,11 +25,11 @@ def _run_auto_forecast(engine):
             saved = save_forecast_to_db(engine, result)
             forecast_cache["latest"] = result
             forecast_cache.pop("light", None); forecast_cache.pop("light_calc_at", None)
-            print(f"[auto-forecast] {result['summary']['total_skus_forecasted']} SKUs forecasted, saved={saved}")
+            log.info(f"{result['summary']['total_skus_forecasted']} SKUs forecasted, saved={saved}")
         else:
-            print(f"[auto-forecast] skipped: {result['error']}")
+            log.warning(f"skipped: {result['error']}")
     except Exception as e:
-        print(f"[auto-forecast] error: {e}")
+        log.warning(f"error: {e}")
         traceback.print_exc()
 
 
@@ -60,21 +63,7 @@ def get_forecast_light(engine):
     if "light" in forecast_cache:
         return forecast_cache["light"]
     with engine.connect() as conn:
-        rows = conn.execute(text("""
-            SELECT f.sku, COALESCE(p.name, f.sku), f.mape,
-                   f.forecast_data::jsonb -> 'forecast',
-                   f.forecast_data::jsonb ->> 'trend',
-                   f.forecast_data::jsonb ->> 'trend_direction',
-                   f.forecast_data::jsonb ->> 'avg_weekly_demand',
-                   f.forecast_data::jsonb -> 'actual' -> 'quantities',
-                   f.forecast_data::jsonb -> 'holdout',
-                   p.product_type,
-                   f.forecast_data::jsonb ->> 'method',
-                   f.forecast_data::jsonb ->> 'method_reason',
-                   f.forecast_data::jsonb -> 'scope'
-            FROM forecast_results f LEFT JOIN products p ON p.sku = f.sku
-            ORDER BY f.id
-        """)).fetchall()
+        rows = forecast_repo.light_rows(conn)
     light = []
     for sku, name, mape, fc, trend, tdir, avg, actual, holdout, ptype, method, mreason, scope in rows:
         scope = scope if isinstance(scope, dict) or scope is None else json.loads(scope)
@@ -109,7 +98,7 @@ def forecast_summary_fast(engine, product_type="all"):
     if calc is None:
         try:
             with engine.connect() as conn:
-                calc = conn.execute(text("SELECT MAX(calculated_at) FROM forecast_results")).scalar()
+                calc = forecast_repo.max_calculated_at(conn)
             calc = calc.isoformat() if calc else None
             forecast_cache["light_calc_at"] = calc
         except Exception:
@@ -139,7 +128,7 @@ def get_latest_forecast(engine, compute_if_missing=True):
     try:
         data = load_forecast_from_db(engine)
     except Exception as e:
-        print(f"[forecast] could not read saved results: {e}")
+        log.warning(f"could not read saved results: {e}")
         data = None
     if data:
         forecast_cache["latest"] = data
@@ -151,7 +140,7 @@ def get_latest_forecast(engine, compute_if_missing=True):
         try:
             save_forecast_to_db(engine, data)
         except Exception as e:
-            print(f"[forecast] could not save results: {e}")
+            log.warning(f"could not save results: {e}")
         forecast_cache["latest"] = data
     return data
 
@@ -197,7 +186,7 @@ async def forecast_sku(sku: str):
             one = load_forecast_from_db(engine, sku=sku)
             match = one["results"][0] if one else None
         except Exception as e:
-            print(f"[forecast_sku] DB read failed: {e}")
+            log.warning(f"DB read failed: {e}")
         if match is None and not forecast_cache.get("light"):
             results = get_latest_forecast(engine).get("results", [])
             match = next((r for r in results if r["sku"] == sku), None)
