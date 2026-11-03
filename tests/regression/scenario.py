@@ -84,7 +84,8 @@ def main():
     rec("login wrong", c.post("/api/auth/login", json={"username": "admin", "password": "nope"}))
     rec("login", c.post("/api/auth/login", json={"username": "admin", "password": "rahasia123"}))
     rec("me", c.get("/api/auth/me"))
-    rec("page", c.get("/"))
+    page = c.get("/")   # the page markup itself changes in Phase 4 (CSS/JS moved to /static): compare its contract only
+    out.append({"step": "page", "status": page.status_code, "body": {"login_form": 'id="loginOverlay"' in page.text}})
     rec("forecast run", c.post("/api/forecast/run"))
     fc = sorted(r[0] for r in q("SELECT sku FROM forecast_results"))
     pick = fc[:2] + fc[-1:]

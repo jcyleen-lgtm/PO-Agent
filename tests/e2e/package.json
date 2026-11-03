@@ -1,0 +1,9 @@
+{
+  "name": "stockwise-e2e",
+  "private": true,
+  "description": "Browser regression for the Stockwise frontend (see run_regression.py)",
+  "devDependencies": {
+    "chart.js": "4.4.1",
+    "playwright": "1.63.0"
+  }
+}

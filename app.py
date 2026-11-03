@@ -17,6 +17,7 @@ metrics.py (cost, movement, freshness, turnover), forecast.py (Holt's DES, Paret
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from auth import require_login, router as auth_router
 from src.core import config  # noqa: F401  (loads .env and creates the upload folder first)
@@ -28,6 +29,8 @@ app = FastAPI(title="Stockwise", version="4.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.middleware("http")(require_login)   # every /api/* route needs a login cookie (see auth.py)
 app.include_router(auth_router)         # /api/auth/login, /api/auth/logout, /api/auth/me
+# Frontend CSS/JS (no data; same exposure as the page itself). On Vercel the CDN serves /static first.
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
