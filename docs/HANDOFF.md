@@ -76,9 +76,10 @@ src/parsers         PO master list, SKU-list readers
 src/repositories    ALL SQL (forecast, inventory, sales, sales_reports, products, purchase_orders, hero, costs)
 src/services        use cases (inventory, purchasing, forecast, product, sales, purchase_order, overview)
 src/routers         HTTP only, one file per area
-templates/          dashboard.html
+templates/          dashboard.html (markup only since Phase 4)
+static/css, static/js  frontend split by responsibility (core/ + pages/ + app.js; load order matters) — docs/frontend.md
 tests/              unit (no DB), integration + regression (local Postgres)
-docs/               audit, spec, architecture, database, api-inventory, refactoring-plan, HANDOFF
+docs/               audit, spec, architecture, database, api-inventory, refactoring-plan, forecast-accuracy, frontend, HANDOFF
 ```
 
 Layer rules: routers → services → repositories → DB. Root rule modules import repositories lazily inside
@@ -96,7 +97,8 @@ TEST_DATABASE_URL=postgresql://postgres@localhost:5432/stockwise_test python -m 
   Hero, forecast) on reference commit `e6e1e5c` (via `git worktree`) and on the working tree, and requires
   identical JSON (timestamps masked). `test_api_contract.py` checks every route/param/default is kept
   (approved removal: `GET /api/coverage`).
-- E2E Playwright scripts existed only in the previous assistant's scratch space (not in the repo).
+- Frontend: `tests/e2e/run_regression.py` + `compare.py` (Playwright, 78 checkpoints, screenshots, API calls,
+  CSV exports, computed styles). Run on the original and the changed tree, then compare — see docs/frontend.md §C.
 
 ## 7. History and status
 
@@ -109,7 +111,8 @@ TEST_DATABASE_URL=postgresql://postgres@localhost:5432/stockwise_test python -m 
 | Data step: upload official Hero list | **Done** 2026-11-03: `HERO_SKU.xlsx` (U9 answered) → 134 SKUs saved, 2 dotless codes normalised (`299028001 → 299.028.001`, `299063003002 → 299.063.003.002`), 5 duplicate rows skipped, 0 unmatched |
 | Data step: Refresh forecast | **Done** 2026-11-03 13:46 WIB: 194 SKUs (134 Hero + 60 Pareto-only), all Hero SKUs present, 9 naive; run took **≈ 5 s** (U7 answered) |
 | Forecast accuracy analysis | **Done** 2026-11-03 → `docs/forecast-accuracy.md`; **next: decisions F1–F6** |
-| Phase 4 dashboard redesign | After §9. Action Center buckets (D2), reasons per SKU, clickable KPIs, insufficient-data states (D7) |
+| Phase 4 frontend refactoring | **Done on branch `phase4-frontend`** 2026-11-03 (not merged): CSS/JS out of `dashboard.html` into `static/`, regression harness, dead code removed; report `docs/frontend.md`. Next: San pushes the branch, check Vercel preview `/static`, merge |
+| Phase 5 UI/UX redesign | After F1–F6. Action Center buckets (D2), reasons per SKU, clickable KPIs, insufficient-data states (D7), forecast reliability label |
 | Later | R8 migrations (+ RLS if U1 approved), R9 frontend split, R10 inventory memo |
 
 ## 8. Decisions and open items
