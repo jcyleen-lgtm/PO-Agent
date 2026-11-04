@@ -295,3 +295,10 @@ tr.clickable{cursor:pointer}
 .sb-note{flex:1;min-width:200px;font-size:12.5px;color:rgba(255,255,255,.75);line-height:1.4}
 .icon-tile{width:40px;height:40px;border-radius:12px;background:var(--tint);color:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .icon-tile svg{width:20px;height:20px}
+
+/* status pills (Overview, Replenishment) */
+.pill{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill-crit{background:var(--red-bg);color:var(--red)}.pill-warn{background:var(--amber-bg);color:var(--amber)}
+.pill-info{background:var(--blue-bg);color:var(--link)}.pill-ok{background:var(--green-bg);color:var(--green)}
+.pill-mute{background:var(--surface2);color:var(--text3)}
+.tag-b-mute{background:var(--surface2);color:var(--text3)}

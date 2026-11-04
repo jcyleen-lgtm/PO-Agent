@@ -73,16 +73,13 @@ button.hl-item:hover{background:var(--surface-hover)}
 
 /* coverage + demand charts */
 .chart-wrap.ov-chart{height:auto;flex:1;min-height:200px}
-.chart-wrap.ov-chart-l{height:250px}
+.chart-wrap.ov-chart-l{height:auto;flex:1;min-height:260px}
 .dm-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
 .dm-foot b{color:var(--text)}
 
 /* priority table */
 .pr-table td{vertical-align:middle}
 .pr-table .p-name{max-width:260px}
-.pill{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
-.pill-crit{background:var(--red-bg);color:var(--red)}.pill-warn{background:var(--amber-bg);color:var(--amber)}
-.pill-info{background:var(--blue-bg);color:var(--link)}.pill-ok{background:var(--green-bg);color:var(--green)}
 .pr-table .ob-sub{margin-top:3px}
 .cov{display:flex;flex-direction:column;gap:5px;min-width:90px}
 .cov-v{font-size:13.5px;font-weight:600}
@@ -115,12 +112,43 @@ button.op-r:hover{border-color:var(--border2)}
   .kc{padding:12px 14px}.kc-v{font-size:22px}.kc-top{margin-bottom:6px}
   .ov-row-3{grid-template-columns:minmax(0,1fr)}
   .ac-b{padding:10px 12px}.ac-b .ac-b-v{font-size:22px}
-  .pr-table th:nth-child(n+2):nth-child(-n+5),.pr-table td:nth-child(n+2):nth-child(-n+5),.pr-table th:nth-child(8),.pr-table td:nth-child(8){display:none}
+  .pr-table th:nth-child(1),.pr-table td:nth-child(1),.pr-table th:nth-child(n+4):nth-child(-n+7),.pr-table td:nth-child(n+4):nth-child(-n+7){display:none}
   .ro-table.pr-table th,.ro-table.pr-table td{padding:10px 6px;font-size:13px}
   .ov-kpis .kc[data-k="total"]{grid-column:1/-1}
   .pr-table .p-name{max-width:130px}
   .pr-table .ob-sub{display:none}
-  .pr-table th:nth-child(6){white-space:normal}
+  .pr-table th:nth-child(8){white-space:normal}
 }
 /* Product Analysis › Sales (moved from the Overview in Phase 5) */
 .sales-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+
+/* R7 layout: purchasing strip, demand + operational summary, insights */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+.ac-strip{padding:14px 18px}
+.ac-strip-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.ac-strip-h .section-meta{margin:0 0 0 auto}
+.ac-strip .ac-buckets{grid-template-columns:repeat(4,minmax(0,1fr))}
+.ac-strip .ac-b{border-top-width:3px;padding:10px 14px;background:var(--surface)}
+.ac-crit{border-top-color:var(--red)}.ac-warn{border-top-color:var(--amber)}.ac-info{border-top-color:var(--blue)}.ac-ok{border-top-color:var(--green)}
+.ac-strip .ac-b .ac-b-v{font-size:24px}
+.ov-row-2e{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr)}
+.hl-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:center;flex:1}
+.hl-wrap .donut-wrap{margin:0}
+.op-month select{height:34px;padding:0 10px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font:500 13.5px var(--font)}
+.os-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
+.os-c{padding:10px 12px;border-radius:var(--radius-sm);background:var(--surface2)}
+.os-v{font-size:20px;font-weight:700;color:var(--text);line-height:1.25;font-variant-numeric:tabular-nums}
+.os-v.skel{opacity:.4}
+.chart-wrap.os-chart{height:90px;margin-bottom:6px}
+.os-top{margin-bottom:10px}
+.top-list{margin:6px 0 0;padding-left:20px;font-size:13px}
+.top-list li{padding:3px 0}
+.top-list li>span{display:inline-flex}
+.tl-n{max-width:68%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)}
+.tl-v{float:right;font-weight:600;color:var(--text)}
+.tl-v small{font-weight:500;color:var(--text3);margin-left:6px}
+.pr-grp{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.kv-green{color:var(--green)}.kb-green{background:var(--green-bg);color:var(--green)}
+.kb-navy{background:var(--tint-soft);color:var(--navy)}
+@media(max-width:1100px){.ac-strip .ac-buckets{grid-template-columns:repeat(2,minmax(0,1fr))}.ov-row-2e{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:768px){.hl-wrap{grid-template-columns:minmax(0,1fr)}.os-grid{grid-template-columns:minmax(0,1fr)}.ac-strip-h .section-meta{margin:0;width:100%}}

@@ -39,3 +39,18 @@
 .proj-table td.neg{color:var(--red);font-weight:700}
 .proj-table td.inc{color:var(--link);font-weight:700}
 .proj-table tr:last-child td{border-bottom:none}
+
+/* R7: Stock & Coverage table (sortable headers, sticky SKU column), SKU forecast vs actual */
+.th-sort{background:none;border:none;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;text-align:inherit;width:100%;white-space:nowrap}
+.th-sort:hover{color:var(--text)}
+th[aria-sort="ascending"] .th-sort,th[aria-sort="descending"] .th-sort{color:var(--link)}
+.inv-table .w-sku{width:126px}
+.inv-table th:nth-child(2),.inv-table td:nth-child(2){left:146px;box-shadow:inset -1px 0 0 var(--border2)}
+.inv-table th:nth-child(3),.inv-table td:nth-child(3){position:static;left:auto;box-shadow:none;background:transparent}
+.inv-table thead th:nth-child(3){position:sticky;top:0;background:var(--glass-solid)}
+.inv-table tbody tr:hover td:nth-child(3){background:var(--surface-hover)}
+.tr-ic{display:inline-block;width:14px;margin-right:4px;font-size:10px}
+.fva-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+.fva-sum>div{padding:10px 12px;border-radius:var(--radius-sm);background:var(--surface2)}
+.fva-sum .d-v small{font-size:12px;font-weight:500;color:var(--text3)}
+@media(max-width:768px){.fva-sum{grid-template-columns:1fr 1fr}}

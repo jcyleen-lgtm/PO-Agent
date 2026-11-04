@@ -1,25 +1,53 @@
-/* Purchasing decision support shared by Overview and Replenishment (approved in docs/phase5, A1 + A2).
-   - bucketOf(row): Action Center bucket, spec §9.2 (decision D2), first match wins → every SKU in exactly one bucket.
-   - explainSku(row): deterministic, rule-based explanation built only from fields /api/replenishment returns.
-   - fetchRepl(): one cached /api/replenishment request per product type, so both pages show the same numbers.
-   Nothing here changes a calculation: it labels and explains the values the API already computed. */
+/* Purchasing decision support shared by Overview and Replenishment (revision R7, docs/revision-r7).
+   - bucketOf(row): purchasing group from the inventory status and the recommended quantity the API returns:
+       Understocked + recommended > 0  → Order Now        (mandatory in the order export)
+       Understocked + recommended = 0  → Covered / Monitor (shown with the reason, not exported by default)
+       Healthy                          → Hold             (optional, manual selection)
+       Overstocked                      → No Action Needed (optional, manual selection)
+       no status (no sales, no stock)   → Not classified   (All tab only)
+     Every SKU is in exactly one group.
+   - zeroReason(row): why an Understocked SKU has a recommendation of 0: the stock and incoming PO cover the
+     lead-time requirement, or the Holt forecast reaches 0 within the lead time (a forecast warning, not cover).
+   - explainSku(row): deterministic explanation built only from fields the API returns.
+   - fetchRepl(): one cached /api/replenishment request (plus the weekly forecast map) shared by both pages.
+   Nothing here changes a calculation: it groups and explains the values the API already computed. */
 const BUCKETS = [
-  { key: 'now', label: 'Order now', tone: 'crit', hint: 'Order-by date has passed' },
-  { key: 'soon', label: 'Upcoming orders', tone: 'warn', hint: 'Order-by date in the next 14 days' },
-  { key: 'hold', label: 'Hold / Monitor', tone: 'info', hint: 'Overstocked, or incoming PO already covers the need' },
-  { key: 'none', label: 'No action needed', tone: 'ok', hint: 'Order-by date more than 2 weeks away, or no stockout in the forecast' },
+  { key: 'order', label: 'Order Now', tone: 'crit', hint: 'Understocked with a recommended quantity: included in the order export' },
+  { key: 'covered', label: 'Covered / Monitor', tone: 'warn', hint: 'Understocked, recommended 0: check the reason before skipping' },
+  { key: 'hold', label: 'Hold', tone: 'info', hint: 'Healthy: no order by default, select manually if needed' },
+  { key: 'none', label: 'No Action Needed', tone: 'ok', hint: 'Overstocked: no order by default, select manually if needed' },
 ];
-const BUCKET = Object.fromEntries(BUCKETS.map(b => [b.key, b]));
+const UNCLASSIFIED = { key: 'unclassified', label: 'Not classified', tone: 'mute', hint: 'No sales in 4 weeks and no stock' };
+const BUCKET = Object.fromEntries([...BUCKETS, UNCLASSIFIED].map(b => [b.key, b]));
 
 function bucketOf(r) {
-  const d = r.order_by_days, firm = r.order_by_is_estimate === false && d != null;
-  if (firm && d <= 0) return 'now';
-  if (firm && d >= 1 && d <= 14) return 'soon';
-  if (r.status === 'overstocked' || ((r.reco_po || 0) === 0 && (r.confirmed_incoming || 0) > 0)) return 'hold';
-  return 'none';
+  if (r.status === 'understocked') return (r.reco_po || 0) > 0 ? 'order' : 'covered';
+  if (r.status === 'healthy') return 'hold';
+  if (r.status === 'overstocked') return 'none';
+  return 'unclassified';
 }
 
-// Priority inside a bucket (spec §9.3): order-by date ascending, estimates last, then L4W revenue descending.
+// Weekly forecast for a SKU from the forecast map (/api/forecast/results), or null when not loaded.
+function fcWeeks(sku) {
+  const f = typeof fcDataMap !== 'undefined' ? fcDataMap[sku] : null;
+  const q = f && f.forecast_data && f.forecast_data.quantities;
+  return Array.isArray(q) && q.length ? q.map(Number) : null;
+}
+
+// Only for Understocked SKUs with recommendation 0: 'forecast_zero' | 'covered' | 'unknown'.
+function zeroReason(r, settings) {
+  if (r.status !== 'understocked' || (r.reco_po || 0) > 0) return null;
+  const st = settings || (replData && replData.settings) || {};
+  const L = st.lead_time_weeks || 8;
+  const q = fcWeeks(r.sku);
+  if (!q) return 'unknown';
+  return q.slice(0, L).some(v => v === 0) ? 'forecast_zero' : 'covered';
+}
+
+// Healthy SKUs the system still recommends ordering (shown with a "System Recommended" badge, never pre-selected).
+const sysRecommended = r => r.status === 'healthy' && (r.reco_po || 0) > 0;
+
+// Priority inside a group (spec §9.3): order-by date ascending, estimates last, then L4W revenue descending.
 function byPriority(a, b) {
   const ea = a.order_by_is_estimate ? 1 : 0, eb = b.order_by_is_estimate ? 1 : 0;
   if (ea !== eb) return ea - eb;
@@ -31,42 +59,58 @@ function byPriority(a, b) {
 const ROUND = v => fmt(Math.round(v || 0));
 const weeksTxt = n => `${n} week${n === 1 ? '' : 's'}`;
 
+function zeroReasonText(r, settings) {
+  const st = settings || (replData && replData.settings) || {};
+  const L = st.lead_time_weeks || 8;
+  const z = zeroReason(r, st);
+  if (z === 'forecast_zero') {
+    const q = fcWeeks(r.sku) || [];
+    const wk = q.findIndex(v => v === 0) + 1;
+    return `Forecast warning: the Holt forecast reaches 0 in week ${wk}, while sales in the last 4 weeks averaged ${r.avg_l4w != null ? fmt(r.avg_l4w) : '--'} units/week. The recommendation is 0 because of the forecast, not because stock covers demand. Check before skipping.`;
+  }
+  if (z === 'covered') {
+    return `Stock / incoming PO sufficient: stock and PO with an ETA within the ${L}-week lead time (${ROUND(r.inventory_position)}) cover lead-time demand ${ROUND(r.lt_demand_8w)} + safety stock ${ROUND(r.safety_stock)}.`;
+  }
+  if (z === 'unknown') return 'Recommended 0; the weekly forecast is not available to tell why.';
+  return null;
+}
+
 function explainSku(r, settings) {
   const st = settings || (replData && replData.settings) || {};
   const L = st.lead_time_weeks;
   const out = [];
-  const b = bucketOf(r);
   const haveDate = !!r.order_by && r.order_by_days != null;
   if (!haveDate && r.reco_po == null && r.status == null) return ['Not enough data to explain this recommendation.'];
 
-  // 1. Timing
+  // 1. Status (the group comes from it)
+  if (r.status === 'understocked' || r.status === 'healthy') {
+    out.push(`Coverage ${r.coverage != null ? r.coverage.toFixed(1) + ' weeks' : '--'}: ${r.status === 'understocked' ? `${st.understock_weeks || 8} weeks or less, Understocked` : `between ${st.understock_weeks || 8} and ${st.overstock_weeks || 20} weeks, Healthy`}.`);
+  } else if (r.status === 'overstocked') {
+    out.push(r.coverage != null ? `Coverage ${r.coverage.toFixed(1)} weeks is above ${st.overstock_weeks || 20} weeks: no need to reorder.`
+      : 'Stock without sales in the last 4 weeks: no need to reorder.');
+  }
+
+  // 2. Recommended quantity
+  const zr = zeroReasonText(r, st);
+  if (zr) out.push(zr);
+  else if (r.reco_po != null && r.lt_demand_8w != null && r.safety_stock != null && r.inventory_position != null) {
+    if (r.reco_po > 0) {
+      out.push(`Recommended ${fmt(r.reco_po)} units = lead-time demand ${ROUND(r.lt_demand_8w)} + safety stock ${ROUND(r.safety_stock)} − stock and confirmed incoming ${ROUND(r.inventory_position)}.`);
+      if (sysRecommended(r)) out.push('Healthy, but the forecast-based recommendation is above 0 (System Recommended). Not selected for the order export unless you tick it.');
+    } else {
+      out.push(`Recommended 0: stock and confirmed incoming (${ROUND(r.inventory_position)}) already cover lead-time demand ${ROUND(r.lt_demand_8w)} + safety stock ${ROUND(r.safety_stock)}.`);
+    }
+  }
+
+  // 3. Timing
   if (r.stockout_week && haveDate && !r.order_by_is_estimate) {
     const d = r.order_by_days;
     const when = d < 0 ? `the order-by date (${dfmt(r.order_by)}) passed ${d === -1 ? '1 day' : -d + ' days'} ago`
       : d === 0 ? `the order-by date is today (${dfmt(r.order_by)})`
         : `order by ${dfmt(r.order_by)} (in ${d === 1 ? '1 day' : d + ' days'})`;
     out.push(`Stock is projected to run out in week ${r.stockout_week}${L ? `; with a ${L}-week lead time ${when}` : `; ${when}`}.`);
-    if (d < 0) out.push('An order placed today arrives after the projected stockout.');
   } else if (haveDate && r.order_by_is_estimate) {
     out.push(`No stockout within the 12-week forecast; earliest sensible order date ${dfmt(r.order_by)} (estimate).`);
-  }
-
-  // 2. Quantity
-  if (r.reco_po != null && r.lt_demand_8w != null && r.safety_stock != null && r.inventory_position != null) {
-    if (r.reco_po > 0) {
-      out.push(`Recommended ${fmt(r.reco_po)} units = lead-time demand ${ROUND(r.lt_demand_8w)} + safety stock ${ROUND(r.safety_stock)} − stock and confirmed incoming ${ROUND(r.inventory_position)}.`);
-    } else {
-      out.push(`Recommended 0: stock and confirmed incoming (${ROUND(r.inventory_position)}) already cover lead-time demand ${ROUND(r.lt_demand_8w)} + safety stock ${ROUND(r.safety_stock)}.`);
-      if (b === 'now' || b === 'soon') out.push(`Review anyway: the projected stockout${r.stockout_week ? ` in week ${r.stockout_week}` : ''} is after the lead time.`);
-    }
-  }
-
-  // 3. Coverage / hold
-  if (r.status === 'overstocked') {
-    out.push(r.coverage != null ? `Coverage ${r.coverage.toFixed(1)} weeks is above ${st.overstock_weeks || 20} weeks: no need to reorder.`
-      : 'Stock without sales in the last 4 weeks: no need to reorder.');
-  } else if (b === 'hold' && (r.confirmed_incoming || 0) > 0) {
-    out.push(`Incoming PO with an ETA (${fmt(r.confirmed_incoming)} units) already covers the need.`);
   }
 
   // 4. Data caveats
@@ -87,14 +131,26 @@ async function fetchRepl() {
   if (replData && replData._pt === pt) return replData;
   if (replPromise && replPromise._pt === pt) return replPromise;
   replPromise = (async () => {
+    const fcP = Object.keys(fcDataMap).length ? Promise.resolve() : loadFcMap();
     const r = await fetch(`/api/replenishment?product_type=${pt}`);
     if (!r.ok) throw new Error('Replenishment request failed (' + r.status + ')');
     const d = await r.json();
+    await fcP;
     d._pt = pt;
-    (d.results || []).forEach(x => { x.qty = x.reco_po || 0; x.sel = needOrder(x) && (x.reco_po || 0) > 0; x.bucket = bucketOf(x); });
+    (d.results || []).forEach(x => {
+      x.qty = x.reco_po || 0;
+      x.bucket = bucketOf(x);
+      x.mandatory = x.bucket === 'order';          // always in the order export
+      x.sel = false;                               // manual selection (optional groups)
+      x.zero = zeroReason(x, d.settings);
+      x.sysReco = sysRecommended(x);
+    });
     replData = d;
     return d;
   })();
   replPromise._pt = pt;
   try { return await replPromise; } finally { replPromise = null; }
 }
+
+// Rows that go into the order export: every Order Now SKU plus manually selected ones (units > 0).
+const inOrder = r => (r.mandatory || r.sel) && (r.qty || 0) > 0;

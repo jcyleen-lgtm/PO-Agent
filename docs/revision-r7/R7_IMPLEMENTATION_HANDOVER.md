@@ -1,0 +1,92 @@
+# Revision R7: implementation and handover (Stage 4–5)
+
+Branch `r7-revision`, built on `overview-v2` (decision 1). Frontend only: no change to the backend, API
+contracts, database, Holt's DES, coverage, safety stock, lead time, recommended quantity or PO status logic.
+Stage 1–3 (audit, wireframes, validation): `R7_STAGE_1-3.md`.
+
+## 1. Decisions applied
+
+| # | Decision (San, 4 Nov 2026) | Implemented as |
+|---|---|---|
+| 1 | Branch from `overview-v2` | `r7-revision` on top of `overview-v2` |
+| 2 | Understocked with recommended 0 get their own group | **Covered / Monitor**: Understocked + `reco_po = 0`. Not in the order export by default, can be ticked manually. Inventory status stays Understocked |
+| 2a | Two reasons, validated on production (13 SKUs: 3 + 10) | **Stock / Incoming PO Sufficient**: no forecast week within the lead time is 0. **Forecast Drops to Zero**: at least one of the first *lead-time* forecast weeks is 0 → red "Forecast warning" badge; the text says the recommendation is 0 because of the forecast, not because stock covers demand |
+| 3 | Healthy with recommended > 0 | Stay in **Hold**, badge **System Recommended**, quick filter, never pre-selected (6 SKUs in production) |
+| 4 | Ordered quantity: ETA and PO date | Toggle on the PO chart, default **By ETA**. ETA = `expected_date` only; lines without it are counted in a data-quality line, never placed in a week |
+
+Groups (core/decision.js `bucketOf`), each SKU in exactly one:
+
+| Group | Rule | Export | Production 4 Nov |
+|---|---|---|---:|
+| Order Now | Understocked, recommended > 0 | always (Mandatory) | 19 |
+| Covered / Monitor | Understocked, recommended 0 | optional | 13 (3 sufficient, 10 forecast warning) |
+| Hold | Healthy | optional | 56 (6 System Recommended) |
+| No Action Needed | Overstocked | optional | 102 |
+| Not classified | no sales in 4 weeks and no stock | All tab only | 4 |
+
+"Upcoming orders" is removed. The order-by date, urgency and stock projection are still shown per SKU (they
+come from the API); they no longer decide the group. The priority order inside a group is unchanged
+(order-by date, estimates last, L4W revenue).
+
+## 2. Changes per page
+
+**Overview** (order as requested): header with data-date chips → 5 KPI cards (Total, Understocked, Healthy,
+Overstocked, Out of Stock as a subset) → purchasing group strip (4 groups, each opens its tab) → **Demand —
+Actual vs Forecast** (weekly; 8 holdout weeks as actual bars vs forecast line, then 12 forecast weeks shaded;
+tooltip shows over / under per week) next to **Operational Summary** (month selector; monthly sales; best-seller
+revenue contribution = Σ revenue of the top 10 SKUs ranked by revenue ÷ total revenue of the month × 100;
+12-month sales bars; top-10 list; pending POs; last sales; last stock; data status) → **Priority SKUs**
+(Understocked: Order Now then Covered / Monitor; columns SKU, Product, Status, Stock, Coverage, Incoming PO,
+Forecast / Wk, Recommended PO) → **Inventory Insights** (health donut, coverage distribution).
+The Stock Value KPI card is replaced by Healthy (brief lists five cards); stock value stays in Product Analysis.
+
+**Replenishment Planning**: tabs All / Order Now / Covered / Monitor / Hold / No Action Needed; Order Now
+checkboxes ticked and locked ("Mandatory"); other rows optional ("Manual" once ticked); reason badges;
+System Recommended filter chip; sticky bar "mandatory + manual SKUs"; **Export order list (.xlsx)** with
+columns *Group*, *Included as* (Mandatory / Manual), *Reason (recommended 0)* and an Info sheet. "Export list"
+(CSV of the rows shown) is unchanged. SheetJS 0.18.5 is loaded from cdnjs only when the Excel export is used.
+
+**Product Analysis**: Stock & Coverage table columns in exactly the requested order (SKU, Product, Status,
+Coverage, Stockout, Stock, Open PO, Forecast/Wk, Reco PO, Movement, Days Inv., Overstock, Value, Avg/Wk L4W,
+L4W Revenue); every header sorts (click again to reverse); SKU and Product stay visible when scrolling sideways;
+the trend arrow moved into the SKU cell. SKU detail: **Forecast vs Actual** chart (26 weeks of actual sales,
+the 8 holdout weeks with the forecast made without them, then the 12-week horizon) plus a summary (weeks above /
+below actual, total forecast vs actual) and a "forecast − actual" bar per holdout week. No reliability labels.
+
+**PO Tracking**: month selector with previous / next (month of the PO date; default the latest month with
+POs; "No PO date" and "All periods" options); period summary (PO count = distinct PO numbers, lines, ordered
+and received quantity, pending POs and lines; PO value shown as n/a because PO lines have no price); line filter
+defaults to All inside the period. New section **Forecast Demand vs Actual Sales vs Actual Ordered Quantity**:
+weekly, all best sellers or one SKU, toggle By ETA / By PO date, data-quality line for undated quantities and
+quantities outside the chart window.
+
+## 3. Files
+
+| File | Change |
+|---|---|
+| `static/js/core/decision.js` | new groups, `zeroReason`, `zeroReasonText`, `sysRecommended`, `inOrder`, explanations; `fetchRepl` also loads the weekly forecast map |
+| `static/js/core/demand.js` | **new**: `fetchPlan` (shared `/api/forecast/plan` cache), `demandSeries`, `biasSummary`, `wkLabel` |
+| `static/js/core/ui.js` | `ensureXlsx` (lazy SheetJS) |
+| `static/js/core/settings.js` | theme switch redraws the new charts |
+| `static/js/pages/overview.js` | rewritten for the new section order |
+| `static/js/pages/replenishment.js` | groups, locked mandatory rows, badges, filter chip, Excel export |
+| `static/js/pages/analysis.js` | column order, header sort, SKU forecast vs actual; Demand Plan uses `fetchPlan` |
+| `static/js/pages/po.js` | period filter and summary, purchasing chart |
+| `templates/dashboard.html` | Overview, Replenishment, PO markup; `core/demand.js` script tag |
+| `static/css/components.css`, `pages/{overview,replenishment,analysis,po}.css` | styles for the above |
+| `tests/unit/test_decision_js.py` | rewritten for the R7 rules |
+| `tests/e2e/regression.js`, `tests/e2e/package.json` | R7 checks (values vs API, groups, export, column order, PO period); SheetJS for reading the export |
+
+## 4. Known limitations
+
+1. **Global filters**: Store / Platform data does not exist; inventory has no date parameter. Only the
+   Operational Summary has a month selector (sales figures).
+2. **Forecast history**: only the 8 holdout weeks of the latest run exist; earlier forecasts are overwritten,
+   so "forecast vs actual" cannot go further back.
+3. **Forecast warning SKUs** (10 in production) come from the Holt trend reaching 0 (see forecast accuracy
+   decisions F1–F6). The UI flags them; the forecast itself is unchanged.
+4. **PO value**: no price on PO lines. **Supplier**: empty on all lines, so no supplier column / search.
+5. **Last sales week is partial** when sales end mid-week (production: data to 29 Oct); the demand chart marks
+   it with `*`.
+6. Best-seller contribution uses the top 10 by revenue (the API returns 10); N is not configurable.
+7. Verified on synthetic test data in the browser; production numbers to be checked on the preview.

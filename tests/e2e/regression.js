@@ -8,6 +8,8 @@ const path = require('path');
 const [BASE, OUT, FX] = process.argv.slice(2);
 const CHART = path.join(path.dirname(require.resolve('chart.js')), 'chart.umd.js');
 const CHART_SRC = fs.readFileSync(CHART, 'utf8') + '\n;Chart.defaults.animation=false;';
+const XLSX = require('xlsx');
+const XLSX_SRC = fs.readFileSync(path.join(path.dirname(require.resolve('xlsx')), 'dist', 'xlsx.full.min.js'), 'utf8');
 const CONTEXTS = [
   { name: 'desktop-light', w: 1440, h: 900, theme: 'light', mutate: true, styles: true },
   { name: 'desktop-dark', w: 1440, h: 900, theme: 'dark' },
@@ -41,6 +43,7 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
     p.on('requestfailed', done);
     await p.route('**/*', r => {
       const u = new URL(r.request().url());
+      if (u.hostname.includes('cdnjs') && u.pathname.includes('/xlsx/')) return r.fulfill({ body: XLSX_SRC, contentType: 'application/javascript' });
       if (u.hostname.includes('cdnjs')) return r.fulfill({ body: CHART_SRC, contentType: 'application/javascript' });
       if (u.hostname.includes('fonts.g')) return r.fulfill({ body: '', contentType: 'text/css' });
       return r.continue();
@@ -101,11 +104,13 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
       try { await el.click({ timeout: 3000 }); } catch (e) { errors.push(`${C.name}: not clickable ${sel}`); return; }
       await settle(ms);
     };
-    const download = async (name, sel) => {
-      const el = await p.$(sel); if (!el) { errors.push(`${C.name}: missing ${sel}`); return; }
+    const download = async (name, sel, ext = 'csv') => {
+      const el = await p.$(sel); if (!el) { errors.push(`${C.name}: missing ${sel}`); return null; }
       const [d] = await Promise.all([p.waitForEvent('download'), el.click()]);
-      fs.copyFileSync(await d.path(), path.join(OUT, `${C.name}__${name}.csv`));
+      const f = path.join(OUT, `${C.name}__${name}.${ext}`);
+      fs.copyFileSync(await d.path(), f);
       await settle();
+      return f;
     };
 
     // Login
@@ -118,40 +123,50 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
 
     // Overview
     await snap('10-overview');
-    // Overview values must equal what /api/replenishment returns (KPIs, groups, priority table, both charts)
+    // Overview values must equal an independent recomputation from /api/replenishment (R7 groups, KPIs, priority, charts)
     const check = await p.evaluate(async () => {
       const d = await (await fetch('/api/replenishment?product_type=import')).json();
       const R = d.results || [];
-      const b = r => { const x = r.order_by_days, f = r.order_by_is_estimate === false && x != null;
-        return f && x <= 0 ? 'now' : f && x >= 1 && x <= 14 ? 'soon' : (r.status === 'overstocked' || ((r.reco_po || 0) === 0 && (r.confirmed_incoming || 0) > 0)) ? 'hold' : 'none'; };
-      const exp = ['now', 'soon', 'hold', 'none'].map(k => R.filter(r => b(r) === k).length);
+      const g = r => r.status === 'understocked' ? ((r.reco_po || 0) > 0 ? 'order' : 'covered') : r.status === 'healthy' ? 'hold' : r.status === 'overstocked' ? 'none' : 'unclassified';
+      const exp = ['order', 'covered', 'hold', 'none'].map(k => R.filter(r => g(r) === k).length);
       const num = t => parseInt(String(t).replace(/[^0-9]/g, ''), 10);
       const shown = [...document.querySelectorAll('#acBuckets .ac-b-v')].map(e => num(e.firstChild.textContent));
       const st = k => R.filter(r => (r.status || null) === k).length;
-      const expK = [R.length, st('understocked'), R.filter(r => r.out_of_stock).length, st('overstocked')];
-      const shownK = ['total', 'under', 'oos', 'over'].map(k => num(document.querySelector(`#ovKpis [data-k="${k}"] .kc-v`).textContent));
-      // priority table: Order now then Upcoming, each by order-by date (estimates last), then L4W revenue
+      const expK = [R.length, st('understocked'), st('healthy'), st('overstocked'), R.filter(r => r.out_of_stock).length];
+      const shownK = ['total', 'under', 'healthy', 'over', 'oos'].map(k => num(document.querySelector(`#ovKpis [data-k="${k}"] .kc-v`).textContent));
       const pri = (x, y) => { const ex = x.order_by_is_estimate ? 1 : 0, ey = y.order_by_is_estimate ? 1 : 0; if (ex !== ey) return ex - ey;
         const dx = x.order_by || '9999-12-31', dy = y.order_by || '9999-12-31'; if (dx !== dy) return dx < dy ? -1 : 1; return (y.l4w_revenue || 0) - (x.l4w_revenue || 0); };
-      const att = R.filter(r => ['now', 'soon'].includes(b(r))).sort((x, y) => b(x) === b(y) ? pri(x, y) : b(x) === 'now' ? -1 : 1).slice(0, 8);
+      const rk = { order: 0, covered: 1 };
+      const att = R.filter(r => g(r) in rk).sort((x, y) => g(x) === g(y) ? pri(x, y) : rk[g(x)] - rk[g(y)]).slice(0, 8);
       const expP = att.map(r => [r.sku, r.reco_po || 0]);
-      const shownP = [...document.querySelectorAll('#prList tbody tr')].map(tr => [tr.querySelector('.p-sku').textContent.trim(), num(tr.children[5].textContent)]);
-      const hc = Chart.getChart('ovHealthChart'), cc = Chart.getChart('ovCovChart'), dc = Chart.getChart('ovDemChart');
+      const shownP = [...document.querySelectorAll('#prList tbody tr')].map(tr => [tr.children[0].textContent.trim(), num(tr.children[7].textContent)]);
+      const hc = Chart.getChart('ovHealthChart'), cc = Chart.getChart('ovCovChart'), dc = Chart.getChart('ovDemChart'), mc = Chart.getChart('ovMonChart');
       const chartH = hc ? hc.data.datasets[0].data.slice(0, 3) : null;
       const covSum = cc ? cc.data.datasets[0].data.reduce((x, y) => x + y, 0) : null;
+      // demand chart: past weeks = sum of holdout actual / forecast from /api/forecast/plan
+      const pl = await (await fetch('/api/forecast/plan?product_type=import')).json();
+      const act = {}; (pl.results || []).forEach(x => { const h = x.holdout || {}; if (Array.isArray(h.actual) && Array.isArray(h.forecast)) (h.weeks || []).forEach((w, i) => { const k = String(w).slice(0, 10); act[k] = (act[k] || 0) + (Number(h.actual[i]) || 0) }) });
+      const expA = Object.keys(act).sort().map(k => Math.round(act[k]));
+      const shownA = dc ? dc.data.datasets[0].data.filter(v => v != null) : null;
+      const months = document.querySelectorAll('#ovMonth option').length;
+      const share = (document.querySelector('#ovSales .os-c:nth-child(2) .os-v') || {}).textContent || '';
       const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
       const ok = same(exp, shown) && same(expK, shownK) && same(expP, shownP) && same(chartH, [st('understocked'), st('healthy'), st('overstocked')])
-        && covSum === R.length && exp.reduce((x, y) => x + y, 0) === R.length && !!dc;
-      return { ok, exp, shown, expK, shownK, expP, shownP, chartH, covSum, total: R.length };
+        && covSum === R.length && exp.reduce((x, y) => x + y, 0) + R.filter(r => g(r) === 'unclassified').length === R.length
+        && same(expA, shownA) && !!mc && months > 0 && /%$/.test(share);
+      return { ok, exp, shown, expK, shownK, expP, shownP, chartH, covSum, expA, shownA, months, share, total: R.length };
     });
     if (!check.ok) errors.push(`${C.name}: overview values differ from API ${JSON.stringify(check)}`);
     states.push({ id: `${C.name}__11-values`, text: JSON.stringify(check), calls: [], theme: '', activeNav: '', scrollWidth: 0, canvases: 0 });
-    // every Action Center card opens Replenishment on the same group
-    for (const [i, k] of [[1, 'now'], [2, 'soon'], [3, 'hold'], [4, 'none']]) {
+    // month selector: pick the earliest month, the sales block must update
+    const firstMonth = await p.evaluate(() => { const o = [...document.querySelectorAll('#ovMonth option')]; return o.length ? o[o.length - 1].value : null });
+    if (firstMonth) { await p.selectOption('#ovMonth', firstMonth); await settle(); await snap('11-overview-month', false); }
+    // every purchasing card opens Replenishment on the same group
+    for (const [i, k] of [[1, 'order'], [2, 'covered'], [3, 'hold'], [4, 'none']]) {
       await click(`#acBuckets .ac-b:nth-child(${i})`, 300);
       const t = await p.evaluate(() => [document.querySelector('.nav-item.active').dataset.tab, (document.querySelector('#rpTabs button.active') || {}).dataset?.v]);
       if (t[0] !== 'replenishment' || t[1] !== k) errors.push(`${C.name}: action card ${k} opened ${t}`);
-      if (i === 3) await snap('12-ac-to-repl', false);
+      if (i === 2) await snap('12-ac-to-repl', false);
       await click('.nav-item[data-tab="overview"]', 200);
     }
     await click('#ovKpis button[data-k="under"]');
@@ -163,19 +178,45 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
     await click('.nav-item[data-tab="overview"]', 200);
     await click('#prViewAll');
     const va = await p.evaluate(() => (document.querySelector('#rpTabs button.active') || {}).dataset?.v);
-    if (va !== 'all') errors.push(`${C.name}: View all opened tab ${va}`);
+    if (va !== 'order') errors.push(`${C.name}: View all opened tab ${va}`);
 
-    // Replenishment
+    // Replenishment: groups, mandatory rows locked, optional selection, Excel order list
     await click('.nav-item[data-tab="replenishment"]'); await snap('20-repl');
+    const rc = await p.evaluate(() => {
+      const R = replData.results, cnt = k => R.filter(r => r.bucket === k).length;
+      const tabs = Object.fromEntries([...document.querySelectorAll('#rpTabs .cnt')].map(c => [c.dataset.c, parseInt(c.textContent.replace(/\D/g, ''), 10)]));
+      const locked = [...document.querySelectorAll('#rpTableWrap tbody input.cb:disabled')].length;
+      return { tabs, exp: { all: R.length, order: cnt('order'), covered: cnt('covered'), hold: cnt('hold'), none: cnt('none') }, locked, shown: document.querySelectorAll('#rpTableWrap tbody tr').length,
+        sys: R.filter(r => r.status === 'healthy' && (r.reco_po || 0) > 0).length, sysShown: parseInt(document.getElementById('rpSysCnt').textContent, 10),
+        fz: R.filter(r => r.zero === 'forecast_zero').length };
+    });
+    if (JSON.stringify(rc.tabs) !== JSON.stringify(rc.exp) || rc.locked !== Math.min(rc.shown, rc.exp.order) || rc.sys !== rc.sysShown) errors.push(`${C.name}: replenishment groups ${JSON.stringify(rc)}`);
+    states.push({ id: `${C.name}__20-repl-values`, text: JSON.stringify(rc), calls: [], theme: '', activeNav: '', scrollWidth: 0, canvases: 0 });
     await click('#rpTabs button[data-v="all"]'); await snap('21-repl-all', false);
+    await click('#rpTabs button[data-v="covered"]'); await snap('21-repl-covered', false);
     await click('#rpTabs button[data-v="hold"]'); await snap('22-repl-hold', false);
+    await click('#rpSysReco'); await snap('22-repl-sysreco', false); await click('#rpSysReco');
+    // tick one optional (Hold) row
+    const opt = await p.$('#rpTableWrap tbody input.cb:not(:disabled)');
+    let manualSku = null;
+    if (opt) { manualSku = await opt.evaluate(e => e.closest('tr').querySelector('.p-sku').firstChild.textContent.trim()); await opt.evaluate(e => { e.checked = true; e.dispatchEvent(new Event('change', { bubbles: true })) }); await settle(300);
+      const q = await p.$('#rpTableWrap tbody tr input.cb:checked:not(:disabled)'); if (q) { const qi = await q.evaluate(e => !!e.closest('tr').querySelector('.qty-in')); if (qi) { const inp = await q.evaluateHandle(e => e.closest('tr').querySelector('.qty-in')); await inp.fill('25'); await inp.press('Tab'); await settle(300) } } }
     await click('#rpTabs button[data-v="all"]');
     await click('#rpStatus button[data-v="understocked"]'); await snap('23-repl-under', false);
     await click('#rpStatus button[data-v=""]');
-    const qty = await p.$('#rpTableWrap tbody tr:nth-child(2) .qty-in');
-    if (qty) { await qty.fill('999'); await qty.press('Tab'); }
     await snap('24-repl-qty', false);
-    if (C.mutate) await download('repl-export', 'button[onclick^="exportReplenishment"]');
+    if (C.mutate) {
+      await download('repl-export', 'button[onclick="exportReplenishment()"]');
+      const xf = await download('order-list', 'button[onclick="exportReplenishment(true)"]', 'xlsx');
+      if (xf) {
+        const wbk = XLSX.readFile(xf), rows = XLSX.utils.sheet_to_json(wbk.Sheets['Order list']);
+        const exp = await p.evaluate(() => ({ mand: replData.results.filter(r => r.mandatory).length, man: replData.results.filter(r => !r.mandatory && r.sel && r.qty > 0).map(r => r.sku) }));
+        const mand = rows.filter(r => r['Included as'] === 'Mandatory').length, man = rows.filter(r => r['Included as'] === 'Manual').map(r => r.SKU);
+        const okx = mand === exp.mand && JSON.stringify(man) === JSON.stringify(exp.man) && (!manualSku || man.includes(manualSku)) && rows.every(r => r['Group'] !== undefined);
+        if (!okx) errors.push(`${C.name}: order list export ${JSON.stringify({ mand, man, exp, manualSku, n: rows.length })}`);
+        states.push({ id: `${C.name}__24-order-list`, text: JSON.stringify({ rows: rows.length, mand, man }), calls: [], theme: '', activeNav: '', scrollWidth: 0, canvases: 0 });
+      }
+    }
     const row = await p.$('#rpTableWrap tbody tr');
     if (row) {
       await row.click(); await snap('25-repl-detail');
@@ -185,9 +226,19 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
 
     // Product analysis
     await click('.nav-item[data-tab="analysis"]'); await snap('30-analysis-stock');
+    const heads = await p.evaluate(() => [...document.querySelectorAll('#invTableWrap thead th')].map(t => t.textContent.replace(/[▲▼]/g, '').trim()));
+    const wantH = ['SKU', 'Product', 'Status', 'Coverage', 'Stockout', 'Stock', 'Open PO', 'Forecast/Wk', 'Reco PO', 'Movement', 'Days Inv.', 'Overstock', 'Value', 'Avg/Wk L4W', 'L4W Revenue'];
+    if (JSON.stringify(heads) !== JSON.stringify(wantH)) errors.push(`${C.name}: product table columns ${JSON.stringify(heads)}`);
+    await click('#invTableWrap thead th:nth-child(4) .th-sort', 300);
+    const sorted = await p.evaluate(() => { const v = [...document.querySelectorAll('#invTableWrap tbody tr td:nth-child(4)')].map(t => parseFloat(t.textContent)).filter(x => !isNaN(x)); return v.every((x, i) => i === 0 || v[i - 1] >= x) });
+    if (!sorted) errors.push(`${C.name}: coverage header sort`);
+    await snap('30-analysis-sorted', false);
     if (C.mutate) await download('inv-export', 'button[onclick^="exportInventory"]');
     const invRow = await p.$('#invTableWrap tbody tr');
-    if (invRow) { await invRow.click(); await snap('31-sku-drawer'); await p.keyboard.press('Escape'); await settle(); }
+    if (invRow) { await invRow.click(); await settle(800); await snap('31-sku-drawer');
+      const fv = await p.evaluate(() => ({ main: !!Chart.getChart('sdChart'), dev: !!Chart.getChart('sdDev') || !!document.querySelector('#sdFva .section-meta') }));
+      if (!fv.main || !fv.dev) errors.push(`${C.name}: SKU forecast vs actual ${JSON.stringify(fv)}`);
+      await p.keyboard.press('Escape'); await settle(); }
     await click('#anSeg button[data-v="forecast"]'); await snap('32-demand-plan');
     await click('#dpMetric button[data-v="sales"]'); await snap('33-plan-sales', false);
     await click('#dpView button[data-v="weekly"]'); await snap('34-plan-weekly');
@@ -195,7 +246,19 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
     await click('.pill[data-p="l8w"]'); await snap('36-sales-8w', false);
 
     // PO
-    await click('.nav-item[data-tab="po"]'); await snap('40-po');
+    await click('.nav-item[data-tab="po"]'); await settle(800); await snap('40-po');
+    const pc = await p.evaluate(() => { const sel = document.getElementById('poPeriodSel'); const k = sel.value;
+      const ls = poData.filter(x => (x.order_date ? String(x.order_date).slice(0, 7) : 'nodate') === k && !['cancelled', 'superseded'].includes(x.status));
+      const nums = new Set(ls.map(x => x.po_number || '(no PO number)')).size;
+      const shownN = parseInt(document.querySelector('#poPeriodSum .pps-c .pps-v').textContent.replace(/\D/g, ''), 10);
+      const latest = [...new Set(poData.map(x => x.order_date ? String(x.order_date).slice(0, 7) : null).filter(Boolean))].sort().pop();
+      const groupDates = [...document.querySelectorAll('#poBody .po-grp')].length;
+      return { k, latest, nums, shownN, groupDates, chart: !!Chart.getChart('poFcChart') } });
+    if (pc.k !== pc.latest || pc.nums !== pc.shownN || !pc.chart) errors.push(`${C.name}: PO period ${JSON.stringify(pc)}`);
+    states.push({ id: `${C.name}__40-po-values`, text: JSON.stringify(pc), calls: [], theme: '', activeNav: '', scrollWidth: 0, canvases: 0 });
+    await click('#poPrev', 300); await snap('40-po-prev-month', false);
+    await click('#poFcMode button[data-v="po"]', 300); await snap('40-po-fc-podate', false);
+    await click('#poFcMode button[data-v="eta"]', 300);
     await click('#poViewSeg button[data-v="sku"]'); await snap('41-po-by-sku', false);
     await click('#poViewSeg button[data-v="po"]');
     await click('#poStatusSeg button[data-v="all"]'); await snap('42-po-all', false);

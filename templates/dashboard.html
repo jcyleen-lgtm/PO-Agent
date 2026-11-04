@@ -68,46 +68,47 @@
 
   <section class="ov-kpis" id="ovKpis" aria-label="Inventory health"></section>
 
-  <div class="ov-row ov-row-3">
-    <section class="card ov-panel" aria-labelledby="hlTitle">
-      <div class="card-header"><div><h2 class="section-label" id="hlTitle">Inventory Health</h2><div class="section-meta">SKUs per stock status</div></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks.&#10;Understocked: 8 weeks or less · Healthy: more than 8 up to 20 weeks · Overstocked: more than 20 weeks, or stock without sales.&#10;Not classified: no sales in 4 weeks and no stock.">i</span></div>
-      <div class="donut-wrap"><div class="donut-box" id="chHealthWrap"><canvas id="ovHealthChart" aria-label="Inventory health distribution chart" role="img"></canvas></div><div class="donut-center" id="donutCenter"></div></div>
-      <div class="hl-legend" id="ovHealthLegend"></div>
-    </section>
-
-    <section class="card ov-panel ac" aria-labelledby="acTitle">
-      <div class="card-header"><div><h2 class="section-label" id="acTitle">What Needs Your Attention?</h2><div class="section-meta" id="acMeta">Purchasing action groups</div></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Every best-seller SKU is in exactly one group, from the order-by date and status the system already calculated:&#10;Order now: order-by date has passed.&#10;Upcoming orders: order-by date in the next 14 days.&#10;Hold / Monitor: overstocked, or recommended 0 with a confirmed incoming PO.&#10;No action needed: everything else.&#10;&#10;Stockwise recommends; purchasing decides. Orders are placed outside Stockwise.">i</span></div>
-      <div class="ac-buckets" id="acBuckets"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
-    </section>
-
-    <section class="card ov-panel" aria-labelledby="covTitle">
-      <div class="card-header"><div><h2 class="section-label" id="covTitle">Stock Coverage</h2><div class="section-meta">SKUs per coverage range, in weeks</div></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks. Bars are coloured by the status the range falls in. &quot;No sales&quot;: no sales in 4 weeks, so coverage cannot be calculated.">i</span></div>
-      <div class="chart-wrap ov-chart" id="chCovWrap"><canvas id="ovCovChart" aria-label="Stock coverage distribution chart" role="img"></canvas></div>
-    </section>
-  </div>
-
-  <section class="card" aria-labelledby="prTitle">
-    <div class="card-header"><div><h2 class="section-label" id="prTitle">Priority SKUs</h2><div class="section-meta" id="prMeta">SKUs requiring purchasing attention.</div></div></div>
-    <div id="prList"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
-    <div class="pr-foot"><button class="btn btn-ghost btn-sm" onclick="openReplBucket('all')" id="prViewAll">View all Replenishment <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span class="text-dim" id="prMore"></span></div>
+  <section class="card ac-strip" aria-labelledby="acTitle">
+    <div class="ac-strip-h"><h2 class="section-label" id="acTitle">What Needs Your Attention?</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Each SKU is in exactly one group, from its inventory status and recommended quantity:&#10;Order Now: Understocked, recommended above 0 (always in the order list).&#10;Covered / Monitor: Understocked, recommended 0, with the reason.&#10;Hold: Healthy. No Action Needed: Overstocked (both optional).&#10;&#10;Stockwise recommends; purchasing decides. Orders are placed outside Stockwise.">i</span><span class="section-meta" id="acMeta"></span></div>
+    <div class="ac-buckets" id="acBuckets"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
   </section>
 
   <div class="ov-row ov-row-2">
     <section class="card ov-panel" aria-labelledby="dmTitle">
-      <div class="card-header"><div><h2 class="section-label" id="dmTitle">Demand: Actual vs Forecast</h2><div class="section-meta" id="dmMeta">Weekly units sold and Holt's DES forecast, best-seller SKUs</div></div><div class="legend"><span><i style="border-color:var(--chart-1)"></i>Actual</span><span><i class="dash" style="border-color:var(--chart-2)"></i>Forecast</span></div></div>
+      <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="dmTitle">Demand — Actual vs Forecast</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Weekly units, best-seller SKUs. Past weeks: actual sales next to the forecast for the same weeks from a model trained without them (holdout), so you see how close the forecast was. Then the forecast for the next 12 weeks. Stockwise keeps only the latest forecast run, so earlier forecasts are not available.">i</span></div><div class="section-meta" id="dmMeta">Weekly units sold vs Holt's DES forecast</div></div><div class="legend"><span><i style="border-color:var(--chart-1);border-top-width:8px"></i>Actual</span><span><i class="dash" style="border-color:var(--chart-2)"></i>Forecast</span></div></div>
       <div class="chart-wrap ov-chart-l" id="chDemWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
       <div class="dm-foot"><span id="dmStats" class="section-meta"></span><button class="link-btn" onclick="switchTab('analysis');setSub('forecast')">Demand plan →</button></div>
     </section>
     <section class="card ov-panel" aria-labelledby="opTitle">
-      <div class="card-header"><div><h2 class="section-label" id="opTitle">Operational Summary</h2><div class="section-meta">Is the data behind this page current?</div></div></div>
+      <div class="card-header"><h2 class="section-label" id="opTitle">Operational Summary</h2><label class="op-month"><span class="sr-only">Month</span><select id="ovMonth" onchange="loadOvMonth(this.value)" aria-label="Month for sales figures"></select></label></div>
+      <div id="ovSales"><span class="text-dim">Loading…</span></div>
       <div class="op-list" id="ovOps"><span class="text-dim">Loading…</span></div>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="prTitle">
+    <div class="card-header"><div><h2 class="section-label" id="prTitle">Priority SKUs</h2><div class="section-meta" id="prMeta">Understocked SKUs, most urgent first.</div></div></div>
+    <div id="prList"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
+    <div class="pr-foot"><button class="btn btn-ghost btn-sm" onclick="openReplBucket('order')" id="prViewAll">View all in Replenishment <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span class="text-dim" id="prMore"></span></div>
+  </section>
+
+  <h2 class="group-h" id="insTitle">Inventory Insights</h2>
+  <div class="ov-row ov-row-2e">
+    <section class="card ov-panel" aria-labelledby="hlTitle">
+      <div class="card-header"><div><h2 class="section-label" id="hlTitle">Inventory Health Distribution</h2><div class="section-meta">SKUs per stock status</div></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks.&#10;Understocked: 8 weeks or less · Healthy: more than 8 up to 20 weeks · Overstocked: more than 20 weeks, or stock without sales.&#10;Not classified: no sales in 4 weeks and no stock.">i</span></div>
+      <div class="hl-wrap"><div class="donut-wrap"><div class="donut-box" id="chHealthWrap"><canvas id="ovHealthChart" aria-label="Inventory health distribution chart" role="img"></canvas></div><div class="donut-center" id="donutCenter"></div></div>
+      <div class="hl-legend" id="ovHealthLegend"></div></div>
+    </section>
+    <section class="card ov-panel" aria-labelledby="covTitle">
+      <div class="card-header"><div><h2 class="section-label" id="covTitle">Stock Coverage Distribution</h2><div class="section-meta">SKUs per coverage range, in weeks</div></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks. Bars are coloured by the status the range falls in. &quot;No sales&quot;: no sales in 4 weeks, so coverage cannot be calculated.">i</span></div>
+      <div class="chart-wrap ov-chart" id="chCovWrap"><canvas id="ovCovChart" aria-label="Stock coverage distribution chart" role="img"></canvas></div>
     </section>
   </div>
 </div>
 <!-- ═══ TAB 2: REPLENISHMENT PLANNING ═══ -->
 <div id="tab-replenishment" class="tab-content">
   <div class="page-head">
-    <div><h1>Replenishment Planning<span class="info" id="rpSub" tabindex="0" role="button" aria-label="More info" data-tip="What to buy, by when, and how much. Follow the Order by date: it is the projected stockout date minus the supplier lead time, so the goods arrive before stock runs out. The system recommends; purchasing decides.">i</span></h1></div>
+    <div><h1>Replenishment Planning<span class="info" id="rpSub" tabindex="0" role="button" aria-label="More info" data-tip="What to buy, by when, and how much. Order Now (Understocked with a recommended quantity) is always in the order list; other SKUs can be added manually. The system recommends; purchasing decides.">i</span></h1></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-ghost" onclick="exportReplenishment()" title="CSV of the rows shown with the current filters"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export list</button>
     </div>
@@ -115,19 +116,21 @@
   <div class="fresh-line fresh-banner" hidden></div>
   <div class="card">
     <div class="filter-bar" style="flex-wrap:wrap">
-      <div class="tabs-count" id="rpTabs" role="tablist" aria-label="Action groups"><button data-v="now" class="active">Order now <span class="cnt" data-c="now">0</span></button><button data-v="soon">Upcoming orders <span class="cnt" data-c="soon">0</span></button><button data-v="hold">Hold / Monitor <span class="cnt" data-c="hold">0</span></button><button data-v="none">No action needed <span class="cnt" data-c="none">0</span></button><button data-v="all">All <span class="cnt" data-c="all">0</span></button></div>
+      <div class="tabs-count" id="rpTabs" role="tablist" aria-label="Purchasing groups"><button data-v="all">All <span class="cnt" data-c="all">0</span></button><button data-v="order" class="active">Order Now <span class="cnt" data-c="order">0</span></button><button data-v="covered">Covered / Monitor <span class="cnt" data-c="covered">0</span></button><button data-v="hold">Hold <span class="cnt" data-c="hold">0</span></button><button data-v="none">No Action Needed <span class="cnt" data-c="none">0</span></button></div>
       <input class="search-box" id="rpSearch" placeholder="Search SKU or product  ( / )" oninput="replPage=0;renderRepl()">
       <div class="seg" id="rpStatus" role="group" aria-label="Status"><button data-v="" class="active">All status</button><button data-v="understocked">Understocked</button><button data-v="healthy">Healthy</button><button data-v="overstocked">Overstocked</button></div>
-      <span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Groups are the same as on the Overview (each SKU in exactly one):&#10;Order now: order-by date has passed.&#10;Upcoming orders: order-by date in the next 14 days.&#10;Hold / Monitor: overstocked, or recommended 0 with a confirmed incoming PO.&#10;No action needed: everything else.">i</span>
+      <button class="chip-f" id="rpSysReco" aria-pressed="false" onclick="toggleSysReco()" title="Healthy SKUs whose forecast-based recommendation is above 0">System Recommended <span class="cnt" id="rpSysCnt">0</span></button>
+      <span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Each SKU is in exactly one group, from its inventory status and recommended quantity:&#10;Order Now: Understocked, recommended above 0. Always in the order list.&#10;Covered / Monitor: Understocked, recommended 0. The reason is shown: stock / incoming PO sufficient, or a forecast warning (the Holt forecast reaches 0).&#10;Hold: Healthy. No Action Needed: Overstocked. Both optional: tick to add to the order list.&#10;Not classified (no sales, no stock): All tab only.">i</span>
     </div>
+    <div class="tab-note" id="rpTabNote"></div>
     <div class="tbl-wrap" id="rpTableWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading...</div></div>
     <div class="paging" id="rpPaging"></div>
   </div>
   <div class="sel-bar" id="rpSelBar">
-    <div><div class="sb-v" id="sbCount">0 SKUs</div><div class="sb-l">selected</div></div>
+    <div><div class="sb-v" id="sbCount">0 + 0</div><div class="sb-l" id="sbCountL">mandatory + manual SKUs</div></div>
     <div><div class="sb-v" id="sbUnits">0</div><div class="sb-l">units to order</div></div>
     <div><div class="sb-v" id="sbCost">Rp 0</div><div class="sb-l" id="sbCostL">estimated cost</div></div>
-    <div class="sb-note">SKUs with a recommended quantity are pre-selected. Stockwise does not place orders: export the list and order outside Stockwise.</div><button class="btn btn-ghost" onclick="exportReplenishment(true)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export order list</button>
+    <div class="sb-note">Order Now SKUs are always included; tick other SKUs to add them. Stockwise does not place orders: export the list and order outside Stockwise.</div><button class="btn btn-ghost" onclick="exportReplenishment(true)" title="Excel file: every Order Now SKU plus your manual selections"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export order list (.xlsx)</button>
   </div>
 </div>
 
@@ -236,10 +239,14 @@
     <div class="kpi-cell"><div class="kpi-label" title="PO date → receipt date, all received lines">Actual Lead Time</div><div class="kpi-value skel" id="poLead">--</div><div class="kpi-help" id="poLeadSub">median</div></div>
   </div>
   <div class="card" id="poSection">
+    <div class="po-period">
+      <div class="po-period-nav" role="group" aria-label="Period"><button class="icon-btn" id="poPrev" onclick="shiftPoPeriod(1)" aria-label="Previous month">&#8249;</button><select id="poPeriodSel" onchange="setPoPeriod(this.value)" aria-label="PO period (by PO date)"></select><button class="icon-btn" id="poNext" onclick="shiftPoPeriod(-1)" aria-label="Next month">&#8250;</button><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Period = month of the PO date. Lines without a PO date (all of them cancelled or superseded uploads today) are under &quot;No PO date&quot;. Search and the line filters work inside the selected period.">i</span></div>
+      <div class="po-period-sum" id="poPeriodSum"></div>
+    </div>
     <div class="filter-bar po-filters">
       <input class="search-box" id="poSearch" placeholder="Search SKU, product or PO number  ( / )" oninput="poPage=0;renderPoTable()">
       <div class="seg" id="poViewSeg" role="group" aria-label="View"><button data-v="po" class="active">By PO</button><button data-v="sku">By product</button></div>
-      <div class="seg" id="poStatusSeg" role="group" aria-label="PO line filter"><button data-v="open" class="active">Open</button><button data-v="overdue">Overdue</button><button data-v="aging">&gt; 60 days</button><button data-v="diff" title="Partial, over-received or closed short">Short / Over</button><button data-v="done">Completed</button><button data-v="all">All</button></div>
+      <div class="seg" id="poStatusSeg" role="group" aria-label="PO line filter"><button data-v="open">Open</button><button data-v="overdue">Overdue</button><button data-v="aging">&gt; 60 days</button><button data-v="diff" title="Partial, over-received or closed short">Short / Over</button><button data-v="done">Completed</button><button data-v="all" class="active">All</button></div>
     <div class="po-legend" aria-label="Line status legend"><span><span class="tag" style="background:var(--surface2);color:var(--text3)">Not received</span> nothing arrived yet</span><span><span class="tag tag-info">Partial</span> part arrived, rest still open</span><span><span class="tag tag-hero">Completed</span> fully received</span><span><span class="tag tag-mute">Closed short / Cancelled</span> rest will not arrive</span><span class="text-dim">Overdue = ETA passed · &gt; 60 days = PO older than 60 days</span></div>
     </div>
     <div id="poEmpty" class="empty-state" style="display:none">No purchase orders yet. Upload the PO list on the Upload Data page.</div>
@@ -248,6 +255,13 @@
       <tbody id="poBody"></tbody>
     </table></div>
     <div class="paging" id="poPaging"></div>
+  </div>
+  <div class="card" id="poFcSection">
+    <div class="card-header" style="flex-wrap:wrap;gap:10px"><div><div style="display:flex;align-items:center"><h2 class="section-label">Forecast Demand vs Actual Sales vs Actual Ordered Quantity</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Weekly units. Forecast: Holt's DES (past weeks: forecast for those weeks from a model trained without them; then the next 12 weeks). Actual sales: units sold. Ordered: quantity on PO lines that are not cancelled or superseded.&#10;&#10;By ETA: ordered quantity in the week it is expected to arrive. By PO date: in the week the PO was made. They are different questions; neither is the week the stock is sold.&#10;&#10;A difference between the lines is not an error by itself: stock on hand, open POs, lead time and earlier orders also decide how much to buy.">i</span></div><div class="section-meta" id="poFcMeta">Purchasing analysis</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="search-box po-fc-sku" id="poFcSku" list="poFcSkuList" placeholder="All best sellers · type a SKU" onchange="renderPoFc()" aria-label="SKU"><datalist id="poFcSkuList"></datalist><div class="seg" id="poFcMode" role="group" aria-label="Group ordered quantity by"><button data-v="eta" class="active">By ETA</button><button data-v="po">By PO date</button></div></div></div>
+    <div class="legend" style="margin-bottom:8px"><span><i style="border-color:var(--chart-1);border-top-width:8px"></i>Actual sales</span><span><i style="border-color:var(--amber);border-top-width:8px"></i><span id="poFcOrdL">Ordered (by ETA week)</span></span><span><i class="dash" style="border-color:var(--chart-2)"></i>Forecast demand</span></div>
+    <div class="chart-wrap tall" id="poFcWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
+    <div class="dq-line" id="poFcDq"></div>
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;margin-bottom:14px"><div class="section-label">Delivery Performance</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Shown only when enough receipt and weekly stock history exists — these numbers are never estimated.">i</span></div>
@@ -321,6 +335,7 @@
 <script src="/static/js/core/settings.js"></script>
 <script src="/static/js/core/auth.js"></script>
 <script src="/static/js/core/decision.js"></script>
+<script src="/static/js/core/demand.js"></script>
 <script src="/static/js/pages/overview.js"></script>
 <script src="/static/js/pages/sales.js"></script>
 <script src="/static/js/pages/replenishment.js"></script>
