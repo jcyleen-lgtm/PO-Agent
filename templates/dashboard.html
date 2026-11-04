@@ -62,34 +62,47 @@
 <div id="tab-overview" class="tab-content active">
   <div class="page-head ov-head">
     <div><div class="ov-greet" id="greeting">Good morning</div><h1>Inventory Overview</h1><div class="page-sub">Monitor inventory health and identify purchasing priorities.</div></div>
-    <div class="head-right"><div class="ov-asof" id="ovAsOf"><span class="text-dim">Checking data status…</span></div><button class="avatar" id="headAvatar" onclick="openSettings()" title="Account settings" aria-label="Account settings">?</button></div>
+    <div class="head-right"><div class="ov-chips" id="ovAsOf"><span class="text-dim">Checking data status…</span></div><button class="avatar" id="headAvatar" onclick="openSettings()" title="Account settings" aria-label="Account settings">?</button></div>
   </div>
   <div class="fresh-line" id="ovFresh" hidden></div>
 
   <section class="ov-kpis" id="ovKpis" aria-label="Inventory health"></section>
 
-  <section class="card ac" aria-labelledby="acTitle">
-    <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="acTitle">What Needs Your Attention?</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Every best-seller SKU is in exactly one group, from the order-by date and status the system already calculated:&#10;Order Now: order-by date has passed.&#10;Upcoming Orders: order-by date in the next 14 days.&#10;Hold / Monitor: overstocked, or recommended 0 with a confirmed incoming PO.&#10;No Action Needed: everything else.&#10;&#10;Stockwise recommends; purchasing decides. Orders are placed outside Stockwise.">i</span></div><div class="section-meta" id="acMeta">Purchasing action groups</div></div></div>
-    <div class="ac-buckets" id="acBuckets"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
-  </section>
+  <div class="ov-row ov-row-3">
+    <section class="card ov-panel" aria-labelledby="hlTitle">
+      <div class="card-header"><div><h2 class="section-label" id="hlTitle">Inventory Health</h2><div class="section-meta">SKUs per stock status</div></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks.&#10;Understocked: 8 weeks or less · Healthy: more than 8 up to 20 weeks · Overstocked: more than 20 weeks, or stock without sales.&#10;Not classified: no sales in 4 weeks and no stock.">i</span></div>
+      <div class="donut-wrap"><div class="donut-box" id="chHealthWrap"><canvas id="ovHealthChart" aria-label="Inventory health distribution chart" role="img"></canvas></div><div class="donut-center" id="donutCenter"></div></div>
+      <div class="hl-legend" id="ovHealthLegend"></div>
+    </section>
+
+    <section class="card ov-panel ac" aria-labelledby="acTitle">
+      <div class="card-header"><div><h2 class="section-label" id="acTitle">What Needs Your Attention?</h2><div class="section-meta" id="acMeta">Purchasing action groups</div></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Every best-seller SKU is in exactly one group, from the order-by date and status the system already calculated:&#10;Order now: order-by date has passed.&#10;Upcoming orders: order-by date in the next 14 days.&#10;Hold / Monitor: overstocked, or recommended 0 with a confirmed incoming PO.&#10;No action needed: everything else.&#10;&#10;Stockwise recommends; purchasing decides. Orders are placed outside Stockwise.">i</span></div>
+      <div class="ac-buckets" id="acBuckets"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
+    </section>
+
+    <section class="card ov-panel" aria-labelledby="covTitle">
+      <div class="card-header"><div><h2 class="section-label" id="covTitle">Stock Coverage</h2><div class="section-meta">SKUs per coverage range, in weeks</div></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks. Bars are coloured by the status the range falls in. &quot;No sales&quot;: no sales in 4 weeks, so coverage cannot be calculated.">i</span></div>
+      <div class="chart-wrap ov-chart" id="chCovWrap"><canvas id="ovCovChart" aria-label="Stock coverage distribution chart" role="img"></canvas></div>
+    </section>
+  </div>
 
   <section class="card" aria-labelledby="prTitle">
-    <div class="card-header"><div><h2 class="section-label" id="prTitle">Priority SKUs</h2><div class="section-meta" id="prMeta">SKUs requiring purchasing attention.</div></div><button class="link-btn" onclick="openReplBucket('all')">View all Replenishment →</button></div>
+    <div class="card-header"><div><h2 class="section-label" id="prTitle">Priority SKUs</h2><div class="section-meta" id="prMeta">SKUs requiring purchasing attention.</div></div></div>
     <div id="prList"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
+    <div class="pr-foot"><button class="btn btn-ghost btn-sm" onclick="openReplBucket('all')" id="prViewAll">View all Replenishment <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span class="text-dim" id="prMore"></span></div>
   </section>
 
-  <section aria-labelledby="insTitle">
-    <h2 class="group-h" id="insTitle">Inventory Insights</h2>
-    <div class="ov-charts">
-      <div class="card"><div class="card-header"><div><div class="section-label">Inventory Health Distribution</div><div class="section-meta" id="chHealthMeta">SKUs per stock status</div></div></div><div class="chart-wrap ov-chart" id="chHealthWrap"><canvas id="ovHealthChart" aria-label="Inventory health distribution chart" role="img"></canvas></div></div>
-      <div class="card"><div class="card-header"><div><div style="display:flex;align-items:center"><div class="section-label">Stock Coverage Distribution</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks. Bars are coloured by the status the range falls in. &quot;No sales&quot;: no sales in 4 weeks, so coverage cannot be calculated.">i</span></div><div class="section-meta">SKUs per coverage range, in weeks</div></div></div><div class="chart-wrap ov-chart" id="chCovWrap"><canvas id="ovCovChart" aria-label="Stock coverage distribution chart" role="img"></canvas></div></div>
-    </div>
-  </section>
-
-  <section class="card" aria-labelledby="opTitle">
-    <div class="card-header"><h2 class="section-label" id="opTitle">Operational Summary</h2></div>
-    <div class="op-grid" id="ovOps"><span class="text-dim">Loading…</span></div>
-  </section>
+  <div class="ov-row ov-row-2">
+    <section class="card ov-panel" aria-labelledby="dmTitle">
+      <div class="card-header"><div><h2 class="section-label" id="dmTitle">Demand: Actual vs Forecast</h2><div class="section-meta" id="dmMeta">Weekly units sold and Holt's DES forecast, best-seller SKUs</div></div><div class="legend"><span><i style="border-color:var(--chart-1)"></i>Actual</span><span><i class="dash" style="border-color:var(--chart-2)"></i>Forecast</span></div></div>
+      <div class="chart-wrap ov-chart-l" id="chDemWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
+      <div class="dm-foot"><span id="dmStats" class="section-meta"></span><button class="link-btn" onclick="switchTab('analysis');setSub('forecast')">Demand plan →</button></div>
+    </section>
+    <section class="card ov-panel" aria-labelledby="opTitle">
+      <div class="card-header"><div><h2 class="section-label" id="opTitle">Operational Summary</h2><div class="section-meta">Is the data behind this page current?</div></div></div>
+      <div class="op-list" id="ovOps"><span class="text-dim">Loading…</span></div>
+    </section>
+  </div>
 </div>
 <!-- ═══ TAB 2: REPLENISHMENT PLANNING ═══ -->
 <div id="tab-replenishment" class="tab-content">

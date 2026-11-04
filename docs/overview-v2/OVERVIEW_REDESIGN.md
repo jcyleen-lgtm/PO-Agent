@@ -23,6 +23,8 @@ Screenshots (synthetic test data): `img/overview-desktop-light.png`, `img/overvi
 | Status thresholds | same response | `settings.understock_weeks`, `settings.overstock_weeks` | yes |
 | Last stock snapshot, last sale | same response | `freshness.stock_date`, `stock_age_days`, `stock_level`, `last_sale_date`, `sales_age_days`, `warn_days` | yes |
 | Forecast last run | `GET /api/overview?preset=l4w` | `forecast_summary.calculated_at` | yes |
+| Stock value | `/api/replenishment` rows | `inventory_value`, `cost_verified` | yes |
+| Weekly actual vs forecast | `GET /api/weekly-analysis?scope=bestseller`, `GET /api/forecast/results` | `sparkline`, `forecast_data.quantities` | yes (already used by Sales) |
 | Pending POs | `GET /api/po/summary` | `open_po_numbers`, `outstanding_qty`, `overdue` | yes |
 | Inventory history (trend) | — | only the latest stock snapshot is used by the inventory API | **no** |
 
@@ -43,16 +45,23 @@ backend work and approval (see Limitations).
 
 ## 2. Design specification (Stage 2)
 
-Order on the page (desktop, single column of full-width sections):
+Revision 2 (2026-11-04) follows San's visual references (enterprise inventory dashboards: KPI cards with icon
+tiles, donut + bar charts, status pills, summary list) while keeping only data Stockwise really has.
 
 | | Section | Content | Interaction |
 |---|---|---|---|
-| A | Header | Greeting, **Inventory Overview**, supporting text; right: *Last updated* = stock snapshot date + forecast run time; avatar (settings) | avatar → Account settings |
-| B | KPI cards (4) | Total SKUs (+ status bar), Understocked, Out of Stock, Overstocked; value, % of SKUs, rule text from `settings` | Total → Replenishment *All*; Understocked / Overstocked → Replenishment filtered by status; Out of Stock is not clickable (no such filter exists) |
-| C | What Needs Your Attention? | 4 group cards: Order now, Upcoming orders, Hold / Monitor, No action needed; count, rule, units / value line | each card → Replenishment on that group |
-| D | Priority SKUs | top 8 of *Order now* then *Upcoming orders*, columns per the brief; Action = group tag + order-by date | row → Replenishment detail drawer; *View all Replenishment*; *N more in Replenishment* |
-| E | Inventory Insights | Health distribution (horizontal bars) and Coverage distribution (bins 0, 0–4, 4–8, 8–14, 14–20, > 20, No sales; colour = status zone) | health bar → Replenishment filtered by status |
-| F | Operational Summary | Last sales update, Last stock snapshot, Pending purchase orders, Data upload status | PO Tracking →, Data → |
+| A | Header | Greeting, **Inventory Overview**, supporting text; chips *Stock snapshot* date and *Forecast* run time; avatar | chips → Data page; avatar → Account settings |
+| B | KPI cards (5) | Total SKUs, Stock Value (sum of `inventory_value`, unit cost, marked unverified), Understocked, Out of Stock, Overstocked; % of SKUs as a badge; rule text from `settings` | Total → Replenishment *All*; Understocked / Overstocked → Replenishment filtered by status; Stock Value and Out of Stock are not clickable (no matching filter) |
+| C1 | Inventory Health | Donut (Understocked, Healthy, Overstocked, Not classified) with total in the centre; legend with count and % | segment or legend row → Replenishment filtered by status |
+| C2 | What Needs Your Attention? | 2 × 2 tiles: Order now, Upcoming orders, Hold / Monitor, No action needed; count, units / ≈ cost or overstock value, share bar | each tile → Replenishment on that group |
+| C3 | Stock Coverage | Bar chart, bins 0, 0–4, 4–8, 8–14, 14–20, > 20, No sales; colour = status zone | tooltip |
+| D | Priority SKUs | top 8 of *Order now* then *Upcoming orders*; columns per the brief + coverage mini bar, status pill with order-by date, *Review* button | row or *Review* → Replenishment detail drawer; *View all Replenishment* |
+| E | Demand: Actual vs Forecast | weekly units sold vs Holt's DES forecast, summed over the best-seller SKUs (same data and aggregation as Product Analysis › Sales); last-4-week and next-8-week averages | *Demand plan →* |
+| F | Operational Summary | Last sales update, Last stock snapshot, Pending purchase orders (pill: past ETA / on schedule), Data upload status (pill: OK / Action, forecast run time) | rows → Data page or PO Tracking |
+
+Not taken from the references because the data does not exist or would be invented: "% vs last month"
+badges, stock movement totals, category donut, warehouse/location columns, date-range picker and Filters
+button.
 
 Rules kept from the approved Phase 5 decisions:
 - Out of Stock is a subset: it is shown with its own %, never added to the status totals.
@@ -66,10 +75,11 @@ Rules kept from the approved Phase 5 decisions:
 Coverage bins are derived from `settings` (half of the understock threshold, midpoint between thresholds),
 so the colour boundaries always match the status rules (≤ 8 understocked, > 8–20 healthy, > 20 overstocked).
 
-Responsive: KPIs and group cards 4 → 2 columns ≤ 1100 px; charts stack ≤ 1100 px; on phones the priority
-table shows Product, Recommended qty and Action only, and the operational summary becomes a list.
+Responsive: KPIs 5 → 3 columns ≤ 1280 px, 2 on phones (Total full width); the three panels become
+Action groups full width + two charts ≤ 1100 px and one column on phones; the demand chart and summary stack
+≤ 1100 px; on phones the priority table shows Product, Recommended qty and Status only.
 
-Theme: all colours are CSS tokens; both charts read tokens at render time and are redrawn on theme change
+Theme: all colours are CSS tokens; all charts read tokens at render time and are redrawn on theme change
 (`rerenderCharts()` in `core/settings.js`).
 
 ## 3. Implementation (Stage 3)
@@ -83,28 +93,29 @@ Theme: all colours are CSS tokens; both charts read tokens at render time and ar
 | `static/js/core/settings.js` | `rerenderCharts()` also redraws the Overview charts |
 | `tests/e2e/regression.js` | Overview flow and value check rewritten |
 
-Reused: `fetchRepl()` (one shared request with Replenishment), `bucketOf`, `byPriority`, `BUCKETS`,
+Reused: `fetchWeekly()` and `fcDataMap` (demand chart), `baseOpts` / `areaFill`, `fetchRepl()` (one shared request with Replenishment), `bucketOf`, `byPriority`, `BUCKETS`,
 `openReplBucket` / `openReplStatus` / `openReplSku`, `renderFresh`, `getCT` / `cv` (chart theming),
-`.card`, `.ro-table`, `.tag-b-*`, `.state`, `.link-btn`. New components: KPI card (`.kc`), operational
-tile (`.op-t`).
+`.card`, `.ro-table`, `.tag-b-*`, `.state`, `.link-btn`. New components: icon tile (`.ico-t`), KPI card (`.kc`), header chip (`.chip`), status pill (`.pill`),
+coverage mini bar (`.cov`), summary row (`.op-r`).
 
-The removed Phase 5 "Demand forecast" line (8-week forecast units, rising / falling counts) is still in
-Product Analysis › Demand Plan.
+
 
 ## 4. Validation (Stage 4) — test data, 3 browser contexts
 
 `tests/e2e/run_regression.py` (desktop light, desktop dark, mobile 390 px):
 
 - **Values vs API, all 3 contexts:** KPIs [48, 37, 35, 3], groups [39, 0, 5, 4] (sum = 48), the 8 priority
-  rows (SKU and recommended qty, in order) and both chart datasets equal an independent recomputation from
+  rows (SKU and recommended qty, in order) and the health and coverage chart datasets equal an independent recomputation from
   `/api/replenishment`; coverage bins sum to 48.
 - **Navigation:** each group card opens Replenishment on the same group; Understocked KPI opens the
   understocked filter; a priority row opens the detail drawer; *View all Replenishment* opens *All*.
+- The demand chart renders in all 3 contexts.
 - 84 checkpoints, **0 page errors**, no server tracebacks; no horizontal page scroll at 390 px.
 - 40 backend tests pass.
 - Compared with the `phase5-ux` run: other pages differ only in the two renamed tab labels and in which
-  tab is open after the new Overview clicks; API calls on load are the same three as Phase 5; no new
-  endpoint; data-changing requests unchanged.
+  tab is open after the new Overview clicks. The Overview now also calls `/api/weekly-analysis` and
+  `/api/forecast/results` (existing endpoints, already used and cached for Sales); no new endpoint;
+  data-changing requests unchanged.
 - Loading state (spinners), empty state (no forecasted SKUs / no SKU due) and error state (Retry) are in
   `overview.js`; the error and empty paths were not forced in the e2e run.
 

@@ -129,19 +129,19 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
       const shown = [...document.querySelectorAll('#acBuckets .ac-b-v')].map(e => num(e.firstChild.textContent));
       const st = k => R.filter(r => (r.status || null) === k).length;
       const expK = [R.length, st('understocked'), R.filter(r => r.out_of_stock).length, st('overstocked')];
-      const shownK = [...document.querySelectorAll('#ovKpis .kc-v')].map(e => num(e.firstChild.textContent));
+      const shownK = ['total', 'under', 'oos', 'over'].map(k => num(document.querySelector(`#ovKpis [data-k="${k}"] .kc-v`).textContent));
       // priority table: Order now then Upcoming, each by order-by date (estimates last), then L4W revenue
       const pri = (x, y) => { const ex = x.order_by_is_estimate ? 1 : 0, ey = y.order_by_is_estimate ? 1 : 0; if (ex !== ey) return ex - ey;
         const dx = x.order_by || '9999-12-31', dy = y.order_by || '9999-12-31'; if (dx !== dy) return dx < dy ? -1 : 1; return (y.l4w_revenue || 0) - (x.l4w_revenue || 0); };
       const att = R.filter(r => ['now', 'soon'].includes(b(r))).sort((x, y) => b(x) === b(y) ? pri(x, y) : b(x) === 'now' ? -1 : 1).slice(0, 8);
       const expP = att.map(r => [r.sku, r.reco_po || 0]);
       const shownP = [...document.querySelectorAll('#prList tbody tr')].map(tr => [tr.querySelector('.p-sku').textContent.trim(), num(tr.children[5].textContent)]);
-      const hc = Chart.getChart('ovHealthChart'), cc = Chart.getChart('ovCovChart');
+      const hc = Chart.getChart('ovHealthChart'), cc = Chart.getChart('ovCovChart'), dc = Chart.getChart('ovDemChart');
       const chartH = hc ? hc.data.datasets[0].data.slice(0, 3) : null;
       const covSum = cc ? cc.data.datasets[0].data.reduce((x, y) => x + y, 0) : null;
       const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
       const ok = same(exp, shown) && same(expK, shownK) && same(expP, shownP) && same(chartH, [st('understocked'), st('healthy'), st('overstocked')])
-        && covSum === R.length && exp.reduce((x, y) => x + y, 0) === R.length;
+        && covSum === R.length && exp.reduce((x, y) => x + y, 0) === R.length && !!dc;
       return { ok, exp, shown, expK, shownK, expP, shownP, chartH, covSum, total: R.length };
     });
     if (!check.ok) errors.push(`${C.name}: overview values differ from API ${JSON.stringify(check)}`);
@@ -154,14 +154,14 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
       if (i === 3) await snap('12-ac-to-repl', false);
       await click('.nav-item[data-tab="overview"]', 200);
     }
-    await click('#ovKpis button.kc-under'); 
+    await click('#ovKpis button[data-k="under"]');
     const ks = await p.evaluate(() => (document.querySelector('#rpStatus button.active') || {}).dataset?.v);
     if (ks !== 'understocked') errors.push(`${C.name}: understocked KPI opened status ${ks}`);
     await click('.nav-item[data-tab="overview"]', 200);
     const prRow = await p.$('#prList tbody tr');
     if (prRow) { await prRow.click(); await snap('13-priority-row-drawer'); await p.keyboard.press('Escape'); await settle(); }
     await click('.nav-item[data-tab="overview"]', 200);
-    await click('#tab-overview .link-btn[onclick="openReplBucket(\'all\')"]');
+    await click('#prViewAll');
     const va = await p.evaluate(() => (document.querySelector('#rpTabs button.active') || {}).dataset?.v);
     if (va !== 'all') errors.push(`${C.name}: View all opened tab ${va}`);
 
