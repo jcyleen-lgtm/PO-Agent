@@ -247,18 +247,29 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
 
     // PO
     await click('.nav-item[data-tab="po"]'); await settle(800); await snap('40-po');
-    const pc = await p.evaluate(() => { const sel = document.getElementById('poPeriodSel'); const k = sel.value;
+    const pc = await p.evaluate(() => { const k = document.getElementById('poPeriodSel').value;
       const ls = poData.filter(x => (x.order_date ? String(x.order_date).slice(0, 7) : 'nodate') === k && !['cancelled', 'superseded'].includes(x.status));
-      const nums = new Set(ls.map(x => x.po_number || '(no PO number)')).size;
-      const shownN = parseInt(document.querySelector('#poPeriodSum .pps-c .pps-v').textContent.replace(/\D/g, ''), 10);
-      const latest = [...new Set(poData.map(x => x.order_date ? String(x.order_date).slice(0, 7) : null).filter(Boolean))].sort().pop();
-      const groupDates = [...document.querySelectorAll('#poBody .po-grp')].length;
-      return { k, latest, nums, shownN, groupDates, chart: !!Chart.getChart('poFcChart') } });
-    if (pc.k !== pc.latest || pc.nums !== pc.shownN || !pc.chart) errors.push(`${C.name}: PO period ${JSON.stringify(pc)}`);
+      const nums = [...new Set(ls.map(x => x.po_number || '(no PO number)'))];
+      const st = n => { const l = poData.filter(x => (x.po_number || '(no PO number)') === n && !['cancelled', 'superseded'].includes(x.status)), o = l.filter(x => x.is_open); return !o.length ? 'done' : o.some(x => x.aging) ? 'aging' : 'open' };
+      const exp = [nums.length, nums.filter(n => st(n) === 'done').length, nums.filter(n => st(n) === 'open').length, nums.filter(n => st(n) === 'aging').length];
+      const shown = [...document.querySelectorAll('#poPeriodSum .pps-v')].slice(0, 4).map(e => parseInt(e.textContent.replace(/\D/g, ''), 10));
+      const months = [...document.querySelectorAll('#poPeriodSel option')].map(o => o.value).filter(v => /^\d{4}-\d{2}$/.test(v));
+      const asc = months.every((m, i) => i === 0 || months[i - 1] < m);
+      const latest = months[months.length - 1];
+      const numOpts = document.querySelectorAll('#poNumSel option').length - 1;
+      return { k, latest, asc, exp, shown, numOpts, nums: nums.length } });
+    if (pc.k !== pc.latest || !pc.asc || JSON.stringify(pc.exp) !== JSON.stringify(pc.shown) || pc.numOpts < pc.nums) errors.push(`${C.name}: PO period ${JSON.stringify(pc)}`);
     states.push({ id: `${C.name}__40-po-values`, text: JSON.stringify(pc), calls: [], theme: '', activeNav: '', scrollWidth: 0, canvases: 0 });
+    const firstPo = await p.evaluate(() => { const o = document.querySelectorAll('#poNumSel option'); return o.length > 1 ? o[1].value : null });
+    if (firstPo) {
+      await p.selectOption('#poNumSel', firstPo); await settle(400);
+      const onlyOne = await p.evaluate(n => [...document.querySelectorAll('#poBody .po-grp b')].map(b => b.textContent).every(t => t === n), firstPo);
+      if (!onlyOne) errors.push(`${C.name}: PO number filter shows other POs`);
+      await snap('40-po-one', false);
+      await p.selectOption('#poNumSel', 'all'); await settle(300);
+    }
     await click('#poPrev', 300); await snap('40-po-prev-month', false);
-    await click('#poFcMode button[data-v="po"]', 300); await snap('40-po-fc-podate', false);
-    await click('#poFcMode button[data-v="eta"]', 300);
+    await p.selectOption('#poPeriodSel', 'all'); await settle(300); await snap('40-po-all-periods', false);
     await click('#poViewSeg button[data-v="sku"]'); await snap('41-po-by-sku', false);
     await click('#poViewSeg button[data-v="po"]');
     await click('#poStatusSeg button[data-v="all"]'); await snap('42-po-all', false);

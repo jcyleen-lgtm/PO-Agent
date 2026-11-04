@@ -234,7 +234,7 @@ function renderOvDemandChart() {
   if (!ovDem || typeof Chart === 'undefined') return;
   const s = ovDem, wrap = document.getElementById('chDemWrap');
   if (!document.getElementById('ovDemChart')) wrap.innerHTML = '<canvas id="ovDemChart" aria-label="Weekly actual sales and forecast chart" role="img"></canvas>';
-  const ct = getCT(), c1 = cv('--chart-1'), c2 = cv('--chart-2');
+  const ct = getCT(), ca = cv('--chart-act'), cf = cv('--chart-fc');
   const last = (replData && replData.freshness || {}).last_sale_date;
   const partial = w => last && s.past.has(w) && new Date(w + 'T00:00:00').getTime() + 6 * 864e5 > new Date(last + 'T00:00:00').getTime();
   const labels = s.weeks.map(w => wkLabel(w) + (partial(w) ? '*' : ''));
@@ -243,9 +243,10 @@ function renderOvDemandChart() {
   if (ovDemChartObj) ovDemChartObj.destroy();
   const firstFut = s.weeks.findIndex(w => !s.past.has(w));
   ovDemChartObj = new Chart(document.getElementById('ovDemChart'), {
+    type: 'line',
     data: { labels, datasets: [
-      { type: 'bar', label: 'Actual', data: act, backgroundColor: hexA(c1, .75), borderRadius: 3, maxBarThickness: 26, order: 2 },
-      { type: 'line', label: 'Forecast', data: fc, borderColor: c2, borderDash: [6, 4], borderWidth: 2, pointRadius: 2.5, pointBackgroundColor: c2, tension: .25, fill: false, order: 1 },
+      { label: 'Actual', data: act, borderColor: ca, backgroundColor: ca, borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: .25, fill: false, spanGaps: false },
+      { label: 'Forecast', data: fc, borderColor: cf, backgroundColor: cf, borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: .25, fill: false },
     ] },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
@@ -257,7 +258,7 @@ function renderOvDemandChart() {
       scales: { x: { grid: { display: false }, border: { color: ct.grid }, ticks: { color: ct.tick, font: { ...ct.font, size: 11 }, maxRotation: 0, autoSkipPadding: 8 } },
         y: { min: 0, grid: { color: ct.grid }, border: { display: false }, ticks: { color: ct.tick, font: ct.font, callback: v => fmt(v) } } },
     },
-    plugins: [{ id: 'split', beforeDraw(ch) { if (firstFut < 1) return; const x = ch.scales.x, { top, bottom } = ch.chartArea, px = (x.getPixelForValue(firstFut - 1) + x.getPixelForValue(firstFut)) / 2, g = ch.ctx; g.save(); g.fillStyle = hexA(c2, .06); g.fillRect(px, top, ch.chartArea.right - px, bottom - top); g.strokeStyle = cv('--border2'); g.setLineDash([3, 3]); g.beginPath(); g.moveTo(px, top); g.lineTo(px, bottom); g.stroke(); g.fillStyle = cv('--text3'); g.font = '11px Inter'; g.fillText('Forecast horizon', px + 6, top + 12); g.restore() } }],
+    plugins: [{ id: 'split', beforeDraw(ch) { if (firstFut < 1) return; const x = ch.scales.x, { top, bottom } = ch.chartArea, px = (x.getPixelForValue(firstFut - 1) + x.getPixelForValue(firstFut)) / 2, g = ch.ctx; g.save(); g.fillStyle = hexA(cf, .07); g.fillRect(px, top, ch.chartArea.right - px, bottom - top); g.strokeStyle = cv('--border2'); g.setLineDash([3, 3]); g.beginPath(); g.moveTo(px, top); g.lineTo(px, bottom); g.stroke(); g.fillStyle = cv('--text3'); g.font = '11px Inter'; g.fillText('Forecast horizon', px + 6, top + 12); g.restore() } }],
   });
   const b = biasSummary(s);
   const nf = s.weeks.filter(w => !s.past.has(w)).slice(0, 8), f8 = nf.length ? nf.reduce((a, w) => a + (s.forecast[w] || 0), 0) / nf.length : null;

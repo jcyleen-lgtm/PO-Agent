@@ -8,7 +8,7 @@
   --border:rgba(38,63,96,.10);--border2:rgba(38,63,96,.18);
   --red:#C23838;--amber:#8F5C0E;--green:#1A7450;--slate:#5F6E82;
   --red-bg:#FCECEC;--amber-bg:#FDF3E2;--green-bg:#E7F5EE;--slate-bg:#EEF1F5;--blue-bg:#E8F1FB;
-  --chart-1:#263F60;--chart-2:#3F82C9;--chart-3:#A3B0C2;--chart-4:#59B3CF;--grid:rgba(38,63,96,.08);
+  --chart-1:#263F60;--chart-2:#3F82C9;--chart-3:#A3B0C2;--chart-4:#59B3CF;--chart-act:#263F60;--chart-fc:#E07B39;--grid:rgba(38,63,96,.08);
   --glass-bg:rgba(255,255,255,.58);
   --glass-border:rgba(255,255,255,.75);
   --glass-hi:rgba(255,255,255,.9);
@@ -33,7 +33,7 @@
   --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
   --red:#F07B7B;--amber:#EDBA55;--green:#55C893;--slate:#9AA6B6;
   --red-bg:rgba(240,123,123,.13);--amber-bg:rgba(237,186,85,.13);--green-bg:rgba(85,200,147,.13);--slate-bg:rgba(154,166,182,.13);--blue-bg:rgba(91,155,224,.15);
-  --chart-1:#9CC1EC;--chart-2:#5B9BE0;--chart-3:#5C6B80;--chart-4:#6CC3DD;--grid:rgba(255,255,255,.06);
+  --chart-1:#9CC1EC;--chart-2:#5B9BE0;--chart-3:#5C6B80;--chart-4:#6CC3DD;--chart-act:#7FB2EC;--chart-fc:#F4A261;--grid:rgba(255,255,255,.06);
   --glass-bg:rgba(22,32,46,.55);
   --glass-border:rgba(255,255,255,.09);
   --glass-hi:rgba(255,255,255,.22);

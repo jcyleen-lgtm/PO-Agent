@@ -4,7 +4,7 @@ const DEFAULTS={name:'',role:'',email:'',theme:'light',period:'l4w'};
 function getSettings(){try{return Object.assign({},DEFAULTS,JSON.parse(localStorage.getItem(SKEY)||'{}'))}catch(e){return Object.assign({},DEFAULTS)}}
 function saveSettings(s){try{localStorage.setItem(SKEY,JSON.stringify(s))}catch(e){}}
 function resolveTheme(t){return t==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t}
-function rerenderCharts(){if(lastTrend){renderRevChart(lastTrend,lastAgg);renderSalesChart(lastTrend,lastAgg)}if(lastProj)renderProjChart();if(lastSku)renderSkuChart();if(typeof ovRows!=='undefined'&&ovRows.length)renderOvCharts();if(typeof lastSd!=='undefined'&&lastSd)renderSdChart();if(typeof poChartState!=='undefined'&&poChartState)renderPoFc()}
+function rerenderCharts(){if(lastTrend){renderRevChart(lastTrend,lastAgg);renderSalesChart(lastTrend,lastAgg)}if(lastProj)renderProjChart();if(lastSku)renderSkuChart();if(typeof ovRows!=='undefined'&&ovRows.length)renderOvCharts();if(typeof lastSd!=='undefined'&&lastSd)renderSdChart()}
 function setTheme(t){const r=resolveTheme(t);if(document.documentElement.getAttribute('data-theme')!==r){document.documentElement.setAttribute('data-theme',r);rerenderCharts()}}
 function toggleTheme(){const s=getSettings();s.theme=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';saveSettings(s);setTheme(s.theme)}
 try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(getSettings().theme==='system')setTheme('system')})}catch(e){}

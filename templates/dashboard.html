@@ -75,7 +75,7 @@
 
   <div class="ov-row ov-row-2">
     <section class="card ov-panel" aria-labelledby="dmTitle">
-      <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="dmTitle">Demand — Actual vs Forecast</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Weekly units, best-seller SKUs. Past weeks: actual sales next to the forecast for the same weeks from a model trained without them (holdout), so you see how close the forecast was. Then the forecast for the next 12 weeks. Stockwise keeps only the latest forecast run, so earlier forecasts are not available.">i</span></div><div class="section-meta" id="dmMeta">Weekly units sold vs Holt's DES forecast</div></div><div class="legend"><span><i style="border-color:var(--chart-1);border-top-width:8px"></i>Actual</span><span><i class="dash" style="border-color:var(--chart-2)"></i>Forecast</span></div></div>
+      <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="dmTitle">Demand — Actual vs Forecast</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Weekly units, best-seller SKUs. Past weeks: actual sales next to the forecast for the same weeks from a model trained without them (holdout), so you see how close the forecast was. Then the forecast for the next 12 weeks. Stockwise keeps only the latest forecast run, so earlier forecasts are not available.">i</span></div><div class="section-meta" id="dmMeta">Weekly units sold vs Holt's DES forecast</div></div><div class="legend"><span><i style="border-color:var(--chart-act);border-top-width:3px"></i>Actual</span><span><i style="border-color:var(--chart-fc);border-top-width:3px"></i>Forecast</span></div></div>
       <div class="chart-wrap ov-chart-l" id="chDemWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
       <div class="dm-foot"><span id="dmStats" class="section-meta"></span><button class="link-btn" onclick="switchTab('analysis');setSub('forecast')">Demand plan →</button></div>
     </section>
@@ -85,12 +85,6 @@
       <div class="op-list" id="ovOps"><span class="text-dim">Loading…</span></div>
     </section>
   </div>
-
-  <section class="card" aria-labelledby="prTitle">
-    <div class="card-header"><div><h2 class="section-label" id="prTitle">Priority SKUs</h2><div class="section-meta" id="prMeta">Understocked SKUs, most urgent first.</div></div></div>
-    <div id="prList"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
-    <div class="pr-foot"><button class="btn btn-ghost btn-sm" onclick="openReplBucket('order')" id="prViewAll">View all in Replenishment <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span class="text-dim" id="prMore"></span></div>
-  </section>
 
   <h2 class="group-h" id="insTitle">Inventory Insights</h2>
   <div class="ov-row ov-row-2e">
@@ -104,6 +98,12 @@
       <div class="chart-wrap ov-chart" id="chCovWrap"><canvas id="ovCovChart" aria-label="Stock coverage distribution chart" role="img"></canvas></div>
     </section>
   </div>
+  <section class="card" aria-labelledby="prTitle">
+    <div class="card-header"><div><h2 class="section-label" id="prTitle">Priority SKUs</h2><div class="section-meta" id="prMeta">Understocked SKUs, most urgent first.</div></div></div>
+    <div id="prList"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
+    <div class="pr-foot"><button class="btn btn-ghost btn-sm" onclick="openReplBucket('order')" id="prViewAll">View all in Replenishment <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span class="text-dim" id="prMore"></span></div>
+  </section>
+
 </div>
 <!-- ═══ TAB 2: REPLENISHMENT PLANNING ═══ -->
 <div id="tab-replenishment" class="tab-content">
@@ -240,7 +240,7 @@
   </div>
   <div class="card" id="poSection">
     <div class="po-period">
-      <div class="po-period-nav" role="group" aria-label="Period"><button class="icon-btn" id="poPrev" onclick="shiftPoPeriod(1)" aria-label="Previous month">&#8249;</button><select id="poPeriodSel" onchange="setPoPeriod(this.value)" aria-label="PO period (by PO date)"></select><button class="icon-btn" id="poNext" onclick="shiftPoPeriod(-1)" aria-label="Next month">&#8250;</button><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Period = month of the PO date. Lines without a PO date (all of them cancelled or superseded uploads today) are under &quot;No PO date&quot;. Search and the line filters work inside the selected period.">i</span></div>
+      <div class="po-period-nav" role="group" aria-label="Period"><button class="icon-btn" id="poPrev" onclick="shiftPoPeriod(-1)" aria-label="Previous month">&#8249;</button><select id="poPeriodSel" onchange="setPoPeriod(this.value)" aria-label="Month (by PO date)"></select><button class="icon-btn" id="poNext" onclick="shiftPoPeriod(1)" aria-label="Next month">&#8250;</button><select id="poNumSel" onchange="setPoNum(this.value)" aria-label="PO number"></select><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Pick a month (by PO date, oldest to newest, or All), then one PO or all POs of that month.&#10;Completed: no open lines left. On going: still has lines to arrive. Over 2 months: still open and the PO date is more than 60 days ago.&#10;Lines without a PO date (cancelled or superseded uploads) are under &quot;No PO date&quot;.">i</span></div>
       <div class="po-period-sum" id="poPeriodSum"></div>
     </div>
     <div class="filter-bar po-filters">
@@ -255,13 +255,6 @@
       <tbody id="poBody"></tbody>
     </table></div>
     <div class="paging" id="poPaging"></div>
-  </div>
-  <div class="card" id="poFcSection">
-    <div class="card-header" style="flex-wrap:wrap;gap:10px"><div><div style="display:flex;align-items:center"><h2 class="section-label">Forecast Demand vs Actual Sales vs Actual Ordered Quantity</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Weekly units. Forecast: Holt's DES (past weeks: forecast for those weeks from a model trained without them; then the next 12 weeks). Actual sales: units sold. Ordered: quantity on PO lines that are not cancelled or superseded.&#10;&#10;By ETA: ordered quantity in the week it is expected to arrive. By PO date: in the week the PO was made. They are different questions; neither is the week the stock is sold.&#10;&#10;A difference between the lines is not an error by itself: stock on hand, open POs, lead time and earlier orders also decide how much to buy.">i</span></div><div class="section-meta" id="poFcMeta">Purchasing analysis</div></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input class="search-box po-fc-sku" id="poFcSku" list="poFcSkuList" placeholder="All best sellers · type a SKU" onchange="renderPoFc()" aria-label="SKU"><datalist id="poFcSkuList"></datalist><div class="seg" id="poFcMode" role="group" aria-label="Group ordered quantity by"><button data-v="eta" class="active">By ETA</button><button data-v="po">By PO date</button></div></div></div>
-    <div class="legend" style="margin-bottom:8px"><span><i style="border-color:var(--chart-1);border-top-width:8px"></i>Actual sales</span><span><i style="border-color:var(--amber);border-top-width:8px"></i><span id="poFcOrdL">Ordered (by ETA week)</span></span><span><i class="dash" style="border-color:var(--chart-2)"></i>Forecast demand</span></div>
-    <div class="chart-wrap tall" id="poFcWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
-    <div class="dq-line" id="poFcDq"></div>
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;margin-bottom:14px"><div class="section-label">Delivery Performance</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Shown only when enough receipt and weekly stock history exists — these numbers are never estimated.">i</span></div>
