@@ -130,4 +130,4 @@ document.getElementById('poFcMeta').textContent=`${one?`${one} · ${name||''}`:`
 const dq=[];if(noDate)dq.push(`<span class="tag tag-warn">${fmt(noDate)} units</span> on ${fmt(noDateL)} line${noDateL===1?'':'s'} without ${poFcModeV==='eta'?'an expected arrival date':'a PO date'}: not placed in any week`);
 if(before||after)dq.push(`${fmt(before+after)} units ${poFcModeV==='eta'?'arrive':'were ordered'} outside the chart window (${before?fmt(before)+' before':''}${before&&after?', ':''}${after?fmt(after)+' after':''})`);
 if(raw&&!one)dq.push(`<span class="tag tag-warn">SKU "${esc(raw)}" is not a forecasted best seller</span>: showing all best sellers`);
-document.getElementById('poFcDq').innerHTML=dq.length?'Data quality: '+dq.join(' · '):'All ordered quantity in the window has a '+(poFcModeV==='eta'?'expected arrival date':'PO date')+'.'}
+document.getElementById('poFcDq').innerHTML=dq.length?'Data quality: '+dq.join(' · '):'All ordered quantity in the window has '+(poFcModeV==='eta'?'an expected arrival date':'a PO date')+'.'}

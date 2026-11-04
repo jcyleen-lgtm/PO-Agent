@@ -90,3 +90,22 @@ quantities outside the chart window.
    it with `*`.
 6. Best-seller contribution uses the top 10 by revenue (the API returns 10); N is not configurable.
 7. Verified on synthetic test data in the browser; production numbers to be checked on the preview.
+
+## 5. Tests (4 Nov 2026)
+
+| Test | Result |
+|---|---|
+| Backend + unit tests (`pytest tests`) | **42 passed** (includes the rewritten `test_decision_js.py`: groups, zero reasons, System Recommended, explanations) |
+| Browser regression, desktop light / dark, mobile 390 px (`tests/e2e/run_regression.py`) | **109 checkpoints, 0 errors**, no server tracebacks, no horizontal page scroll |
+| Overview values vs API (3 contexts) | KPIs, group counts, 8 priority rows, health and coverage chart data, demand chart past weeks (= Σ holdout actual from `/api/forecast/plan`) all equal |
+| Replenishment | tab counts = groups; every Order Now row locked; System Recommended count matches; **.xlsx export read back**: Mandatory rows = Order Now count, the manually ticked SKU appears as Manual |
+| Product Analysis | header order exactly the 15 requested columns; coverage sort descending; SKU forecast vs actual chart rendered |
+| PO Tracking | default period = latest PO month; PO count = distinct PO numbers of that month; chart rendered; ETA / PO date toggle; previous month |
+| Production data (rules only, read-only) | `decision.js` on the 194 production SKUs: Order Now 19, Covered 13 (3 sufficient + 10 forecast warning), Hold 56 (6 System Recommended), No Action 102, Not classified 4: same as the validation |
+| Unchanged | no backend file changed; API calls on load are existing endpoints only (`/api/forecast/plan` and `/api/forecast/results` were already used by Demand Plan and Sales); data-changing requests unchanged; "Export list" CSV columns unchanged |
+
+The test database has no Covered / Monitor or System Recommended SKUs; those paths are covered by the unit
+test and the production-data check above, and must be looked at on the preview with production data.
+
+Screenshots (synthetic test data): `img/overview.png`, `img/overview-dark.png`, `img/overview-mobile.png`,
+`img/replenishment.png`, `img/sku-forecast-vs-actual.png`, `img/po-tracking.png`.
