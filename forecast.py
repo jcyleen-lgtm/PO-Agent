@@ -151,15 +151,23 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     df["week_start"] = pd.to_datetime(df["week_start"])
 
     # ── Best-seller scope = Pareto 80/20 ∪ company Hero SKU list ─────
-    # Pareto: SKUs that together make up the top 80% of import revenue (rank by revenue).
-    sku_revenue = df.groupby("sku")["total_amount"].sum().sort_values(ascending=False)
+    # Pareto: SKUs that together make up the top 80% of import revenue (rank by revenue), using only the
+    # last `pareto_window_weeks` weeks of sales (default 26 ≈ 6 months, ending at the latest sales week),
+    # so the list follows what sells now. The forecast itself still uses each SKU's full weekly history.
+    from config import settings as planning_settings
+    win = int(planning_settings().get("pareto_window_weeks") or 26)
+    last_week = df["week_start"].max()
+    recent = df[df["week_start"] > last_week - pd.Timedelta(weeks=win)]
+    sku_revenue = recent.groupby("sku")["total_amount"].sum()
+    sku_revenue = sku_revenue[sku_revenue > 0].sort_values(ascending=False)
     total_revenue = sku_revenue.sum()
     cumulative = sku_revenue.cumsum()
     pareto_skus = set(cumulative[cumulative <= total_revenue * 0.80].index)
     # Always include the SKU that crosses the 80% threshold
     if len(pareto_skus) < len(sku_revenue):
-        boundary_sku = cumulative[cumulative > total_revenue * 0.80].index[0]
-        pareto_skus.add(boundary_sku)
+        over = cumulative[cumulative > total_revenue * 0.80]
+        if len(over):
+            pareto_skus.add(over.index[0])
     rank = {s: i + 1 for i, s in enumerate(sku_revenue.index)}
     share = (sku_revenue / total_revenue * 100) if total_revenue else sku_revenue * 0
     cum_share = (cumulative / total_revenue * 100) if total_revenue else cumulative * 0
@@ -371,6 +379,8 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
         "total_skus_skipped": skipped,
         "pareto_skus_included": len(pareto_skus),
         "pareto_skus_excluded": pareto_excluded,
+        "pareto_window_weeks": win,
+        "pareto_window_start": str((last_week - pd.Timedelta(weeks=win - 1)).date()),
         "hero_skus": len(hero), "hero_outside_pareto": len(set(hero) - pareto_skus),
         "holt_skus": len(holt), "naive_skus": len(results) - len(holt), "naive_reasons": naive_reasons,
         "skip_reasons": skip_reasons,

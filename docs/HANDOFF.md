@@ -48,7 +48,9 @@ database on the date above; re-check anything that may have changed since.
 
 ## 4. Business rules (current, see `docs/spec.md` for the full list)
 
-- **Scope ("best sellers")** = Pareto 80 % of import revenue (all history) **∪ company Hero SKU list**.
+- **Scope ("best sellers")** = Pareto 80 % of import revenue over the **last 26 weeks (≈ 6 months)**, ending at the
+  latest sales week (decision 5 Nov 2026, setting `SW_PARETO_WINDOW_WEEKS`, default 26) **∪ company Hero SKU list**.
+  The forecast still uses each SKU's full weekly history; only the selection uses the window.
 - **Forecast:** weekly, zero-filled from each SKU's first sale; Holt's DES, level₀ = y₀, trend₀ = y₁ − y₀;
   grid search α, β ∈ {0.1…0.9} (81 combos) minimising **in-sample MAPE**; horizon 12 weeks, clipped at 0 and
   at 2.5 × max(series). Filters: skip SKU "0"; need ≥ 1 sale in last 8 weeks; sales in ≥ 3 of the last 12 weeks;
@@ -127,7 +129,7 @@ D5 SS = 10 % of 8-week forecast; D6 scope = Pareto ∪ Hero; D7 trend charts sho
 
 Open (spec §15): U1 enable RLS on all tables (recommend yes); U2 portfolio days-of-cover median vs mean;
 U3 verified HPP source (`master_cogs` empty); U4 medium window 15–28 days; U5 inflow source for chart;
-U8 Pareto window (keep all history); U10 sales duplicate rule may drop genuine identical rows.
+U8 Pareto window: **decided 5 Nov 2026 = last 26 weeks** (was all history; production impact: Pareto 138 → 119 SKUs, scope 194 → 179); U10 sales duplicate rule may drop genuine identical rows.
 Answered: U6 (legacy removed), U7 (5 s for 194 SKUs), U9 (official file = `HERO_SKU.xlsx`, 134 SKUs).
 
 Known bugs, kept on purpose until approved: B1 `/api/replenishment?product_type=food` → 500 (KeyError

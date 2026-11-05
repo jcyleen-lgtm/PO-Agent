@@ -99,12 +99,15 @@ async def upload_hero_sku(filename: str, content: bytes):
 
 
 async def bestseller_scope():
-    """How the best-seller set is formed: Pareto 80% of import revenue (same rule as the forecast run)
-    plus the company Hero SKU list. Returns the Pareto curve, the counts and one row per SKU in scope."""
+    """How the best-seller set is formed: Pareto 80% of import revenue over the last `pareto_window_weeks`
+    weeks (same rule as the forecast run) plus the company Hero SKU list. Returns the Pareto curve, the
+    counts and one row per SKU in scope."""
+    from config import settings as planning_settings
+    win = int(planning_settings().get("pareto_window_weeks") or 26)
     engine = get_engine()
     with engine.begin() as conn:
         ensure_hero_table(conn)
-        sales = sales_repo.import_revenue_ranking(conn)
+        sales = sales_repo.import_revenue_ranking(conn, win)
         hero = hero_repo.list_with_names(conn)
     try:
         fc = {r["sku"]: r for r in get_forecast_light(engine)}
@@ -159,7 +162,7 @@ async def bestseller_scope():
             g["in_pareto"] += r["pareto"]
             g["revenue"] += r["revenue"]
     return {
-        "period": {"start": str(first) if first else None, "end": str(last) if last else None},
+        "period": {"start": str(first) if first else None, "end": str(last) if last else None, "window_weeks": win},
         "import_revenue": round(total), "skus_sold": len(sales),
         "pareto": {"skus": n_pareto, "share_of_skus_pct": round(n_pareto / len(sales) * 100, 1) if sales else 0,
                    "revenue_pct": round(pareto_rev / total * 100, 1) if total else 0, "cut_revenue": cut},
