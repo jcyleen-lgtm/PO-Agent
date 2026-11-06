@@ -51,6 +51,12 @@ database on the date above; re-check anything that may have changed since.
 - **Scope ("best sellers")** = Pareto 80 % of import revenue over the **last 26 weeks (≈ 6 months)**, ending at the
   latest sales week (decision 5 Nov 2026, setting `SW_PARETO_WINDOW_WEEKS`, default 26) **∪ company Hero SKU list**.
   The forecast still uses each SKU's full weekly history; only the selection uses the window.
+  **Stockout correction of that ranking** (`stockout.py`, decision 6 Nov 2026, `SW_PARETO_STOCKOUT_ADJUST`, default
+  on): a run of ≥ 2 zero-sales weeks after a steady seller (sales in ≥ 3 of the 4 weeks before) counts as a stockout
+  when a stock snapshot shows 0 in the run, or a PO was received in the run / the week after and sales resume; each
+  stockout week is credited with the average weekly revenue of those 4 weeks. Ranking only: Holt's DES, coverage and
+  recommended quantity are unchanged. Production 6 Nov: Pareto 119 → 132, scope 179 → 189 (8 more SKUs actually
+  forecast; 5 have had no sales and no stock since May–Aug, so the forecast still skips them as inactive).
 - **Forecast:** weekly, zero-filled from each SKU's first sale; Holt's DES, level₀ = y₀, trend₀ = y₁ − y₀;
   grid search α, β ∈ {0.1…0.9} (81 combos) minimising **in-sample MAPE**; horizon 12 weeks, clipped at 0 and
   at 2.5 × max(series). Filters: skip SKU "0"; need ≥ 1 sale in last 8 weeks; sales in ≥ 3 of the last 12 weeks;
@@ -129,7 +135,7 @@ D5 SS = 10 % of 8-week forecast; D6 scope = Pareto ∪ Hero; D7 trend charts sho
 
 Open (spec §15): U1 enable RLS on all tables (recommend yes); U2 portfolio days-of-cover median vs mean;
 U3 verified HPP source (`master_cogs` empty); U4 medium window 15–28 days; U5 inflow source for chart;
-U8 Pareto window: **decided 5 Nov 2026 = last 26 weeks** (was all history; production impact: Pareto 138 → 119 SKUs, scope 194 → 179); U10 sales duplicate rule may drop genuine identical rows.
+U8 Pareto window: **decided 5 Nov 2026 = last 26 weeks** (was all history; production impact: Pareto 138 → 119 SKUs, scope 194 → 179), plus stockout correction 6 Nov (119 → 132, scope 189); open: correcting stockout weeks in the forecast itself (needs advisor decision); U10 sales duplicate rule may drop genuine identical rows.
 Answered: U6 (legacy removed), U7 (5 s for 194 SKUs), U9 (official file = `HERO_SKU.xlsx`, 134 SKUs).
 
 Known bugs, kept on purpose until approved: B1 `/api/replenishment?product_type=food` → 500 (KeyError

@@ -142,3 +142,19 @@ def replace_all(engine, rows):
             ),
             rows,
         )
+
+
+def po_receipt_weeks(conn):
+    """[(sku, week start)] with at least one PO line received that week (stockout evidence, stockout.py)."""
+    return conn.execute(text("""
+        SELECT DISTINCT sku, DATE_TRUNC('week', received_date)::date FROM purchase_orders
+        WHERE received_date IS NOT NULL AND COALESCE(qty_received, 0) > 0
+    """)).fetchall()
+
+
+def zero_stock_weeks(conn):
+    """[(sku, week start)] where a stock snapshot of that week shows no stock (all warehouses together)."""
+    return conn.execute(text("""
+        SELECT DISTINCT sku, DATE_TRUNC('week', snapshot_date)::date FROM (
+            SELECT sku, snapshot_date FROM stock_snapshots GROUP BY sku, snapshot_date HAVING SUM(quantity) <= 0) z
+    """)).fetchall()

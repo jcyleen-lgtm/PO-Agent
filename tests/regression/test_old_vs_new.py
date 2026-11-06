@@ -29,6 +29,7 @@ def run(code_dir, out):
     # The reference commit ranks Pareto over all history; the current code over the last 26 weeks (decision of
     # 5 Nov 2026). With a window longer than the data, both must produce the same results.
     env.setdefault("SW_PARETO_WINDOW_WEEKS", "5000")
+    env.setdefault("SW_PARETO_STOCKOUT_ADJUST", "false")
     for k in ("APP_PASSWORD_HASH",):
         env.pop(k, None)
     p = subprocess.run([sys.executable, SCENARIO, "--code", code_dir, "--out", out], env=env,
@@ -61,8 +62,9 @@ def diff(a, b, path="$", out=None, limit=40):
     return out
 
 
-# Fields added after the reference commit (Pareto window info); their presence is not a difference.
-_ADDED = {"pareto_window_start", "pareto_window_weeks", "window_weeks"}
+# Fields added after the reference commit (Pareto window and stockout info); their presence is not a difference.
+_ADDED = {"pareto_window_start", "pareto_window_weeks", "window_weeks", "pareto_stockout_adjust",
+          "pareto_stockout_skus", "pareto_stockout_rescued", "revenue_adjusted", "stockout_weeks", "stockout"}
 
 
 def NEW_KEYS_ONLY(d):

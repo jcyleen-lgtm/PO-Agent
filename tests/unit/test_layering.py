@@ -7,7 +7,7 @@ import glob
 import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-RULE_MODULES = ["app.py", "replenishment.py", "metrics.py", "forecast.py", "etl.py"]
+RULE_MODULES = ["app.py", "replenishment.py", "metrics.py", "forecast.py", "etl.py", "stockout.py"]
 LAYERS = ["src/routers/*.py", "src/services/*.py", "src/parsers/*.py"]
 DB_CALLS = {"text", "read_sql", "read_sql_query", "execute", "executemany", "execute_values", "copy_from",
             "create_engine"}

@@ -126,6 +126,18 @@ def holdout_wmape(series: list, holdout: int = HOLDOUT_WEEKS, min_train: int = M
             "holdout_actual": [round(x, 1) for x in test], "holdout_forecast": [round(x, 1) for x in preds]}
 
 
+def _pareto_cut(revenue: dict) -> set:
+    """SKUs of the Pareto 80% cut of {sku: revenue} (the SKU that crosses 80% included)."""
+    tot = sum(v for v in revenue.values() if v > 0)
+    out, cum = set(), 0.0
+    for sku, v in sorted(((k, v) for k, v in revenue.items() if v > 0), key=lambda kv: (-kv[1], kv[0])):
+        if cum >= 0.8 * tot:
+            break
+        out.add(sku)
+        cum += v
+    return out
+
+
 def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict:
     """
     Run Holt's DES forecast for all SKUs — WEEKLY aggregation.
@@ -154,12 +166,18 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     # Pareto: SKUs that together make up the top 80% of import revenue (rank by revenue), using only the
     # last `pareto_window_weeks` weeks of sales (default 26 ≈ 6 months, ending at the latest sales week),
     # so the list follows what sells now. The forecast itself still uses each SKU's full weekly history.
+    # Stockout weeks inside the window (zero sales while out of stock, see stockout.py) are credited with the
+    # SKU's normal weekly revenue for this ranking only, so a best seller that ran out is not dropped.
     from config import settings as planning_settings
-    win = int(planning_settings().get("pareto_window_weeks") or 26)
+    import stockout
+    cfg = planning_settings()
+    win = int(cfg.get("pareto_window_weeks") or 26)
     last_week = df["week_start"].max()
-    recent = df[df["week_start"] > last_week - pd.Timedelta(weeks=win)]
-    sku_revenue = recent.groupby("sku")["total_amount"].sum()
-    sku_revenue = sku_revenue[sku_revenue > 0].sort_values(ascending=False)
+    with engine.connect() as conn:
+        _, _, ranking = stockout.pareto_revenue(conn, win, cfg.get("pareto_stockout_adjust", True))
+    actual_revenue = pd.Series({k: v["revenue"] for k, v in ranking.items()}, dtype=float)
+    sku_revenue = pd.Series({k: v["adjusted"] for k, v in ranking.items()}, dtype=float).sort_index()
+    sku_revenue = sku_revenue[sku_revenue > 0].sort_values(ascending=False, kind="mergesort")
     total_revenue = sku_revenue.sum()
     cumulative = sku_revenue.cumsum()
     pareto_skus = set(cumulative[cumulative <= total_revenue * 0.80].index)
@@ -180,7 +198,9 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
         h = hero.get(sku) or {}
         return {"pareto": sku in pareto_skus, "hero": sku in hero,
                 "source": "both" if (sku in pareto_skus and sku in hero) else ("hero" if sku in hero else "pareto"),
-                "rank": rank.get(sku), "revenue": round(float(sku_revenue.get(sku, 0))),
+                "rank": rank.get(sku), "revenue": round(float(actual_revenue.get(sku, 0))),
+                "revenue_adjusted": round(float(sku_revenue.get(sku, 0))),
+                "stockout_weeks": int((ranking.get(sku) or {}).get("stockout_weeks", 0)),
                 "share_pct": round(float(share.get(sku, 0)), 2), "cum_share_pct": round(float(cum_share.get(sku, 0)), 1),
                 "group": h.get("group"), "status": h.get("status")}
 
@@ -380,6 +400,10 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
         "pareto_skus_included": len(pareto_skus),
         "pareto_skus_excluded": pareto_excluded,
         "pareto_window_weeks": win,
+        "pareto_stockout_adjust": bool(cfg.get("pareto_stockout_adjust", True)),
+        "pareto_stockout_skus": sum(1 for v in ranking.values() if v["stockout_weeks"]),
+        "pareto_stockout_rescued": len({k for k in pareto_skus if (ranking.get(k) or {}).get("stockout_weeks")}
+                                       - _pareto_cut({k: v["revenue"] for k, v in ranking.items()})),
         "pareto_window_start": str((last_week - pd.Timedelta(weeks=win - 1)).date()),
         "hero_skus": len(hero), "hero_outside_pareto": len(set(hero) - pareto_skus),
         "holt_skus": len(holt), "naive_skus": len(results) - len(holt), "naive_reasons": naive_reasons,
