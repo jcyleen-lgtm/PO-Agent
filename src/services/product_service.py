@@ -99,35 +99,49 @@ async def upload_hero_sku(filename: str, content: bytes):
 
 
 async def bestseller_scope():
-    """How the best-seller set is formed: Pareto 80% of import revenue (same rule as the forecast run)
-    plus the company Hero SKU list. Returns the Pareto curve, the counts and one row per SKU in scope."""
+    """How the best-seller set is formed: Pareto 80% of import revenue over the last `pareto_window_weeks`
+    weeks (same rule as the forecast run) plus the company Hero SKU list. Returns the Pareto curve, the
+    counts and one row per SKU in scope."""
+    from config import settings as planning_settings
+    import stockout
+    cfg = planning_settings()
+    win = int(cfg.get("pareto_window_weeks") or 26)
     engine = get_engine()
     with engine.begin() as conn:
         ensure_hero_table(conn)
-        sales = sales_repo.import_revenue_ranking(conn)
+        sales = sales_repo.import_revenue_ranking(conn, win)
         hero = hero_repo.list_with_names(conn)
+        _, _, ranking = stockout.pareto_revenue(conn, win, cfg.get("pareto_stockout_adjust", True),
+                                              int(cfg.get("lead_time_weeks") or 8))
+    # Rank on the stockout-adjusted revenue (same rule as the forecast run); `revenue` stays the actual sales.
+    adj = {sku: float((ranking.get(sku) or {}).get("adjusted", rev or 0)) for sku, _n, rev, *_ in sales}
+    sales = sorted(sales, key=lambda r: (-adj[r[0]], r[0]))
     try:
         fc = {r["sku"]: r for r in get_forecast_light(engine)}
     except Exception:
         fc = {}
-    total = float(sum(float(r[2] or 0) for r in sales)) or 0.0
+    total = float(sum(adj.values())) or 0.0
+    actual_total = float(sum(float(r[2] or 0) for r in sales)) or 0.0
     rows, cum, prev, n_pareto, curve = {}, 0.0, 0.0, 0, []
     step = max(1, len(sales) // 300)
-    for i, (sku, name, rev, qty, first, last) in enumerate(sales, start=1):
-        rev = float(rev or 0)
+    for i, (sku, name, actual, qty, first, last) in enumerate(sales, start=1):
+        rev = adj[sku]
         prev, cum = cum, cum + rev
         in_p = total > 0 and prev < 0.8 * total
         n_pareto += in_p
         if i % step == 0 or i == len(sales) or in_p and (cum >= 0.8 * total):
             curve.append({"rank": i, "cum_pct": round(cum / total * 100, 2) if total else 0})
         if in_p or sku in hero:
-            rows[sku] = {"sku": sku, "product_name": name, "rank": i, "revenue": round(rev), "qty": int(qty or 0),
+            rows[sku] = {"sku": sku, "product_name": name, "rank": i, "revenue": round(float(actual or 0)),
+                         "revenue_adjusted": round(rev),
+                         "stockout_weeks": int((ranking.get(sku) or {}).get("stockout_weeks", 0)), "qty": int(qty or 0),
                          "share_pct": round(rev / total * 100, 3) if total else 0,
                          "cum_pct": round(cum / total * 100, 2) if total else 0,
                          "first_sale": str(first) if first else None, "last_sale": str(last) if last else None,
                          "pareto": bool(in_p)}
     for sku, h in hero.items():
-        rows.setdefault(sku, {"sku": sku, "product_name": h["name"], "rank": None, "revenue": 0, "qty": 0,
+        rows.setdefault(sku, {"sku": sku, "product_name": h["name"], "rank": None, "revenue": 0,
+                              "revenue_adjusted": 0, "stockout_weeks": 0, "qty": 0,
                               "share_pct": 0, "cum_pct": None, "first_sale": None, "last_sale": None, "pareto": False})
     last = max((r[5] for r in sales if r[5]), default=None)
     out = []
@@ -145,7 +159,7 @@ async def bestseller_scope():
             r["method_reason"] = "inactive" if stale else "too_few_weeks"
         out.append(r)
     out.sort(key=lambda r: (r["rank"] is None, r["rank"] or 0, r["sku"]))
-    cut = min((r["revenue"] for r in out if r["pareto"]), default=None)
+    cut = min((r["revenue_adjusted"] for r in out if r["pareto"]), default=None)
     first = min((r[4] for r in sales if r[4]), default=None)
     last = max((r[5] for r in sales if r[5]), default=None)
     pareto_rev = sum(r["revenue"] for r in out if r["pareto"])
@@ -159,11 +173,17 @@ async def bestseller_scope():
             g["in_pareto"] += r["pareto"]
             g["revenue"] += r["revenue"]
     return {
-        "period": {"start": str(first) if first else None, "end": str(last) if last else None},
-        "import_revenue": round(total), "skus_sold": len(sales),
+        "period": {"start": str(first) if first else None, "end": str(last) if last else None, "window_weeks": win},
+        "import_revenue": round(actual_total), "skus_sold": len(sales),
+        # Stockout correction of the ranking (stockout.py): SKUs with stockout weeks credited, revenue added
+        "stockout": {"enabled": bool(cfg.get("pareto_stockout_adjust", True)),
+                     "skus": sum(1 for v in ranking.values() if v["stockout_weeks"]),
+                     "weeks": sum(v["stockout_weeks"] for v in ranking.values()),
+                     "imputed_revenue": round(total - actual_total),
+                     "in_pareto": sum(1 for r in out if r["pareto"] and r["stockout_weeks"])},
         "pareto": {"skus": n_pareto, "share_of_skus_pct": round(n_pareto / len(sales) * 100, 1) if sales else 0,
-                   "revenue_pct": round(pareto_rev / total * 100, 1) if total else 0, "cut_revenue": cut},
-        "hero": {"skus": len(hero), "revenue_pct": round(hero_rev / total * 100, 1) if total else 0,
+                   "revenue_pct": round(pareto_rev / actual_total * 100, 1) if actual_total else 0, "cut_revenue": cut},
+        "hero": {"skus": len(hero), "revenue_pct": round(hero_rev / actual_total * 100, 1) if actual_total else 0,
                  "groups": len(groups)},
         "counts": {"both": sum(r["source"] == "both" for r in out), "pareto_only": sum(r["source"] == "pareto" for r in out),
                    "hero_only": sum(r["source"] == "hero" for r in out), "in_scope": len(out),

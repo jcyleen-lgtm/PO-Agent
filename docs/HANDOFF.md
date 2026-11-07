@@ -48,7 +48,16 @@ database on the date above; re-check anything that may have changed since.
 
 ## 4. Business rules (current, see `docs/spec.md` for the full list)
 
-- **Scope ("best sellers")** = Pareto 80 % of import revenue (all history) **∪ company Hero SKU list**.
+- **Scope ("best sellers")** = Pareto 80 % of import revenue over the **last 26 weeks (≈ 6 months)**, ending at the
+  latest sales week (decision 5 Nov 2026, setting `SW_PARETO_WINDOW_WEEKS`, default 26) **∪ company Hero SKU list**.
+  The forecast still uses each SKU's full weekly history; only the selection uses the window.
+  **Stockout correction of that ranking** (`stockout.py`, decision 6 Nov 2026, `SW_PARETO_STOCKOUT_ADJUST`, default
+  on): a run of ≥ 2 zero-sales weeks after a steady seller (sales in ≥ 3 of the 4 weeks before) counts as a stockout
+  when a stock snapshot shows 0 in the run, or a PO was received in the run / the week after and sales resume; each
+  stockout week is credited with the average weekly revenue of those 4 weeks. A run still going on at the latest
+  week counts only up to the lead time (8 weeks): longer without stock or sales and never restocked = no longer
+  selling (San, 7 Nov: such items are still listed but do not sell any more). Ranking only: Holt's DES, coverage and
+  recommended quantity are unchanged. Production 7 Nov: Pareto 119 → 125, scope 179 → 182.
 - **Forecast:** weekly, zero-filled from each SKU's first sale; Holt's DES, level₀ = y₀, trend₀ = y₁ − y₀;
   grid search α, β ∈ {0.1…0.9} (81 combos) minimising **in-sample MAPE**; horizon 12 weeks, clipped at 0 and
   at 2.5 × max(series). Filters: skip SKU "0"; need ≥ 1 sale in last 8 weeks; sales in ≥ 3 of the last 12 weeks;
@@ -112,7 +121,9 @@ TEST_DATABASE_URL=postgresql://postgres@localhost:5432/stockwise_test python -m 
 | Data step: Refresh forecast | **Done** 2026-11-03 13:46 WIB: 194 SKUs (134 Hero + 60 Pareto-only), all Hero SKUs present, 9 naive; run took **≈ 5 s** (U7 answered) |
 | Forecast accuracy analysis | **Done** 2026-11-03 → `docs/forecast-accuracy.md`; **next: decisions F1–F6** |
 | Phase 4 frontend refactoring | **Done on branch `phase4-frontend`** 2026-11-03 (not merged): CSS/JS out of `dashboard.html` into `static/`, regression harness, dead code removed; report `docs/frontend.md`. Next: San pushes the branch, check Vercel preview `/static`, merge |
-| Phase 5 UI/UX redesign | After F1–F6. Action Center buckets (D2), reasons per SKU, clickable KPIs, insufficient-data states (D7), forecast reliability label |
+| Phase 4 merge | **Done** 2026-11-03: `main@08fca67`, production deploy READY, `/static` served by Vercel CDN |
+| Phase 5 UI/UX redesign | **Implemented on branch `phase5-ux`** 2026-11-03 (not merged): Overview with Purchasing Action Center, Replenishment drawer, Sales moved to Product Analysis, Data page regrouped. Decisions A1–A5 in `docs/phase5/PHASE_5_INFORMATION_ARCHITECTURE.md` §6. Next: preview check on production data, then merge; gaps G1–G8 in `docs/phase5/PHASE_5_HANDOVER.md` |
+| Overview v2 (Inventory Overview) | **Implemented on branch `overview-v2`** (on top of `phase5-ux`, not merged) 2026-11-03: header with data date, 4 health KPIs, "What Needs Your Attention?" groups (Upcoming orders / Hold / Monitor renamed), Priority SKUs table, health + coverage charts, operational summary. No global filters: Store/Platform data does not exist and inventory has no date parameter. See `docs/overview-v2/OVERVIEW_REDESIGN.md` |
 | Later | R8 migrations (+ RLS if U1 approved), R9 frontend split, R10 inventory memo |
 
 ## 8. Decisions and open items
@@ -125,7 +136,7 @@ D5 SS = 10 % of 8-week forecast; D6 scope = Pareto ∪ Hero; D7 trend charts sho
 
 Open (spec §15): U1 enable RLS on all tables (recommend yes); U2 portfolio days-of-cover median vs mean;
 U3 verified HPP source (`master_cogs` empty); U4 medium window 15–28 days; U5 inflow source for chart;
-U8 Pareto window (keep all history); U10 sales duplicate rule may drop genuine identical rows.
+U8 Pareto window: **decided 5 Nov 2026 = last 26 weeks** (was all history; production impact: Pareto 138 → 119 SKUs, scope 194 → 179), plus stockout correction 6–7 Nov (119 → 125, scope 182); open: correcting stockout weeks in the forecast itself (needs advisor decision); U10 sales duplicate rule may drop genuine identical rows.
 Answered: U6 (legacy removed), U7 (5 s for 194 SKUs), U9 (official file = `HERO_SKU.xlsx`, 134 SKUs).
 
 Known bugs, kept on purpose until approved: B1 `/api/replenishment?product_type=food` → 500 (KeyError

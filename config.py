@@ -39,6 +39,11 @@ def settings():
         "fast_share": _num("SW_FAST_SHARE", 0.20),
         "medium_share": _num("SW_MEDIUM_SHARE", 0.50),
         "movement_window_weeks": _num("SW_MOVEMENT_WINDOW_WEEKS", 12, int),
+        # Pareto 80% best-seller cut is made on the revenue of the last N weeks (26 ≈ 6 months), not all history.
+        "pareto_window_weeks": _num("SW_PARETO_WINDOW_WEEKS", 26, int),
+        # Stockout weeks (zero sales while out of stock, see stockout.py) are credited with the normal weekly
+        # revenue in that Pareto ranking, so a best seller that ran out is not dropped. Forecast unchanged.
+        "pareto_stockout_adjust": os.getenv("SW_PARETO_STOCKOUT_ADJUST", "true").strip().lower() in ("1", "true", "yes"),
         # Open PO line older than this (days since PO date) is flagged on the PO & Supplier page.
         "po_aging_warn_days": _num("SW_PO_AGING_WARN_DAYS", 60, int),
     }

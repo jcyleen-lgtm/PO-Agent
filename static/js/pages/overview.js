@@ -1,132 +1,355 @@
-/* Inventory Overview: date filter, KPIs, charts, insights, best sellers at risk, best-seller scope card. */
-let currentPreset='l4w',mgYear=new Date().getFullYear();
-document.querySelectorAll('.pill[data-p]').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));btn.classList.add('active');currentPreset=btn.dataset.p;document.getElementById('monthGrid').classList.remove('show');if(currentPreset==='custom')document.getElementById('customRange').classList.add('show');else{document.getElementById('customRange').classList.remove('show');document.getElementById('dateStart').value='';document.getElementById('dateEnd').value='';loadOverview()}})});
-function toggleMonthGrid(){document.getElementById('customRange').classList.remove('show');const mg=document.getElementById('monthGrid');mg.classList.toggle('show');if(mg.classList.contains('show')){document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));document.getElementById('pillMonth').classList.add('active')}renderMonthGrid()}
-function mgShiftYear(d){mgYear+=d;renderMonthGrid()}
-function renderMonthGrid(){document.getElementById('mgYear').textContent=mgYear;const ms=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const now=new Date();let h='';ms.forEach((m,i)=>{const f=mgYear>now.getFullYear()||(mgYear===now.getFullYear()&&i>now.getMonth());h+=`<button class="mg-btn${f?' disabled':''}" onclick="selectMonth(${mgYear},${i+1})">${m}</button>`});document.getElementById('mgButtons').innerHTML=h}
-function selectMonth(y,m){document.getElementById('dateStart').value=`${y}-${String(m).padStart(2,'0')}-01`;const last=new Date(y,m,0).getDate();document.getElementById('dateEnd').value=`${y}-${String(m).padStart(2,'0')}-${last}`;document.getElementById('monthGrid').classList.remove('show');currentPreset='custom';loadOverview()}
-function applyCustom(){if(document.getElementById('dateStart').value&&document.getElementById('dateEnd').value){document.getElementById('customRange').classList.remove('show');loadOverview()}}
-function changeTopSort(){loadOverview()}
-let invOv=null;
-async function fetchInvSummary(){if(invSummaryCache)return invSummaryCache;const forPT=PT;try{const r=await fetch(`/api/inventory/summary?product_type=${PT}&scope=bestseller`);const d=await r.json();if(forPT!==PT)return null;invOv=d;invSummaryCache=d.summary||null;renderInvOverview(d)}catch(e){console.error('Inventory summary:',e)}return invSummaryCache}
-function renderInvOverview(d){const sm=d.summary||{};renderFresh(d.freshness);
-countUp('ivTotal',sm.total||0,fmt);countUp('ivSoh',sm.stock_on_hand||0,fmt);countUp('ivOos',sm.out_of_stock||0,fmt);countUp('ivUnder',sm.understocked||0,fmt);countUp('ivOver',sm.overstocked||0,fmt);
-const v=document.getElementById('ivValue');v.classList.remove('skel');v.innerHTML=sm.valued_skus?fmtRpS(sm.inventory_value):'--';
-document.getElementById('ivValueSub').innerHTML=(sm.valued_skus?`${fmt(sm.valued_skus)} SKUs valued${sm.no_cost_skus?` · ${fmt(sm.no_cost_skus)} no cost`:''}`:'No unit cost available')+costTag(sm.cost_verified);
-document.getElementById('ivSohSub').textContent=d.stock_date?`units, snapshot ${d.stock_date}`:'no stock snapshot';
-document.getElementById('ivTotalSub').textContent='best sellers (Pareto 80% import revenue)';
-const tot=sm.total||0,parts=[['understocked','Understocked','var(--red)','≤ 8 weeks'],['healthy','Healthy','var(--green)','> 8–20 weeks'],['overstocked','Overstocked','var(--slate)','> 20 weeks'],['unclassified','Not classified','var(--border2)','no sales, no stock']];
-document.getElementById('healthBar').innerHTML=parts.map(([k,,c])=>sm[k]?`<span style="width:${(sm[k]/Math.max(tot,1)*100).toFixed(2)}%;background:${c}" title="${k}: ${sm[k]}"></span>`:'').join('');
-document.getElementById('healthLegend').innerHTML=parts.map(([k,l,c,h])=>`<button onclick="${k==='unclassified'?'':`goStatus('${k}')`}"><span class="hl-l"><span class="sw" style="background:${c}"></span>${l}</span><span class="hl-v">${fmt(sm[k]||0)} <span style="font-size:13px;font-weight:500;color:var(--text3)">${tot?Math.round((sm[k]||0)/tot*100):0}%</span></span><span class="kpi-help" style="margin-top:0">${h}</span></button>`).join('');
-const t=d.turnover||{};const tv=t.available?`${t.turnover}×<div class="f-s">per year · ${t.period_start} – ${t.period_end}</div>`:`<span class="tag tag-mute">Insufficient data</span><div class="f-s">needs ≥ 2 full stock snapshots (have ${t.snapshots||0})</div>`;
-const cv_=sm.cost_verified;
-document.getElementById('finRows').innerHTML=`<div class="fin-row"><span class="f-l">Inventory value${costTag(cv_)}</span><span class="f-v">${sm.valued_skus?fmtRpS(sm.inventory_value):'--'}</span></div>
-<div class="fin-row"><span class="f-l" title="Units above 20 weeks of coverage x unit cost">Overstock value</span><span class="f-v">${fmtRpS(sm.overstock_value||0)}<div class="f-s">${fmt(sm.overstock_qty||0)} units above target</div></span></div>
-<div class="fin-row"><span class="f-l" title="Recommended order qty x unit cost">Est. purchase cost</span><span class="f-v">${fmtRpS(sm.est_purchase_cost||0)}<div class="f-s">${fmt(sm.reorder_skus||0)} SKUs to reorder</div></span></div>
-<div class="fin-row"><span class="f-l" title="COGS x 52 / weeks ÷ average inventory value">Inventory turnover</span><span class="f-v">${tv}</span></div>`;
+/* Inventory Overview (revision R7): KPIs → purchasing groups → Demand: Actual vs Forecast and Operational Summary →
+   Priority SKUs → Inventory Insights.
+   Inventory numbers come from the same /api/replenishment rows (fetchRepl) as the Replenishment page, so they agree.
+   Demand comes from /api/forecast/plan (core/demand.js); monthly sales and best sellers from /api/overview for the
+   chosen month. Nothing here recalculates a business value. */
+let ovSeq = 0, ovRows = [], ovFc = null, ovDem = null, ovMonths = [], ovMonthSel = null, ovMonthSeq = 0;
+let ovHealthChartObj = null, ovCovChartObj = null, ovDemChartObj = null, ovMonChartObj = null, ovPo = null;
+const PRIORITY_LIMIT = 8;
 
-const rl=d.top_reorder||[];document.getElementById('recoMeta').textContent=sm.reorder_skus?`${fmt(sm.reorder_skus)} SKUs to reorder · ${fmt(d.order_overdue||0)} past their order date`:'Forecasted best sellers';
-document.getElementById('recoList').innerHTML=rl.length?rl.map(r=>`<li><div style="min-width:86px">${orderByCell(r,true)}</div><div class="ml-main"><div class="ml-t" title="${esc(r.product_name||'')}">${esc(r.product_name||r.sku)}</div><div class="ml-s">${esc(r.sku)}${r.needs_po_check?' · <span style="color:var(--amber)">check PO</span>':''}</div></div><div style="text-align:right"><div class="t-strong">${fmt(r.reco_po)}</div><div class="ml-s">units</div></div></li>`).join(''):'<li><span class="text-dim">No reorder needed right now.</span></li>'}
-function goStatus(st){switchTab('inventory');setTimeout(()=>{const opt=document.querySelector(`.cdrop[data-id="invStatus"] .cdrop-opt[data-val="${st}"]`);if(st!=='understocked')document.getElementById('invActionOnly').checked=false;if(opt)selectCdrop(opt)},0)}
-let ovSeq=0,lastOv=null,lastRisk=[];
-let riskSeq=0;
-function loadRiskOnly(){const seq=++riskSeq,rt=PT;return fetch(`/api/best-sellers-at-risk?product_type=${rt}`).then(r=>r.ok?r.json():{results:[]}).then(risk=>{if(seq!==riskSeq)return;lastRisk=risk.results||[];riskInfo=risk;updateRiskMeta();renderRisk(lastRisk,rt);refreshInsights()}).catch(()=>{})}
-function refreshInsights(){if(lastOv)renderInsights(lastOv,lastRisk,invSummaryCache)}
-async function loadOverview(){const seq=++ovSeq;if(!scopeData)loadScope();try{const ts=cDropVal('topSortSelect')||'revenue',tt=PT;let url;const s=document.getElementById('dateStart').value,e=document.getElementById('dateEnd').value;if(currentPreset==='custom'&&s&&e){url=`/api/overview?start=${s}&end=${e}&top_sort=${ts}&product_type=${tt}`}else{url=`/api/overview?preset=${currentPreset==='custom'?'l4w':currentPreset}&top_sort=${ts}&product_type=${tt}`}
-// Slow/secondary requests start now but nothing waits for them.
-loadRiskOnly();
-fetch('/api/db/stats').then(r=>r.ok?r.json():null).then(stats=>{if(!stats||seq!==ovSeq)return;document.getElementById('lastUpdate').textContent=stats.last_update||'--';document.getElementById('dbInfo').innerHTML=`Connected · <strong>${fmt(stats.sales)}</strong> sales · <strong>${fmt(stats.products)}</strong> products · <strong>${stats.date_range||'--'}</strong>`}).catch(()=>{});
-const oR=await fetch(url);if(!oR.ok)throw new Error('Overview request failed ('+oR.status+')');const ov=await oR.json();if(seq!==ovSeq)return;lastOv=ov;
-const p=ov.period||{},pp=ov.prev_period||{};
-document.getElementById('periodInfo').innerHTML=p.start?`${{import:'Import products',food:'Food products',all:'All products'}[PT]} · <b>${p.start} – ${p.end}</b> (${p.days} days), compared with ${pp.start} – ${pp.end}`:'Business overview';
-const k=ov.kpis||{},cmp=ov.comparison||{};
-countUp('kpiSales',k.total_sales||0,fmt);countUp('kpiRevenue',k.revenue||0,fmtRp);countUp('kpiAvgWeekly',k.avg_weekly_sales||0,fmt);countUp('kpiActive',k.active_products||0,fmt);countUp('kpiTrending',k.trending_up||0,fmt);
-setCmp('cmpSales',cmp.total_sales);setCmp('cmpRevenue',cmp.revenue);setCmp('cmpAvgWeekly',cmp.avg_weekly_sales);setCmp('cmpActive',cmp.active_products);
-const aggTxt=p.aggregation==='day'?'per day':'per period';
-document.getElementById('chRevMeta').textContent=`Rupiah, ${aggTxt}`;document.getElementById('chSalesMeta').textContent=`Units sold, ${aggTxt}`;
-const trend=ov.trend||[];lastTrend=trend.length?trend:null;lastAgg=p.aggregation;if(lastTrend){renderRevChart(trend,p.aggregation);renderSalesChart(trend,p.aggregation)}
-if((ov.top_products||[]).length)renderTopTable(ov.top_products);
-const fcs=ov.forecast_summary;['fcsDemand8w','fcsTotal','fcsMape','fcsTrendDown','ringAccVal'].forEach(i=>document.getElementById(i).classList.remove('skel'));if(fcs){document.getElementById('fcsDemand8w').textContent=fmt(fcs.forecast_demand_8w);document.getElementById('fcsTotal').textContent=fmt(fcs.total_forecasted);document.getElementById('fcsMape').textContent=fcs.avg_mape!=null?fcs.avg_mape+'%':'--';document.getElementById('fcsTrendDown').textContent=fmt(fcs.trending_down)}
-renderRings(fcs,invSummaryCache);refreshInsights();
-fetchInvSummary().then(inv=>{if(seq!==ovSeq)return;document.getElementById('ringHealthVal').classList.remove('skel');renderRings(ov.forecast_summary,inv);refreshInsights()});
-const projPT=PT;document.getElementById('projMeta').textContent='Weekly units, '+(PT==='all'?'all':PT)+' SKUs';fetchWeekly(PT,'bestseller').then(d=>{if(projPT===PT)renderProjection(d.results)}).catch(()=>renderProjection([]));
-}catch(e){document.getElementById('dbInfo').innerHTML='Error · '+esc(e.message)}}
-function setCmp(id,v){const el=document.getElementById(id);if(!el)return;if(v==null){el.textContent='';el.className='kpi-cmp';return}el.className='kpi-cmp '+(v>0?'up':v<0?'down':'');el.textContent=`${v>0?'↑':v<0?'↓':'→'} ${Math.abs(v)}% vs previous`}
-function renderRings(fcs,inv){const hw=fcs&&fcs.holdout_wmape!=null;const acc=hw?Math.max(0,100-fcs.holdout_wmape):(fcs&&fcs.avg_mape!=null?Math.max(0,100-fcs.avg_mape):null);document.getElementById('ringAcc').innerHTML=ringSvg(acc,'var(--chart-1)');document.getElementById('ringAccVal').textContent=acc!=null?acc.toFixed(1)+'%':'--';document.getElementById('ringAccSub').textContent=hw?`100 − WMAPE, out-of-sample (last 8 weeks, ${fcs.holdout_evaluated} SKUs)`:'100 − avg MAPE, in-sample · run Refresh forecast for holdout WMAPE';
-let health=null,tot=0;if(inv){tot=(inv.understocked||0)+(inv.healthy||0)+(inv.overstocked||0);if(tot)health=(inv.healthy||0)/tot*100}
-document.getElementById('ringHealth').innerHTML=ringSvg(health,'var(--chart-2)');document.getElementById('ringHealthVal').textContent=health!=null?health.toFixed(1)+'%':'--';document.getElementById('ringHealthSub').textContent=tot?`${fmt(inv.healthy||0)} of ${fmt(tot)} ${ptWord()}SKUs healthy`:'Share of '+ptWord()+'SKUs in healthy status'}
-function renderInsights(ov,risk,inv){const out=[];const cmp=ov.comparison||{};
-const fr=invOv&&invOv.freshness;if(fr&&(fr.stock_level==='stale'||fr.stock_level==='very_stale'))out.push({c:'var(--amber)',h:`Stock snapshot is <b>${fr.stock_age_days} days old</b> — upload a new stock report before ordering.`,a:'upload'});
-if(invOv&&invOv.order_overdue)out.push({c:'var(--red)',h:`<b>${fmt(invOv.order_overdue)} best sellers</b> are past their order date — an order placed today arrives after the projected stockout.`,a:'replenishment'});else if(invOv&&invOv.order_soon)out.push({c:'var(--amber)',h:`<b>${fmt(invOv.order_soon)} best sellers</b> must be ordered within 14 days.`,a:'replenishment'});
-if(inv&&inv.needs_po_check)out.push({c:'var(--amber)',h:`<b>${fmt(inv.needs_po_check)} SKUs</b> have open POs without an ETA — confirm them before reordering.`,a:'po'});
-if(risk.length){const n=riskInfo.total_understocked||risk.length;const w=risk.filter(r=>r.coverage!=null).sort((a,b)=>a.coverage-b.coverage)[0];out.push({c:'var(--red)',h:`<b>${n} best seller${n>1?'s':''}</b> at risk of stockout${w?` — lowest coverage: <b>${w.sku}</b> (${w.coverage.toFixed(1)} weeks)`:''}.`,a:'inventory'})}
-if(inv&&(inv.understocked||0)>0)out.push({c:'var(--red)',h:`<b>${fmt(inv.understocked)} ${ptWord()}SKUs</b> are understocked (less than 8 weeks of stock).`,a:'inventory'});
-if(cmp.revenue!=null)out.push({c:cmp.revenue>=0?'var(--green)':'var(--red)',h:`Revenue ${cmp.revenue>=0?'up':'down'} <b>${Math.abs(cmp.revenue)}%</b> vs the previous period.`});
-const f=ov.forecast_summary;if(f&&f.avg_mape!=null)out.push({c:'var(--blue)',h:`${f.holdout_wmape!=null?`Out-of-sample WMAPE is <b>${f.holdout_wmape}%</b> (in-sample MAPE ${f.avg_mape}%)`:`Average in-sample MAPE is <b>${f.avg_mape}%</b>`}${f.trending_down?`; <b>${fmt(f.trending_down)} SKUs</b> forecast &gt;10% below the last 8 weeks`:''}.`,a:'forecast'});
-if(!out.length)out.push({c:'var(--slate)',h:'No notable signals for this period.'});
-document.getElementById('insightList').innerHTML=out.map(i=>`<li><span class="ins-dot" style="background:${i.c}"></span><span>${i.h}</span>${i.a?`<button class="link-btn" onclick="switchTab('${i.a}')">View</button>`:''}</li>`).join('')}
-function renderRevChart(data,agg){const ctx=document.getElementById('revChart').getContext('2d');if(revChartObj)revChartObj.destroy();const labels=data.map(d=>agg==='day'?d.date.substring(5):d.date.substring(0,7));const c1=cv('--chart-1');revChartObj=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:data.map(d=>d.revenue),borderColor:c1,backgroundColor:areaFill(ctx,c1),fill:true,tension:.35,pointRadius:0,pointHoverRadius:4,pointBackgroundColor:c1,borderWidth:2}]},options:baseOpts(v=>'Rp'+(v/1e6).toFixed(0)+'M',c=>fmtRp(c.parsed.y))})}
-function renderSalesChart(data,agg){const ctx=document.getElementById('salesChart').getContext('2d');if(salesChartObj)salesChartObj.destroy();const labels=data.map(d=>agg==='day'?d.date.substring(5):d.date.substring(0,7));const c4=cv('--chart-4');salesChartObj=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:data.map(d=>d.quantity),borderColor:c4,backgroundColor:areaFill(ctx,c4),fill:true,tension:.35,pointRadius:0,pointHoverRadius:4,pointBackgroundColor:c4,borderWidth:2}]},options:baseOpts(v=>fmt(v),c=>fmt(c.parsed.y)+' units')})}
-/* Actual vs Forecast (aggregated) */
-function renderProjection(rows){const spark=(rows||[]).map(r=>r.sparkline||[]).filter(a=>a.length);const n=spark.length?Math.max(...spark.map(a=>a.length)):0;const actual=Array(n).fill(0);spark.forEach(a=>{const off=n-a.length;a.forEach((v,i)=>actual[off+i]+=Number(v)||0)});
-const inSet=new Set((rows||[]).map(r=>r.sku));const fq=Object.values(fcDataMap).filter(f=>inSet.has(f.sku)).map(f=>(f.forecast_data&&f.forecast_data.quantities)||[]).filter(a=>a.length);const m=fq.length?Math.max(...fq.map(a=>a.length)):0;const forecast=Array(m).fill(0);fq.forEach(a=>a.forEach((v,i)=>forecast[i]+=Number(v)||0));
-document.getElementById('fcsSpark').innerHTML=sparklineSvg(forecast.slice(0,8),90,28);
-if(!n&&!m){lastProj=null;document.getElementById('projWrap').innerHTML='<div class="empty-state">No weekly data or forecast results yet.</div>';return}
-lastProj={actual,forecast};renderProjChart()}
-function renderProjChart(){if(!lastProj)return;let cvs=document.getElementById('projChart');if(!cvs){document.getElementById('projWrap').innerHTML='<canvas id="projChart"></canvas>';cvs=document.getElementById('projChart')}const ctx=cvs.getContext('2d');if(projChartObj)projChartObj.destroy();const{actual,forecast}=lastProj;const n=actual.length,m=forecast.length;
-const labels=[...actual.map((_,i)=>`W-${n-i}`),...forecast.map((_,i)=>`W+${i+1}`)];
-const aData=[...actual,...Array(m).fill(null)];const fData=n?[...Array(n-1).fill(null),actual[n-1],...forecast]:[...forecast];
-const c1=cv('--chart-1'),c2=cv('--chart-2');
-projChartObj=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Actual',data:aData,borderColor:c1,backgroundColor:areaFill(ctx,c1),fill:true,tension:.3,pointRadius:0,pointHoverRadius:4,borderWidth:2,spanGaps:false},{label:'Forecast',data:fData,borderColor:c2,fill:false,borderDash:[6,4],tension:.3,pointRadius:0,pointHoverRadius:4,borderWidth:2,spanGaps:false}]},options:baseOpts(v=>fmt(v),c=>`${c.dataset.label}: ${fmt(Math.round(c.parsed.y))} units`)})}
-function renderTopTable(data){let h='<thead><tr><th>SKU</th><th>Product</th><th class="r">Sales</th><th class="r">Revenue</th><th class="r">Growth</th></tr></thead><tbody>';data.forEach(r=>{let gt,gc='';if(r.is_new){gt='<span class="badge badge-blue">New</span>'}else if(r.growth!=null){gc=r.growth>0?'num-pos':r.growth<0?'num-neg':'';gt=fmtPct(r.growth)}else{gt='<span class="text-dim">No prev</span>'}h+=`<tr><td class="t-strong">${r.sku}</td><td class="t-strong" style="font-weight:500">${(r.name||'').substring(0,45)}</td><td class="r t-strong">${fmt(r.qty)}</td><td class="r">${fmtRp(r.revenue)}</td><td class="r ${gc}">${gt}</td></tr>`});h+='</tbody>';document.getElementById('topTable').innerHTML=h}
-const LEAD_WEEKS=8,BAR_WEEKS=12;
-function renderRisk(data,rt='all'){const sec=document.getElementById('riskSection');if(!data.length){if(rt==='all'){sec.style.display='none';return}sec.style.display='block';document.getElementById('riskGrid').innerHTML=`<div class="empty-state" style="grid-column:1/-1">No ${rt} best sellers at risk.</div>`;document.getElementById('riskMore').hidden=true;return}sec.style.display='block';
-const rows=sortRisk(data).slice(0,10);
-document.getElementById('riskGrid').innerHTML=rows.map(r=>{const cov=r.coverage;const col=cov==null?'var(--slate)':cov<8?'var(--red)':cov<=20?'var(--green)':'var(--slate)';const pct=cov==null?0:Math.min(100,cov/BAR_WEEKS*100);const name=esc(r.name||'');
-return`<article class="risk-card"><div class="rc-top"><span class="rc-sku" title="${esc(r.sku)}">${esc(r.sku)}</span>${statusBadge(r.status)}</div>
-<div class="rc-name" title="${name}">${name}</div>
-<div class="rc-cov"><span class="rc-cov-v" style="color:${col}">${cov!=null?cov.toFixed(1):'--'}</span><span class="rc-cov-l">weeks of stock</span></div>
-<div class="rc-bar" title="${cov!=null?cov.toFixed(1):'--'} of ${LEAD_WEEKS} weeks lead time"><span style="width:${pct}%;background:${col}"></span><i style="left:${LEAD_WEEKS/BAR_WEEKS*100}%"></i></div>
-<div class="rc-meta"><div><div class="l">${riskInfo.comparison_available?'Stock '+riskWeeksAgo():'Stock now'}</div><div class="v" title="${riskInfo.comparison_available?'Stock then → now':'Only one stock snapshot: no comparison yet'}">${riskInfo.comparison_available&&r.prev_stock!=null?fmt(r.prev_stock)+' → '+fmt(r.current_stock):fmt(r.current_stock)}${riskInfo.comparison_available&&r.stock_change_pct!=null?` <span class="${r.stock_change_pct<0?'num-neg':'num-pos'}">(${r.stock_change_pct>0?'+':''}${r.stock_change_pct}%)</span>`:''}</div></div><div><div class="l">Order by</div><div class="v">${r.order_by?`<span class="${r.order_by_days<0?'num-neg':r.order_by_days<=14?'':'text-dim'}">${dfmt(r.order_by)}</span>`:'--'}</div></div><div><div class="l">L4W sales</div><div class="v">${fmt(r.l4w_qty)}</div></div><div><div class="l">Revenue L4W</div><div class="v" title="${fmtRp(r.revenue)}">${fmtRp(r.revenue)}</div></div></div>
-<button class="btn btn-ghost rc-btn" onclick="reviewSku('${String(r.sku).replace(/'/g,"\\'")}')">Plan order</button></article>`}).join('');applyRiskLimit()}
-let riskShowAll=false,riskMode='urgent',riskInfo={};
-// Most urgent: earliest order-by date, then fewest weeks of stock,
-// then the biggest stock drop vs ~8 weeks ago (only when a second snapshot exists), then revenue.
-function sortRisk(d){const a=[...d];if(riskMode==='revenue')return a.sort((x,y)=>(y.revenue||0)-(x.revenue||0));const ob=v=>v||'9999-12-31',cov=v=>v==null?1e9:v,chg=v=>v==null?1e9:v;return a.sort((x,y)=>ob(x.order_by).localeCompare(ob(y.order_by))||cov(x.coverage)-cov(y.coverage)||chg(x.stock_change_pct)-chg(y.stock_change_pct)||(y.revenue||0)-(x.revenue||0))}
-function riskWeeksAgo(){return riskInfo.weeks_between?`(${Math.round(riskInfo.weeks_between)} wks ago → now)`:'now'}
-function updateRiskMeta(){const el=document.getElementById('riskMeta');if(!el)return;const order=riskMode==='urgent'?'earliest order date first':'highest revenue first';el.innerHTML=`${riskInfo.total_understocked!=null?fmt(riskInfo.total_understocked)+' ':''}understocked best sellers · ${order}`;const t=document.getElementById('riskTip');if(t)t.setAttribute('data-tip',`Best sellers (Pareto 80% import revenue) with ≤ 8 weeks of coverage. Most urgent = earliest Order by date. ${riskInfo.comparison_available?'Stock compared with the snapshot of '+riskInfo.stock_prev_date+'.':'Only one stock snapshot so far, so there is no stock comparison yet.'} The bar marker is the 8-week lead time.`)}
-document.querySelectorAll('#riskSort button').forEach(b=>b.addEventListener('click',()=>{riskMode=b.dataset.v;document.querySelectorAll('#riskSort button').forEach(x=>x.classList.toggle('active',x===b));updateRiskMeta();renderRisk(lastRisk,PT)}));
-function applyRiskLimit(){const btn=document.getElementById('riskMore');if(btn)btn.hidden=true}
-function toggleRiskAll(){riskShowAll=!riskShowAll;applyRiskLimit()}
-let riskRaf=0;
-window.addEventListener('resize',()=>{cancelAnimationFrame(riskRaf);riskRaf=requestAnimationFrame(applyRiskLimit)});
-function reviewSku(sku){switchTab('replenishment');openReplDetail(sku)}
-let scopeData=null,scopeMode='',scopePage=0,paretoChartObj=null;
-async function loadScope(){try{const r=await fetch('/api/bestseller/scope');const d=await readJson(r);if(!r.ok)throw new Error(d.detail||'Scope request failed');scopeData=d;renderScope()}catch(e){document.getElementById('scopeStats').innerHTML=`<div class="empty-state">${esc(e.message)}</div>`}}
-function renderScope(){const d=scopeData;if(!d)return;const p=d.pareto,h=d.hero,c=d.counts;
-document.getElementById('scopeMeta').textContent=d.period.start?`Import revenue ${dfmt(d.period.start)} – ${dfmt(d.period.end)} · ${fmtRp(d.import_revenue)} · ${fmt(d.skus_sold)} SKUs sold`:'No import sales yet';
-document.getElementById('scopeWarn').innerHTML=d.forecast_stale?'<div class="banner" style="background:var(--amber-bg);color:var(--amber);border-color:transparent">The company list changed after the last forecast. Run <b>Refresh forecast</b> on the Upload Data page so every listed SKU appears on the other pages.</div>':'';
-const st=(l,v,s,cls)=>`<div class="scope-stat ${cls||''}"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-document.getElementById('scopeStats').innerHTML=
- st('Pareto best sellers',fmt(p.skus),`${p.share_of_skus_pct}% of SKUs sold make ${p.revenue_pct}% of import revenue${p.cut_revenue!=null?` · cut-off ${fmtRp(p.cut_revenue)}`:''}`,'wide')
-+st('Company Hero list',fmt(h.skus),h.skus?`${h.groups} groups · ${h.revenue_pct}% of import revenue`:'Not uploaded yet (Upload Data)')
-+st('Analysed in Stockwise',fmt(c.in_system),`of ${fmt(c.in_scope)} in scope${c.naive?` · ${c.naive} with est. forecast`:''}`)
-+st('On both lists',fmt(c.both),'Pareto and company agree')
-+st('Company list only',fmt(c.hero_only),'Below the 80% cut or new: added by the company rule')
-+st('Pareto only',fmt(c.pareto_only),'High revenue, not on the company list','wide');
-const ctx=document.getElementById('paretoChart').getContext('2d');if(paretoChartObj)paretoChartObj.destroy();const c1=cv('--chart-1'),ct=getCT();
-const pts=d.curve.map(x=>({x:x.rank,y:x.cum_pct})),last=d.skus_sold||1;
-paretoChartObj=new Chart(ctx,{type:'line',data:{datasets:[{data:pts,borderColor:c1,backgroundColor:areaFill(ctx,c1),fill:true,pointRadius:0,borderWidth:2,tension:.2},{data:[{x:1,y:80},{x:last,y:80}],borderColor:ct.tick,borderDash:[5,4],borderWidth:1,pointRadius:0},{data:[{x:p.skus,y:0},{x:p.skus,y:100}],borderColor:ct.tick,borderDash:[5,4],borderWidth:1,pointRadius:0}]},
-options:{responsive:true,maintainAspectRatio:false,parsing:true,interaction:{mode:'nearest',intersect:false},plugins:{legend:{display:false},tooltip:{filter:i=>i.datasetIndex===0,backgroundColor:ct.tipBg,titleColor:ct.tipTitle,bodyColor:ct.tipBody,borderColor:ct.tipBorder,borderWidth:1,callbacks:{title:i=>`Top ${fmt(i[0].parsed.x)} SKUs`,label:i=>`${i.parsed.y.toFixed(1)}% of import revenue`}}},
-scales:{x:{type:'linear',min:1,max:last,grid:{display:false},border:{color:ct.grid},ticks:{color:ct.tick,font:ct.font,maxTicksLimit:6,callback:v=>fmt(v)},title:{display:true,text:'SKU rank by revenue',color:ct.tick,font:ct.font}},y:{min:0,max:100,grid:{color:ct.grid},border:{display:false},ticks:{color:ct.tick,font:ct.font,stepSize:20,callback:v=>v+'%'}}}}});
-if(!document.getElementById('scopeListWrap').hidden)renderScopeList()}
-function toggleScopeList(){const w=document.getElementById('scopeListWrap');w.hidden=!w.hidden;document.getElementById('scopeListBtn').textContent=w.hidden?'Show SKU list':'Hide SKU list';if(!w.hidden)renderScopeList()}
-document.querySelectorAll('#scopeSeg button').forEach(b=>b.addEventListener('click',()=>{scopeMode=b.dataset.v;markSeg('scopeSeg',scopeMode);scopePage=0;renderScopeList()}));
-function scopeGoPage(p){scopePage=p;renderScopeList()}
-function renderScopeList(){if(!scopeData)return;const q=(document.getElementById('scopeSearch').value||'').toLowerCase().trim();let rows=scopeData.rows;if(scopeMode)rows=rows.filter(r=>r.source===scopeMode);if(q)rows=rows.filter(r=>[r.sku,r.product_name,r.group].some(x=>String(x||'').toLowerCase().includes(q)));
-const src={both:'<span class="tag tag-hero">Pareto + company</span>',pareto:'<span class="tag tag-info">Pareto</span>',hero:'<span class="tag tag-warn">Company list</span>'};
-const why={no_sales:'no sales yet',inactive:'no recent sales',too_few_weeks:'short history',forecast_fail:'could not fit'};
-const fcCell=r=>!r.in_system?(r.hero?'<span class="tag tag-warn" title="Run Refresh forecast">not yet</span>':`<span class="text-dim" title="Pareto SKU left out of the forecast run">excluded · ${why[r.method_reason]||''}</span>`):r.method==='naive'?`<span class="tag tag-mute" title="${esc(naiveWhy(r.method_reason))}">est. · ${why[r.method_reason]||''}</span>`:"Holt's DES";
-const st=scopePage*PAGE_SIZE,pg=rows.slice(st,st+PAGE_SIZE);
-document.getElementById('scopeBody').innerHTML=pg.length?pg.map(r=>`<tr><td class="r text-dim">${r.rank??'--'}</td><td class="t-strong">${esc(r.sku)}</td><td><div class="trunc" style="max-width:260px" title="${esc(r.product_name||'')}">${esc(r.product_name||'-')}</div></td><td>${r.group?`<div class="trunc" style="max-width:200px" title="${esc(r.group)}">${esc(r.group)}</div><div class="ob-sub ob-none">${esc(r.status||'')}</div>`:'<span class="text-dim">--</span>'}</td><td class="r">${r.revenue?fmtRp(r.revenue):'--'}</td><td class="r">${r.share_pct?r.share_pct.toFixed(2)+'%':'--'}</td><td class="r ${r.cum_pct!=null&&r.cum_pct<=80?'':'text-dim'}">${r.cum_pct!=null?r.cum_pct.toFixed(1)+'%':'--'}</td><td>${src[r.source]}</td><td>${fcCell(r)}</td></tr>`).join(''):'<tr><td colspan="9"><div class="empty-state">No SKUs match.</div></td></tr>';
-renderPaging('scopePaging',scopePage,rows.length,'scopeGoPage','SKUs')}
+const OVI = {
+  box: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  down: '<path d="M12 5v14M5 12l7 7 7-7"/>',
+  ok: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+  empty: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+  layers: '<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>',
+  cart: '<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L22 7H6"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  pause: '<circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+  sales: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 6-6"/>',
+  truck: '<rect x="1" y="4" width="14" height="12" rx="2"/><path d="M15 9h4l3 3v4h-7z"/><circle cx="6" cy="18.5" r="2"/><circle cx="18" cy="18.5" r="2"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  cal: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  fc: '<path d="M3 17l5-5 4 3 8-8"/><path d="M14 7h6v6"/>',
+};
+const ico = (k, cls = '') => `<span class="ico-t ${cls}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${OVI[k]}</svg></span>`;
+
+async function loadOverview() {
+  const seq = ++ovSeq;
+  ovFc = null;
+  const fcP = fetch(`/api/overview?preset=l4w&top_sort=revenue&product_type=${PT}`).then(r => r.ok ? r.json() : null).catch(() => null);
+  const poP = fetch('/api/po/summary').then(r => r.ok ? r.json() : null).catch(() => null);
+  try {
+    const d = await fetchRepl();
+    if (seq !== ovSeq) return;
+    ovRows = d.results || [];
+    renderFresh(d.freshness);
+    renderOvAsOf();
+    renderOvKpis();
+    renderActionCenter();
+    renderPriority();
+    renderOvCharts();
+    loadOvMonths(seq);
+  } catch (e) {
+    if (seq !== ovSeq) return;
+    ovRows = [];
+    const err = `<div class="state state-error">${ICON.alert}<div><b>Could not load inventory data.</b><br>${esc(e.message)}</div><button class="btn btn-ghost" onclick="replData=null;loadOverview()">Retry</button></div>`;
+    document.getElementById('ovKpis').innerHTML = '';
+    document.getElementById('acBuckets').innerHTML = err;
+    document.getElementById('prList').innerHTML = '';
+    document.getElementById('ovHealthLegend').innerHTML = '';
+    ['chHealthWrap', 'chCovWrap'].forEach(id => { document.getElementById(id).innerHTML = '<div class="state">Not available</div>' });
+    document.getElementById('ovAsOf').innerHTML = '<span class="text-dim">Data status unknown</span>';
+  }
+  loadOvDemand(seq);
+  const [ov, po] = await Promise.all([fcP, poP]);
+  if (seq !== ovSeq) return;
+  ovFc = ov && ov.forecast_summary;
+  ovPo = po;
+  if (replData) renderOvAsOf();
+  renderOvOps();
+}
+
+/* Header: what the numbers are based on. Each chip opens the Data page (where both are updated). */
+function renderOvAsOf() {
+  const f = (replData && replData.freshness) || {};
+  let h = `<button class="chip" onclick="switchTab('upload')" title="Stock report date · open the Data page">${ico('cal', 'ico-s')}Stock snapshot <b>${f.stock_date ? dfmt(f.stock_date) : 'none'}</b></button>`;
+  if (ovFc && ovFc.calculated_at) h += `<button class="chip" onclick="switchTab('upload')" title="Last forecast run · open the Data page">${ico('fc', 'ico-s')}Forecast <b>${fmtStamp(ovFc.calculated_at)}</b></button>`;
+  document.getElementById('ovAsOf').innerHTML = h;
+}
+function fmtStamp(ts) {
+  const s = String(ts), d = s.slice(0, 10), t = s.length > 15 ? s.slice(11, 16) : '';
+  return dfmt(d) + (t ? ' ' + t : '');
+}
+
+/* B. KPIs. Out of stock is a subset of the statuses, never added to them. */
+function healthCounts(rows) {
+  const c = k => rows.filter(r => (r.status || null) === k).length;
+  return { total: rows.length, understocked: c('understocked'), healthy: c('healthy'), overstocked: c('overstocked'), unclassified: c(null), oos: rows.filter(r => r.out_of_stock).length };
+}
+function renderOvKpis() {
+  const h = healthCounts(ovRows), st = (replData && replData.settings) || {};
+  const U = st.understock_weeks ?? 8, O = st.overstock_weeks ?? 20;
+  const pct = n => h.total ? Math.round(n / h.total * 100) + '%' : '0%';
+  const card = o => {
+    const inner = `<div class="kc-top">${ico(o.i, 'ico-' + o.tone)}${o.badge ? `<span class="kc-badge kb-${o.tone}">${o.badge}</span>` : ''}</div>
+      <div class="kc-l">${o.l}</div><div class="kc-v kv-${o.tone}">${o.v}</div><div class="kc-d">${o.d}</div>`;
+    return o.go ? `<button class="card kc" data-k="${o.k}" onclick="${o.go}" title="${o.t}">${inner}</button>` : `<div class="card kc" data-k="${o.k}">${inner}</div>`;
+  };
+  document.getElementById('ovKpis').innerHTML = [
+    { k: 'total', i: 'box', tone: 'navy', l: 'Total SKUs', v: fmt(h.total), d: `Best-seller SKUs with a forecast${h.unclassified ? ` · ${fmt(h.unclassified)} not classified` : ''}`, go: "openReplBucket('all')", t: 'Open all SKUs in Replenishment' },
+    { k: 'under', i: 'down', tone: 'red', l: 'Understocked', v: fmt(h.understocked), badge: pct(h.understocked), d: `Coverage ≤ ${U} weeks`, go: "openReplStatus('understocked')", t: 'Show Understocked SKUs in Replenishment' },
+    { k: 'healthy', i: 'ok', tone: 'green', l: 'Healthy', v: fmt(h.healthy), badge: pct(h.healthy), d: `Coverage > ${U} up to ${O} weeks`, go: "openReplStatus('healthy')", t: 'Show Healthy SKUs in Replenishment' },
+    { k: 'over', i: 'layers', tone: 'slate', l: 'Overstocked', v: fmt(h.overstocked), badge: pct(h.overstocked), d: `Coverage > ${O} weeks, or no sales`, go: "openReplStatus('overstocked')", t: 'Show Overstocked SKUs in Replenishment' },
+    { k: 'oos', i: 'empty', tone: 'amber', l: 'Out of Stock', v: fmt(h.oos), badge: pct(h.oos), d: 'Stock ≤ 0 · already counted in the statuses' },
+  ].map(card).join('');
+}
+
+/* Purchasing groups (core/decision.js): mutually exclusive, each opens its Replenishment tab. */
+const BUCKET_ICON = { order: 'cart', covered: 'eye', none: 'check' };
+function renderActionCenter() {
+  const rows = ovRows;
+  const unc = rows.filter(r => r.bucket === 'unclassified').length;
+  document.getElementById('acMeta').textContent = rows.length ? `${fmt(rows.length)} SKUs · each counted once${unc ? ` · ${fmt(unc)} not classified` : ''}` : 'No forecasted best sellers yet';
+  document.getElementById('acBuckets').innerHTML = BUCKETS.map(b => {
+    const rs = rows.filter(r => r.bucket === b.key);
+    let sub = '';
+    if (b.key === 'order') {
+      const m = rs.filter(r => r.mandatory), u = m.reduce((a, r) => a + (r.reco_po || 0), 0), c = m.reduce((a, r) => a + (r.unit_cost != null ? (r.reco_po || 0) * r.unit_cost : 0), 0);
+      const z = rs.length - m.length, fz = rs.filter(r => r.zero === 'forecast_zero').length;
+      sub = rs.length ? `${fmt(m.length)} to order · ${fmt(u)} units${c ? ` · ≈ ${fmtRpS(c)}` : ''}${z ? `<br>${fmt(z)} recommended 0${fz ? ` · <b class="t-red">${fmt(fz)} forecast warning</b>` : ''}` : ''}` : 'Nothing to order';
+    }
+    else if (b.key === 'covered') { const sr = rs.filter(r => r.sysReco).length; sub = sr ? `${fmt(sr)} System Recommended` : 'Optional'; }
+    else sub = 'Optional';
+    return `<button class="ac-b ac-${b.tone}" data-k="${b.key}" onclick="openReplBucket('${b.key}')" title="${esc(b.hint)} · open in Replenishment">
+      <span class="ac-b-l">${ico(BUCKET_ICON[b.key], 'ico-' + b.tone + ' ico-s')}${b.label}</span>
+      <span class="ac-b-v">${fmt(rs.length)}<small> SKUs</small></span>
+      <span class="ac-b-s">${sub}</span></button>`;
+  }).join('');
+}
+
+/* E. Priority SKUs: Understocked (Order Now), recommended > 0 first, in the Replenishment priority order. */
+function priorityRows() {
+  return ovRows.filter(r => r.bucket === 'order').sort(byPriority);
+}
+function renderPriority() {
+  const el = document.getElementById('prList'), more = document.getElementById('prMore');
+  more.textContent = '';
+  if (!ovRows.length) { el.innerHTML = '<div class="state">No forecasted best sellers yet. Upload sales and stock data, then run Refresh forecast on the Data page.</div>'; return }
+  const all = priorityRows();
+  if (!all.length) { el.innerHTML = '<div class="state">No Understocked SKUs.</div>'; return }
+  const top = all.slice(0, PRIORITY_LIMIT);
+  if (all.length > top.length) more.textContent = `Showing ${top.length} of ${fmt(all.length)} Understocked SKUs`;
+  const st = (replData && replData.settings) || {}, O = st.overstock_weeks ?? 20;
+  const covCell = r => {
+    if (r.coverage == null) return '<span class="text-dim">no sales</span>';
+    const tone = r.status === 'understocked' ? 'red' : r.status === 'overstocked' ? 'slate' : 'green';
+    return `<div class="cov"><span class="cov-v t-${tone}">${r.coverage.toFixed(1)} wks</span><span class="cov-bar"><span class="cb-${tone}" style="width:${Math.min(100, r.coverage / O * 100).toFixed(1)}%"></span></span></div>`;
+  };
+  let h = `<div class="tbl-wrap"><table class="ro-table pr-table"><thead><tr><th>SKU</th><th>Product</th><th>Status</th><th class="r">Stock</th>
+    <th title="(stock + open PO) ÷ average weekly sales of the last 4 weeks">Coverage</th><th class="r" title="Open PO quantity still to arrive">Incoming PO</th>
+    <th class="r" title="Average forecast demand per week, next 8 weeks">Forecast / Wk</th><th class="r">Recommended PO</th></tr></thead><tbody>`;
+  top.forEach(r => {
+    const sk = String(r.sku).replace(/'/g, "\\'"), b = BUCKET[r.bucket];
+    const reason = r.zero === 'forecast_zero' ? ' <span class="tag tag-fw" title="' + esc(zeroReasonText(r)) + '">Forecast warning</span>' : r.zero === 'sufficient' ? ' <span class="tag tag-cov" title="' + esc(zeroReasonText(r)) + '">Stock / PO sufficient</span>' : '';
+    h += `<tr class="clickable" onclick="openReplSku('${sk}')"><td class="p-sku">${esc(r.sku)}</td><td><div class="p-name" title="${esc(r.product_name)}">${esc(r.product_name)}</div></td>
+      <td>${statusBadge(r.status)}<div class="pr-grp"><span class="pill pill-${b.tone}">${b.label}</span>${reason}</div></td>
+      <td class="r">${r.out_of_stock ? '<span class="t-red t-strong">' + fmt(r.current_stock) + '</span>' : fmt(r.current_stock)}</td>
+      <td>${covCell(r)}</td><td class="r">${r.ongoing_po ? fmt(r.ongoing_po) : '<span class="text-dim">0</span>'}</td>
+      <td class="r">${r.fc_avg_weekly != null ? fmt(Math.round(r.fc_avg_weekly)) : '--'}</td><td class="r t-strong">${fmt(r.reco_po || 0)}</td></tr>`;
+  });
+  el.innerHTML = h + '</tbody></table></div>';
+}
+
+/* F. Inventory Insights: health donut, coverage distribution (status and coverage from the API only). */
+function covBins() {
+  const st = (replData && replData.settings) || {};
+  const U = st.understock_weeks ?? 8, O = st.overstock_weeks ?? 20;
+  const half = Math.round(U / 2 * 10) / 10, mid = Math.round((U + O) / 2 * 10) / 10;
+  return [
+    { l: '0', t: c => c === 0, z: 'red' },
+    { l: `0–${half}`, t: c => c > 0 && c <= half, z: 'red' },
+    { l: `${half}–${U}`, t: c => c > half && c <= U, z: 'red' },
+    { l: `${U}–${mid}`, t: c => c > U && c <= mid, z: 'green' },
+    { l: `${mid}–${O}`, t: c => c > mid && c <= O, z: 'green' },
+    { l: `> ${O}`, t: c => c > O, z: 'slate' },
+    { l: 'No sales', t: null, z: 'chart-3' },
+  ];
+}
+function chartTip() { const ct = getCT(); return { backgroundColor: ct.tipBg, titleColor: ct.tipTitle, bodyColor: ct.tipBody, borderColor: ct.tipBorder, borderWidth: 1, padding: 10, cornerRadius: 8 } }
+function healthSeries(h) {
+  const hs = [['understocked', 'Understocked', '--red'], ['healthy', 'Healthy', '--green'], ['overstocked', 'Overstocked', '--slate']];
+  if (h.unclassified) hs.push([null, 'Not classified', '--chart-3']);
+  return hs;
+}
+function renderOvCharts() {
+  if (typeof Chart === 'undefined') return;
+  const h = healthCounts(ovRows);
+  const hw = document.getElementById('chHealthWrap'), cw = document.getElementById('chCovWrap');
+  if (!ovRows.length) { hw.innerHTML = cw.innerHTML = '<div class="state">No data yet.</div>'; document.getElementById('donutCenter').innerHTML = ''; return }
+  if (!document.getElementById('ovHealthChart')) hw.innerHTML = '<canvas id="ovHealthChart" aria-label="Inventory health distribution chart" role="img"></canvas>';
+  if (!document.getElementById('ovCovChart')) cw.innerHTML = '<canvas id="ovCovChart" aria-label="Stock coverage distribution chart" role="img"></canvas>';
+  const ct = getCT(), tip = chartTip();
+  const hs = healthSeries(h), surface = cv('--surface');
+  if (ovHealthChartObj) ovHealthChartObj.destroy();
+  ovHealthChartObj = new Chart(document.getElementById('ovHealthChart'), {
+    type: 'doughnut',
+    data: { labels: hs.map(x => x[1]), datasets: [{ data: hs.map(x => h[x[0] || 'unclassified']), backgroundColor: hs.map(x => cv(x[2])), borderColor: surface, borderWidth: 3, hoverOffset: 4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: { ...tip, callbacks: { label: c => ` ${c.label}: ${fmt(c.parsed)} SKUs (${h.total ? Math.round(c.parsed / h.total * 100) : 0}%)` } } },
+      onClick: (e, els) => { if (els.length) { const k = hs[els[0].index][0]; if (k) openReplStatus(k) } },
+      onHover: (e, els) => { e.native.target.style.cursor = els.length && hs[els[0].index][0] ? 'pointer' : 'default' },
+    },
+  });
+  document.getElementById('donutCenter').innerHTML = `<div class="dc-v">${fmt(h.total)}</div><div class="dc-l">SKUs</div>`;
+  document.getElementById('ovHealthLegend').innerHTML = hs.map(([k, l, c]) => {
+    const n = h[k || 'unclassified'], p = h.total ? Math.round(n / h.total * 100) : 0;
+    const inner = `<span class="hl-l"><span class="sw" style="background:var(${c})"></span>${l}</span><span class="hl-v">${fmt(n)}</span><span class="hl-p">${p}%</span>`;
+    return k ? `<button class="hl-item" onclick="openReplStatus('${k}')" title="Show ${l.toLowerCase()} SKUs in Replenishment">${inner}</button>` : `<div class="hl-item">${inner}</div>`;
+  }).join('');
+
+  const bins = covBins();
+  const counts = bins.map(b => ovRows.filter(r => b.t ? (r.coverage != null && b.t(r.coverage)) : r.coverage == null).length);
+  if (ovCovChartObj) ovCovChartObj.destroy();
+  ovCovChartObj = new Chart(document.getElementById('ovCovChart'), {
+    type: 'bar',
+    data: { labels: bins.map(b => b.l), datasets: [{ data: counts, backgroundColor: bins.map(b => cv('--' + b.z)), borderRadius: 5, maxBarThickness: 34 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...tip, callbacks: { title: c => c[0].label === 'No sales' ? 'No sales in 4 weeks' : `${c[0].label} weeks of coverage`, label: c => `${fmt(c.parsed.y)} SKUs` } } },
+      scales: { x: { grid: { display: false }, border: { color: ct.grid }, ticks: { color: ct.tick, font: { ...ct.font, size: 11 }, maxRotation: 0, autoSkip: false }, title: { display: true, text: 'Weeks of coverage', color: ct.tick, font: ct.font } }, y: { min: 0, grid: { color: ct.grid }, border: { display: false }, ticks: { color: ct.tick, font: ct.font, precision: 0 } } },
+    },
+  });
+  if (ovDem) renderOvDemandChart();
+  if (ovMonths.length) renderOvMonthChart();
+}
+
+/* C. Demand — Actual vs Forecast: weekly, holdout weeks (actual vs forecast for the same weeks) then the horizon. */
+async function loadOvDemand(seq) {
+  const wrap = document.getElementById('chDemWrap');
+  try {
+    const p = await fetchPlan();
+    if (seq !== ovSeq) return;
+    const s = demandSeries(p);
+    if (!s.weeks.length) { ovDem = null; wrap.innerHTML = '<div class="state">No forecast yet. Run Refresh forecast on the Data page.</div>'; document.getElementById('dmStats').textContent = ''; return }
+    ovDem = s;
+    renderOvDemandChart();
+  } catch (e) {
+    if (seq !== ovSeq) return;
+    ovDem = null;
+    wrap.innerHTML = '<div class="state">Demand data not available.</div>';
+  }
+}
+function renderOvDemandChart() {
+  if (!ovDem || typeof Chart === 'undefined') return;
+  const s = ovDem, wrap = document.getElementById('chDemWrap');
+  if (!document.getElementById('ovDemChart')) wrap.innerHTML = '<canvas id="ovDemChart" aria-label="Weekly actual sales and forecast chart" role="img"></canvas>';
+  const ct = getCT(), ca = cv('--chart-act'), cf = cv('--chart-fc');
+  const last = (replData && replData.freshness || {}).last_sale_date;
+  const partial = w => last && s.past.has(w) && new Date(w + 'T00:00:00').getTime() + 6 * 864e5 > new Date(last + 'T00:00:00').getTime();
+  const labels = s.weeks.map(w => wkLabel(w) + (partial(w) ? '*' : ''));
+  const act = s.weeks.map(w => s.past.has(w) ? Math.round(s.actual[w] || 0) : null);
+  const fc = s.weeks.map(w => s.past.has(w) ? Math.round(s.holdoutFc[w] || 0) : Math.round(s.forecast[w] || 0));
+  if (ovDemChartObj) ovDemChartObj.destroy();
+  const firstFut = s.weeks.findIndex(w => !s.past.has(w));
+  ovDemChartObj = new Chart(document.getElementById('ovDemChart'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'Actual', data: act, borderColor: ca, backgroundColor: ca, borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: .25, fill: false, spanGaps: false },
+      { label: 'Forecast', data: fc, borderColor: cf, backgroundColor: cf, borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: .25, fill: false },
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { ...chartTip(), callbacks: {
+        title: c => { const w = s.weeks[c[0].dataIndex]; return `Week of ${dfmt(w)}${s.past.has(w) ? ' · past' : ' · forecast'}${partial(w) ? ' (partial week)' : ''}` },
+        label: c => c.parsed.y == null ? null : `${c.dataset.label}: ${fmt(c.parsed.y)} units`,
+        afterBody: c => { const w = s.weeks[c[0].dataIndex]; if (!s.past.has(w)) return ''; const a = s.actual[w] || 0, f = s.holdoutFc[w] || 0; return a ? `Forecast ${f >= a ? 'above' : 'below'} actual by ${fmt(Math.abs(Math.round(f - a)))} units (${fmtPct((f - a) / a * 100)})` : '' },
+      } } },
+      scales: { x: { grid: { display: false }, border: { color: ct.grid }, ticks: { color: ct.tick, font: { ...ct.font, size: 11 }, maxRotation: 0, autoSkipPadding: 8 } },
+        y: { min: 0, grid: { color: ct.grid }, border: { display: false }, ticks: { color: ct.tick, font: ct.font, callback: v => fmt(v) } } },
+    },
+    plugins: [{ id: 'split', beforeDraw(ch) { if (firstFut < 1) return; const x = ch.scales.x, { top, bottom } = ch.chartArea, px = (x.getPixelForValue(firstFut - 1) + x.getPixelForValue(firstFut)) / 2, g = ch.ctx; g.save(); g.fillStyle = hexA(cf, .07); g.fillRect(px, top, ch.chartArea.right - px, bottom - top); g.strokeStyle = cv('--border2'); g.setLineDash([3, 3]); g.beginPath(); g.moveTo(px, top); g.lineTo(px, bottom); g.stroke(); g.fillStyle = cv('--text3'); g.font = '11px Inter'; g.fillText('Forecast horizon', px + 6, top + 12); g.restore() } }],
+  });
+  const b = biasSummary(s);
+  const nf = s.weeks.filter(w => !s.past.has(w)).slice(0, 8), f8 = nf.length ? nf.reduce((a, w) => a + (s.forecast[w] || 0), 0) / nf.length : null;
+  document.getElementById('dmMeta').textContent = `Weekly units · ${fmt(s.evaluated)} of ${fmt(s.skus)} best-seller SKUs have past forecast weeks${labels.some(l => l.endsWith('*')) ? ' · * partial week' : ''}`;
+  document.getElementById('dmStats').innerHTML = [b.weeks ? `Past ${b.weeks} weeks: forecast <b>${fmt(Math.round(b.fsum))}</b> vs actual <b>${fmt(Math.round(b.asum))}</b> units${b.pct != null ? ` (${fmtPct(b.pct)})` : ''} · above actual in ${b.over} of ${b.weeks} weeks` : '', f8 != null ? `Next ${nf.length} weeks: <b>${fmt(Math.round(f8))}</b> units/week` : ''].filter(Boolean).join(' · ');
+}
+
+/* D. Operational Summary: monthly sales (selected month), best sellers by revenue, PO and data status. */
+async function loadOvMonths(seq) {
+  const f = (replData && replData.freshness) || {};
+  const sel = document.getElementById('ovMonth'), box = document.getElementById('ovSales');
+  if (!f.last_sale_date) { box.innerHTML = '<div class="state">No sales uploaded yet.</div>'; sel.innerHTML = ''; return }
+  const end = new Date(f.last_sale_date + 'T00:00:00'), start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  try {
+    const r = await fetch(`/api/overview?start=${iso(start)}&end=${f.last_sale_date}&top_sort=revenue&product_type=${PT}`);
+    if (!r.ok) throw new Error('Sales request failed (' + r.status + ')');
+    const d = await r.json();
+    if (seq !== ovSeq) return;
+    ovMonths = (d.trend || []).map(t => ({ k: String(t.date).slice(0, 7), revenue: Number(t.revenue) || 0, qty: Number(t.quantity) || 0 })).filter(m => m.revenue || m.qty);
+    if (!ovMonths.length) { box.innerHTML = '<div class="state">No sales in the last 12 months.</div>'; return }
+    if (!ovMonthSel || !ovMonths.some(m => m.k === ovMonthSel)) ovMonthSel = ovMonths[ovMonths.length - 1].k;
+    sel.innerHTML = ovMonths.slice().reverse().map(m => `<option value="${m.k}"${m.k === ovMonthSel ? ' selected' : ''}>${monthName(m.k)}</option>`).join('');
+    loadOvMonth(ovMonthSel);
+  } catch (e) {
+    if (seq !== ovSeq) return;
+    box.innerHTML = `<div class="state state-error">${ICON.alert}<div>${esc(e.message)}</div></div>`;
+  }
+}
+const monthName = k => new Date(k + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+async function loadOvMonth(k) {
+  ovMonthSel = k;
+  const seq = ++ovMonthSeq, f = (replData && replData.freshness) || {}, box = document.getElementById('ovSales');
+  const [y, m] = k.split('-').map(Number), lastDay = new Date(y, m, 0).getDate();
+  let end = `${k}-${String(lastDay).padStart(2, '0')}`; const partial = f.last_sale_date && f.last_sale_date < end;
+  if (partial) end = f.last_sale_date;
+  box.querySelectorAll('.os-v').forEach(e => e.classList.add('skel'));
+  try {
+    const r = await fetch(`/api/overview?start=${k}-01&end=${end}&top_sort=revenue&product_type=${PT}`);
+    if (!r.ok) throw new Error('Sales request failed (' + r.status + ')');
+    const d = await r.json();
+    if (seq !== ovMonthSeq) return;
+    const rev = Number((d.kpis || {}).revenue) || 0, qty = Number((d.kpis || {}).total_sales) || 0;
+    const top = (d.top_products || []).slice(0, 10), topRev = top.reduce((a, t) => a + (Number(t.revenue) || 0), 0);
+    const share = rev ? topRev / rev * 100 : null;
+    box.innerHTML = `<div class="os-grid">
+      <div class="os-c"><div class="op-l">Monthly sales${partial ? ` <span class="tag tag-info" title="Sales data ends ${dfmt(f.last_sale_date)}">to ${dfmt(f.last_sale_date)}</span>` : ''}</div><div class="os-v">${fmtRpS(rev)}</div><div class="op-d">${fmt(qty)} units · ${monthName(k)}</div></div>
+      <div class="os-c"><div class="op-l" title="Revenue of the top ${top.length} SKUs ranked by revenue ÷ total revenue of the month × 100">Best-seller revenue contribution</div><div class="os-v">${share != null ? share.toFixed(1) + '%' : '--'}</div><div class="op-d">Top ${top.length} products by revenue = ${fmtRpS(topRev)} of ${fmtRpS(rev)}</div></div>
+    </div>
+    <div class="chart-wrap os-chart"><canvas id="ovMonChart" aria-label="Monthly sales chart" role="img"></canvas></div>
+    <details class="disc os-top"><summary>Best-selling products, ${monthName(k)} (ranked by revenue)</summary><ol class="top-list">${top.map(t => `<li><span class="tl-n" title="${esc(t.name)}">${esc(t.name)}</span><span class="tl-v">${fmtRpS(t.revenue)} <small>${rev ? (t.revenue / rev * 100).toFixed(1) + '%' : ''}</small></span></li>`).join('') || '<li class="text-dim">No sales</li>'}</ol></details>`;
+    renderOvMonthChart();
+  } catch (e) {
+    if (seq !== ovMonthSeq) return;
+    box.innerHTML = `<div class="state state-error">${ICON.alert}<div>${esc(e.message)}</div></div>`;
+  }
+}
+function renderOvMonthChart() {
+  const cvs = document.getElementById('ovMonChart');
+  if (!cvs || typeof Chart === 'undefined' || !ovMonths.length) return;
+  const ct = getCT(), c1 = cv('--chart-1'), c3 = cv('--chart-3');
+  if (ovMonChartObj) ovMonChartObj.destroy();
+  ovMonChartObj = new Chart(cvs, {
+    type: 'bar',
+    data: { labels: ovMonths.map(m => new Date(m.k + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'short' })), datasets: [{ data: ovMonths.map(m => m.revenue), backgroundColor: ovMonths.map(m => m.k === ovMonthSel ? c1 : hexA(c3, .7)), borderRadius: 3, maxBarThickness: 22 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...chartTip(), callbacks: { title: c => monthName(ovMonths[c[0].dataIndex].k), label: c => fmtRp(c.parsed.y) } } },
+      scales: { x: { grid: { display: false }, border: { color: ct.grid }, ticks: { color: ct.tick, font: { ...ct.font, size: 10 }, maxRotation: 0 } }, y: { display: false, min: 0 } },
+      onClick: (e, els) => { if (els.length) { const k = ovMonths[els[0].index].k; document.getElementById('ovMonth').value = k; loadOvMonth(k) } },
+      onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default' } },
+  });
+}
+function renderOvOps() {
+  const f = (replData && replData.freshness) || {}, po = ovPo;
+  const ago = n => n == null ? '' : n === 0 ? 'today' : n === 1 ? '1 day ago' : `${n} days ago`;
+  const lvl = f.stock_level;
+  const stockState = !f.stock_date ? ['crit', 'No snapshot'] : lvl === 'fresh' ? ['ok', 'Up to date'] : lvl === 'stale' ? ['warn', 'Getting old'] : ['crit', 'Outdated'];
+  const row = (i, tone, l, v, d, pill, go) => `<${go ? `button class="op-r" onclick="${go}"` : 'div class="op-r"'}>${ico(i, 'ico-' + tone)}<div class="op-m"><div class="op-l">${l}</div><div class="op-v">${v}</div><div class="op-d">${d}</div></div>${pill || ''}</${go ? 'button' : 'div'}>`;
+  const pill = (tone, t) => `<span class="pill pill-${tone}">${t}</span>`;
+  document.getElementById('ovOps').innerHTML = [
+    po ? row('truck', 'amber', 'Pending purchase orders', `${fmt(po.open_po_numbers || 0)} open POs`, `${fmt(po.outstanding_qty || 0)} units to arrive`, po.overdue ? pill('warn', `${fmt(po.overdue)} past ETA`) : pill('ok', 'On schedule'), "switchTab('po')")
+      : row('truck', 'amber', 'Pending purchase orders', '--', 'Not available'),
+    row('sales', 'navy', 'Last sales update', f.last_sale_date ? dfmt(f.last_sale_date) : '--', f.last_sale_date ? ago(f.sales_age_days) : 'No sales uploaded yet', '', "switchTab('upload')"),
+    row('box', 'blue', 'Last stock snapshot', f.stock_date ? dfmt(f.stock_date) : '--', f.stock_date ? ago(f.stock_age_days) : 'Upload a stock report', '', "switchTab('upload')"),
+    row('upload', 'slate', 'Data upload status', stockState[1], `${ovFc && ovFc.calculated_at ? `Forecast ${fmtStamp(ovFc.calculated_at)}` : 'Forecast not run yet'} · stock current for ${f.warn_days ?? 7} days`, pill(stockState[0], stockState[0] === 'ok' ? 'OK' : 'Action'), "switchTab('upload')"),
+  ].join('');
+}
+
+/* Navigation into Replenishment with context */
+function openReplBucket(k) { replTab = k; replStatus = ''; replSysOnly = false; switchTab('replenishment') }
+function openReplStatus(st) { replTab = 'all'; replStatus = st; replSysOnly = false; switchTab('replenishment') }
+function openReplSku(sku) { const r = (replData && replData.results || []).find(x => x.sku === sku); replTab = r && r.bucket !== 'unclassified' ? r.bucket : 'all'; replStatus = ''; replSysOnly = false; switchTab('replenishment'); openReplDetail(sku) }

@@ -1,5 +1,7 @@
-/* PO & Supplier: PO list by PO / by product, filters, received-quantity edits, receive-all. */
-let poData=[],poMode='open',poView='po',poPage=0,poWarnDays=60,poOpenSku=new Set(),poByNum=new Map();
+/* PO Tracking: PO list by month (PO date) and by PO / by product, filters, received-quantity edits, receive-all,
+   Revision R7: month and PO-number filters, period summary, PO status (Completed / On going / Over 2 months). */
+let poPeriod=null,poNum='all';
+let poData=[],poMode='all',poView='po',poPage=0,poWarnDays=60,poOpenSku=new Set(),poByNum=new Map();
 const PO_GROUPS_PER_PAGE=12,NO_PO='(no PO number)';
 const poMo=d=>d==null?'--':(d/30.4).toFixed(1);
 const todayIso=()=>{const t=new Date();t.setMinutes(t.getMinutes()-t.getTimezoneOffset());return t.toISOString().slice(0,10)};
@@ -44,9 +46,39 @@ async function loadPoPage(){loadPoList();loadPoSummary()}
 document.querySelectorAll('#poStatusSeg button').forEach(b=>b.addEventListener('click',()=>{poMode=b.dataset.v;markSeg('poStatusSeg',poMode);poPage=0;renderPoTable()}));
 document.querySelectorAll('#poViewSeg button').forEach(b=>b.addEventListener('click',()=>{poView=b.dataset.v;markSeg('poViewSeg',poView);poPage=0;renderPoTable()}));
 function poGoPage(p){poPage=p;renderPoTable();document.getElementById('poSection').scrollIntoView({block:'start',behavior:'smooth'})}
+const poMonthOf=p=>p.order_date?String(p.order_date).slice(0,7):'nodate';
+const PO_DONE=['cancelled','superseded'];
+/* Months with POs, oldest first; "No PO date" after them, then "All periods". */
+function poPeriods(){const ms=[...new Set(poData.map(poMonthOf).filter(m=>m!=='nodate'))].sort();if(poData.some(p=>!p.order_date))ms.push('nodate');return ms}
+const poPeriodLabel=k=>k==='nodate'?'No PO date':k==='all'?'All periods':new Date(k+'-01T00:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+/* PO status from its lines (cancelled / superseded lines ignored): Completed = nothing open; Over 2 months = open and
+   the oldest open line is older than the aging limit (60 days); otherwise On going. */
+function poStatusOf(k){const ls=(poByNum.get(k)||[]).filter(p=>!PO_DONE.includes(p.status));if(!ls.length)return'cancelled';const open=ls.filter(p=>p.is_open);if(!open.length)return'done';return open.some(p=>p.aging)?'aging':'open'}
+const PO_ST={done:['Completed','badge-green'],open:['On going','badge-blue'],aging:['Over 2 months','badge-red'],cancelled:['Cancelled / superseded','badge-gray']};
+const poStBadge=st=>`<span class="badge ${PO_ST[st][1]}">${PO_ST[st][0]}</span>`;
+function poNumsIn(k){return[...new Set(poData.filter(p=>k==='all'||poMonthOf(p)===k).map(p=>p.po_number||NO_PO))].sort()}
+function syncPoPeriod(){const ms=poPeriods(),months=ms.filter(m=>m!=='nodate');if(!poPeriod||(poPeriod!=='all'&&!ms.includes(poPeriod)))poPeriod=months[months.length-1]||ms[0]||'all';
+document.getElementById('poPeriodSel').innerHTML=[...ms,'all'].map(k=>`<option value="${k}"${k===poPeriod?' selected':''}>${poPeriodLabel(k)}${k!=='all'?` (${fmt(poNumsIn(k).length)} PO)`:''}</option>`).join('');
+const i=months.indexOf(poPeriod);document.getElementById('poPrev').disabled=i<=0;document.getElementById('poNext').disabled=i<0||i>=months.length-1;
+const nums=poNumsIn(poPeriod);if(poNum!=='all'&&!nums.includes(poNum))poNum='all';
+document.getElementById('poNumSel').innerHTML=`<option value="all">All POs (${fmt(nums.length)})</option>`+nums.map(n=>`<option value="${esc(n)}"${n===poNum?' selected':''}>${esc(n)} · ${PO_ST[poStatusOf(n)][0]}</option>`).join('')}
+function setPoPeriod(k){poPeriod=k;poNum='all';poPage=0;renderPoTable()}
+function setPoNum(n){poNum=n;poPage=0;renderPoTable()}
+function shiftPoPeriod(d){const months=poPeriods().filter(m=>m!=='nodate'),i=months.indexOf(poPeriod);if(i<0)return;const j=i+d;if(j>=0&&j<months.length)setPoPeriod(months[j])}
+const inPoPeriod=p=>(poPeriod==='all'||poMonthOf(p)===poPeriod)&&(poNum==='all'||(p.po_number||NO_PO)===poNum);
+/* Summary of the selection: one PO number counts once however many lines it has. */
+function renderPoPeriodSum(){const ls=poData.filter(inPoPeriod),valid=ls.filter(p=>!PO_DONE.includes(p.status));
+const nums=[...new Set(valid.map(p=>p.po_number||NO_PO))],st=nums.map(poStatusOf),c=k=>st.filter(x=>x===k).length;
+const cell=(l,v,s,t,cls='')=>`<div class="pps-c ${cls}"${t?` title="${esc(t)}"`:''}><div class="pps-l">${l}</div><div class="pps-v">${v}</div><div class="pps-s">${s}</div></div>`;
+document.getElementById('poPeriodSum').innerHTML=cell('PO count',fmt(nums.length),`${fmt(valid.length)} lines${ls.length>valid.length?` · ${fmt(ls.length-valid.length)} cancelled / superseded not counted`:''}`,'Distinct PO numbers (cancelled and superseded lines excluded)')
++cell('Completed',fmt(c('done')),'all lines finished','No open lines left','pps-ok')
++cell('On going',fmt(c('open')),`${fmt(valid.filter(p=>p.is_open).reduce((a,p)=>a+p.outstanding,0))} units still to arrive`,'Still has lines to arrive, PO date within 60 days','pps-info')
++cell('Over 2 months',fmt(c('aging')),`still open, PO date &gt; ${poWarnDays} days ago`,'Open lines on a PO older than the aging limit','pps-crit')
++cell('Ordered quantity',fmt(valid.reduce((a,p)=>a+p.qty_ordered,0)),`received ${fmt(valid.reduce((a,p)=>a+Math.min(p.qty_received,p.qty_ordered),0))} · no price on PO lines`)}
 function renderPoTable(){const empty=document.getElementById('poEmpty'),table=document.getElementById('poTable');
-if(!poData.length){empty.style.display='block';table.style.display='none';document.getElementById('poPaging').innerHTML='';return}empty.style.display='none';table.style.display='table';
-const q=(document.getElementById('poSearch').value||'').toLowerCase().trim();let rows=poData.filter(poFilter);
+if(!poData.length){empty.style.display='block';table.style.display='none';document.getElementById('poPaging').innerHTML='';document.getElementById('poPeriodSum').innerHTML='';return}empty.style.display='none';table.style.display='table';
+syncPoPeriod();renderPoPeriodSum();
+const q=(document.getElementById('poSearch').value||'').toLowerCase().trim();let rows=poData.filter(p=>inPoPeriod(p)&&poFilter(p));
 if(q)rows=rows.filter(p=>[p.sku,p.product,p.po_number].some(x=>String(x||'').toLowerCase().includes(q)));
 poView==='po'?renderPoByPo(rows):renderPoBySku(rows)}
 function renderPoByPo(rows){
@@ -56,7 +88,7 @@ const groups=[...g.entries()].map(([k,ls])=>{const all=poByNum.get(k)||ls;return
 const st=poPage*PO_GROUPS_PER_PAGE,pg=groups.slice(st,st+PO_GROUPS_PER_PAGE);
 document.getElementById('poBody').innerHTML=pg.length?pg.map(G=>{const all=G.all.filter(x=>x.status!=='cancelled'),ord=all.reduce((s,x)=>s+x.qty_ordered,0),rec=all.reduce((s,x)=>s+Math.min(x.qty_received,x.qty_ordered),0),pct=ord?Math.round(rec/ord*100):0;
 const openL=all.filter(x=>x.is_open),age=openL.length?Math.max(...openL.map(x=>x.age_days||0)):null,aging=openL.some(x=>x.aging),late=openL.filter(x=>x.overdue).length,over=all.filter(x=>x.remaining<0).length;
-const head=`<tr class="po-grp"><td colspan="9"><div class="po-grp-in"><b>${esc(G.k)}</b><span class="text-dim">${G.date?dfmt(G.date):'no PO date'}</span><span class="po-prog" title="${pct}% received"><i style="width:${pct}%"></i></span><span class="text-dim">${fmt(rec)} / ${fmt(ord)} pcs · ${all.length-openL.length}/${all.length} lines done</span>${openL.length?`<span class="tag tag-info">${openL.length} open</span>`:'<span class="badge badge-green">Complete</span>'}${aging?`<span class="tag tag-late" title="Open more than ${poWarnDays} days">${fmt(age)} days · ${poMo(age)} months</span>`:age!=null?`<span class="text-dim">${fmt(age)} days</span>`:''}${late?`<span class="tag tag-late">${late} past ETA</span>`:''}${over?`<span class="tag tag-warn">${over} over</span>`:''}${openL.length?`<button class="btn btn-ghost btn-xs" style="margin-left:auto" onclick="receiveAllPo('${jsq(G.k)}')" ${G.k===NO_PO?'disabled':''}>Mark all received</button>`:''}</div></td></tr>`;
+const head=`<tr class="po-grp"><td colspan="9"><div class="po-grp-in"><b>${esc(G.k)}</b><span class="text-dim">${G.date?dfmt(G.date):'no PO date'}</span><span class="po-prog" title="${pct}% received"><i style="width:${pct}%"></i></span><span class="text-dim">${fmt(rec)} / ${fmt(ord)} pcs · ${all.length-openL.length}/${all.length} lines done</span>${poStBadge(poStatusOf(G.k))}${openL.length?`<span class="tag tag-info">${openL.length} open line${openL.length===1?'':'s'}</span>`:''}${aging?`<span class="tag tag-late" title="Open more than ${poWarnDays} days">${fmt(age)} days · ${poMo(age)} months</span>`:age!=null?`<span class="text-dim">${fmt(age)} days</span>`:''}${late?`<span class="tag tag-late">${late} past ETA</span>`:''}${over?`<span class="tag tag-warn">${over} over</span>`:''}${openL.length?`<button class="btn btn-ghost btn-xs" style="margin-left:auto" onclick="receiveAllPo('${jsq(G.k)}')" ${G.k===NO_PO?'disabled':''}>Mark all received</button>`:''}</div></td></tr>`;
 return head+G.ls.map(p=>`<tr><td class="t-strong">${skuBtn(p.sku)}</td><td><div class="trunc" style="max-width:240px" title="${esc(p.product||'')}">${esc(p.product||'-')}</div></td><td class="r t-strong">${fmt(p.qty_ordered)}</td><td class="r">${poRecv(p)}</td><td>${poState(p)}</td><td>${poEta(p)}</td><td>${poRecvDate(p)}</td><td>${poAge(p.age_days,p.aging)}</td><td>${poAct(p)}</td></tr>`).join('')}).join(''):'<tr><td colspan="9"><div class="empty-state">No PO lines match.</div></td></tr>';
 renderPaging('poPaging',poPage,groups.length,'poGoPage','POs',PO_GROUPS_PER_PAGE)}
 function renderPoBySku(rows){
@@ -76,6 +108,7 @@ invSummaryCache=null;replData=null;renderPoTable();loadPoSummary();if(okMsg&&p)t
 function setPoReceived(id,el){const v=Number(el.value);if(!Number.isInteger(v)||v<0){toast('Received must be a whole number ≥ 0','error');renderPoTable();return}
 patchPo(id,{qty_received:v},p=>`${p.sku}: ${fmt(p.qty_received)} of ${fmt(p.qty_ordered)} received${p.remaining<0?` (over +${fmt(-p.remaining)})`:p.remaining>0?` (${fmt(p.remaining)} to come)`:''}`)}
 function setPoRecvDate(id,v){if(!v)return;patchPo(id,{received_date:v},p=>`${p.sku}: receipt date ${dfmt(v)}`)}
-function setPoStatus(id,s){patchPo(id,{status:s},p=>`${p.sku}: ${s==='reopen'?'reopened':s==='closed'?'closed short':s}`)}
+function setPoStatus(id,s){if((s==='closed'||s==='cancelled')&&!confirm(s==='closed'?'Close this line short? The rest will no longer count as incoming stock.':'Cancel this line? Nothing will count as incoming for it.'))return;patchPo(id,{status:s},p=>`${p.sku}: ${s==='reopen'?'reopened':s==='closed'?'closed short':s}`)}
 async function receiveAllPo(po){const n=(poByNum.get(po)||[]).filter(x=>x.is_open).length;if(!confirm(`Mark all ${n} open lines of ${po} as fully received today?\n(Edit a line afterwards if something was short.)`))return;
 try{const r=await fetch('/api/po/receive-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({po_number:po})});const d=await readJson(r);if(!r.ok)throw new Error(d.detail||'Update failed');toast(`${po}: ${d.lines} lines marked received`,'success');invSummaryCache=null;replData=null;loadPoPage()}catch(e){toast(e.message,'error')}}
+

@@ -58,15 +58,20 @@ def avg_selling_price_12w(conn):
         """)).fetchall() if r[1] is not None}
 
 
-def import_revenue_ranking(conn):
-    """[(sku, name, revenue, units, first sale, last sale)] of import SKUs, highest revenue first
-    (the ranking the Pareto 80% cut is made on)."""
+def import_revenue_ranking(conn, window_weeks=26):
+    """[(sku, name, revenue, units, first sale, last sale)] of import SKUs, highest revenue first, over the last
+    `window_weeks` sales weeks (ending at the week of the latest sale): the ranking the Pareto 80% cut is made on,
+    same window as forecast.run_forecast."""
     return conn.execute(text("""
+            WITH lw AS (SELECT DATE_TRUNC('week', MAX(s.invoice_date)) AS w
+                        FROM sales s JOIN products p ON p.sku = s.sku
+                        WHERE s.invoice_date IS NOT NULL AND COALESCE(p.product_type, 'import') = 'import')
             SELECT s.sku, MIN(p.name), SUM(s.amount), SUM(s.quantity), MIN(s.invoice_date), MAX(s.invoice_date)
-            FROM sales s JOIN products p ON p.sku = s.sku
+            FROM sales s JOIN products p ON p.sku = s.sku, lw
             WHERE s.invoice_date IS NOT NULL AND COALESCE(p.product_type, 'import') = 'import'
-            GROUP BY s.sku ORDER BY SUM(s.amount) DESC, s.sku
-        """)).fetchall()
+              AND DATE_TRUNC('week', s.invoice_date) > lw.w - make_interval(weeks => :n)
+            GROUP BY s.sku HAVING SUM(s.amount) > 0 ORDER BY SUM(s.amount) DESC, s.sku
+        """), {"n": int(window_weeks)}).fetchall()
 
 
 def weekly_for_sku(conn, sku, after):

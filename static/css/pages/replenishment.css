@@ -6,7 +6,20 @@
 .ro-table tbody tr:hover{background:var(--surface2)}
 .ro-table tbody tr.sel{background:var(--blue-bg)}
 .ro-table .r{text-align:right}
-.sel-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:14px 20px;border-radius:16px;background:var(--panel);color:#fff;margin-top:18px;box-shadow:0 8px 32px rgba(38,63,96,.25)}
+.sel-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:12px 18px;border-radius:var(--radius);background:var(--panel);color:#fff;margin-top:12px;box-shadow:0 6px 20px rgba(38,63,96,.22);position:sticky;bottom:12px;z-index:50}
 .sel-bar .sb-v{font-size:18px;font-weight:700}
 .sel-bar .sb-l{font-size:12px;opacity:.75}
 .sel-bar .btn{margin-left:auto}
+
+/* R7: purchasing groups, reason badges, System Recommended filter */
+.tabs-count button[data-v="order"] .cnt{background:var(--red-bg);color:var(--red)}
+.tabs-count button[data-v="covered"] .cnt{background:var(--amber-bg);color:var(--amber)}
+.tag-fw{background:var(--red-bg);color:var(--red);font-weight:700}
+.tag-cov{background:var(--amber-bg);color:var(--amber)}
+.tag-sys{background:var(--blue-bg);color:var(--link);font-weight:700}
+.chip-f{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);font:600 13.5px var(--font);cursor:pointer}
+.chip-f .cnt{font-size:12px;font-weight:700;padding:1px 7px;border-radius:7px;background:var(--blue-bg);color:var(--link)}
+.chip-f:hover{background:var(--surface-hover)}
+.chip-f.active{border-color:var(--link);background:var(--blue-bg);color:var(--link)}
+.tab-note{font-size:13px;color:var(--text3);margin:-4px 0 10px}
+.ro-table input.cb:disabled{opacity:1;accent-color:var(--red);cursor:not-allowed}

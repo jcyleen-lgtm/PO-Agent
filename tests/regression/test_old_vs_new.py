@@ -26,6 +26,10 @@ SCENARIO = os.path.join(ROOT, "tests", "regression", "scenario.py")
 
 def run(code_dir, out):
     env = dict(os.environ, TEST_DATABASE_URL=TEST_DB, PYTHONDONTWRITEBYTECODE="1")
+    # The reference commit ranks Pareto over all history; the current code over the last 26 weeks (decision of
+    # 5 Nov 2026). With a window longer than the data, both must produce the same results.
+    env.setdefault("SW_PARETO_WINDOW_WEEKS", "5000")
+    env.setdefault("SW_PARETO_STOCKOUT_ADJUST", "false")
     for k in ("APP_PASSWORD_HASH",):
         env.pop(k, None)
     p = subprocess.run([sys.executable, SCENARIO, "--code", code_dir, "--out", out], env=env,
@@ -58,6 +62,18 @@ def diff(a, b, path="$", out=None, limit=40):
     return out
 
 
+# Fields added after the reference commit (Pareto window and stockout info); their presence is not a difference.
+_ADDED = {"pareto_window_start", "pareto_window_weeks", "window_weeks", "pareto_stockout_adjust",
+          "pareto_stockout_skus", "pareto_stockout_rescued", "revenue_adjusted", "stockout_weeks", "stockout"}
+
+
+def NEW_KEYS_ONLY(d):
+    if ": keys [" not in d:
+        return False
+    keys = {k.strip(" '") for k in d.split(": keys [", 1)[1].rstrip("]").split(",")}
+    return keys <= _ADDED
+
+
 @pytest.fixture(scope="module")
 def base_tree():
     tmp = tempfile.mkdtemp(prefix="sw_base_")
@@ -76,6 +92,6 @@ def test_old_vs_new(base_tree, tmp_path):
     for o, n in zip(old, new):
         if o["status"] != n["status"]:
             problems.append(f"{o['step']}: status {o['status']} != {n['status']}")
-        problems += [f"{o['step']}: {d}" for d in diff(o["body"], n["body"])]
+        problems += [f"{o['step']}: {d}" for d in diff(o["body"], n["body"]) if not NEW_KEYS_ONLY(d)]
     assert not problems, f"{len(problems)} differences:\n" + "\n".join(problems[:60])
     assert len(old) > 150
