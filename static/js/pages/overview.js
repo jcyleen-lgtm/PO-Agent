@@ -97,7 +97,7 @@ function renderOvKpis() {
 }
 
 /* Purchasing groups (core/decision.js): mutually exclusive, each opens its Replenishment tab. */
-const BUCKET_ICON = { order: 'cart', covered: 'eye', hold: 'pause', none: 'check' };
+const BUCKET_ICON = { order: 'cart', covered: 'eye', none: 'check' };
 function renderActionCenter() {
   const rows = ovRows;
   const unc = rows.filter(r => r.bucket === 'unclassified').length;
@@ -105,9 +105,12 @@ function renderActionCenter() {
   document.getElementById('acBuckets').innerHTML = BUCKETS.map(b => {
     const rs = rows.filter(r => r.bucket === b.key);
     let sub = '';
-    if (b.key === 'order') { const u = rs.reduce((a, r) => a + (r.reco_po || 0), 0), c = rs.reduce((a, r) => a + (r.unit_cost != null ? (r.reco_po || 0) * r.unit_cost : 0), 0); sub = rs.length ? `${fmt(u)} units${c ? ` · ≈ ${fmtRpS(c)}` : ''} · in the order list` : 'Nothing to order'; }
-    else if (b.key === 'covered') { const fz = rs.filter(r => r.zero === 'forecast_zero').length; sub = rs.length ? `${fmt(rs.length - fz)} stock / PO sufficient${fz ? ` · <b class="t-red">${fmt(fz)} forecast warning</b>` : ''}` : 'None'; }
-    else if (b.key === 'hold') { const sr = rs.filter(r => r.sysReco).length; sub = sr ? `${fmt(sr)} System Recommended` : 'Optional'; }
+    if (b.key === 'order') {
+      const m = rs.filter(r => r.mandatory), u = m.reduce((a, r) => a + (r.reco_po || 0), 0), c = m.reduce((a, r) => a + (r.unit_cost != null ? (r.reco_po || 0) * r.unit_cost : 0), 0);
+      const z = rs.length - m.length, fz = rs.filter(r => r.zero === 'forecast_zero').length;
+      sub = rs.length ? `${fmt(m.length)} to order · ${fmt(u)} units${c ? ` · ≈ ${fmtRpS(c)}` : ''}${z ? `<br>${fmt(z)} recommended 0${fz ? ` · <b class="t-red">${fmt(fz)} forecast warning</b>` : ''}` : ''}` : 'Nothing to order';
+    }
+    else if (b.key === 'covered') { const sr = rs.filter(r => r.sysReco).length; sub = sr ? `${fmt(sr)} System Recommended` : 'Optional'; }
     else sub = 'Optional';
     return `<button class="ac-b ac-${b.tone}" data-k="${b.key}" onclick="openReplBucket('${b.key}')" title="${esc(b.hint)} · open in Replenishment">
       <span class="ac-b-l">${ico(BUCKET_ICON[b.key], 'ico-' + b.tone + ' ico-s')}${b.label}</span>
@@ -116,10 +119,9 @@ function renderActionCenter() {
   }).join('');
 }
 
-/* E. Priority SKUs: Understocked first (Order Now, then Covered / Monitor), each in the Replenishment priority order. */
+/* E. Priority SKUs: Understocked (Order Now), recommended > 0 first, in the Replenishment priority order. */
 function priorityRows() {
-  const rank = { order: 0, covered: 1 };
-  return ovRows.filter(r => r.bucket in rank).sort((a, b) => (a.bucket === b.bucket ? byPriority(a, b) : rank[a.bucket] - rank[b.bucket]));
+  return ovRows.filter(r => r.bucket === 'order').sort(byPriority);
 }
 function renderPriority() {
   const el = document.getElementById('prList'), more = document.getElementById('prMore');
@@ -140,7 +142,7 @@ function renderPriority() {
     <th class="r" title="Average forecast demand per week, next 8 weeks">Forecast / Wk</th><th class="r">Recommended PO</th></tr></thead><tbody>`;
   top.forEach(r => {
     const sk = String(r.sku).replace(/'/g, "\\'"), b = BUCKET[r.bucket];
-    const reason = r.zero === 'forecast_zero' ? ' <span class="tag tag-fw" title="' + esc(zeroReasonText(r)) + '">Forecast warning</span>' : r.zero === 'covered' ? ' <span class="tag tag-cov" title="' + esc(zeroReasonText(r)) + '">Stock / PO sufficient</span>' : '';
+    const reason = r.zero === 'forecast_zero' ? ' <span class="tag tag-fw" title="' + esc(zeroReasonText(r)) + '">Forecast warning</span>' : r.zero === 'sufficient' ? ' <span class="tag tag-cov" title="' + esc(zeroReasonText(r)) + '">Stock / PO sufficient</span>' : '';
     h += `<tr class="clickable" onclick="openReplSku('${sk}')"><td class="p-sku">${esc(r.sku)}</td><td><div class="p-name" title="${esc(r.product_name)}">${esc(r.product_name)}</div></td>
       <td>${statusBadge(r.status)}<div class="pr-grp"><span class="pill pill-${b.tone}">${b.label}</span>${reason}</div></td>
       <td class="r">${r.out_of_stock ? '<span class="t-red t-strong">' + fmt(r.current_stock) + '</span>' : fmt(r.current_stock)}</td>

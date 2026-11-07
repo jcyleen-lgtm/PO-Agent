@@ -13,7 +13,10 @@ Rule (applied only to the Pareto ranking; Holt's DES, coverage and the recommend
        immediately before the run, and
     3. there is evidence that the item was out of stock:
        a. a stock snapshot of 0 (or no stock) in a week of the run, or
-       b. a PO receipt in a week of the run or the week after it, and sales resume right after the run.
+       b. a PO receipt in a week of the run or the week after it, and sales resume right after the run, and
+    4. if the run is still going on (no sales up to the latest week), it is at most `MAX_OPEN` weeks long
+       (the lead time): an item that has had no stock and no sales for longer than one lead time while nobody
+       restocked it is treated as no longer selling, not as a stockout.
 
   Each stockout week is credited with the SKU's average weekly revenue of the `BASELINE` weeks before the run.
   Weeks with sales are never changed; a run without evidence stays 0 (the item may simply not have sold).
@@ -24,9 +27,10 @@ from datetime import timedelta
 MIN_RUN = 2       # weeks
 BASELINE = 4      # weeks before the run used as the "normal" level
 MIN_ACTIVE = 3    # of the BASELINE weeks must have sales
+MAX_OPEN = 8      # weeks: an ongoing run (not resumed) longer than this is not credited (default = lead time)
 
 
-def detect_runs(weeks, revenue, receipt_weeks=(), zero_stock_weeks=(), window_start=None):
+def detect_runs(weeks, revenue, receipt_weeks=(), zero_stock_weeks=(), window_start=None, max_open=MAX_OPEN):
     """Stockout runs of one SKU.
 
     weeks: every week start (date) in order, including the BASELINE weeks before the window.
@@ -51,7 +55,9 @@ def detect_runs(weeks, revenue, receipt_weeks=(), zero_stock_weeks=(), window_st
             if active >= MIN_ACTIVE:
                 resumed = j + 1 < n and sold[j + 1]
                 after = run[-1] + timedelta(weeks=1)
-                if any(w in zero for w in run):
+                if not resumed and len(run) > max_open:
+                    ev = None                     # out for longer than a lead time, never restocked
+                elif any(w in zero for w in run):
                     ev = "zero_stock"
                 elif resumed and any(w in rec for w in run + [after]):
                     ev = "po_receipt"
@@ -65,7 +71,7 @@ def detect_runs(weeks, revenue, receipt_weeks=(), zero_stock_weeks=(), window_st
     return out
 
 
-def adjusted_revenue(weekly, receipts, zero_stock, window_start, last_week):
+def adjusted_revenue(weekly, receipts, zero_stock, window_start, last_week, max_open=MAX_OPEN):
     """Pareto ranking revenue per SKU over [window_start, last_week].
 
     weekly: {sku: {week: revenue}} (may include weeks before the window, used for the baseline).
@@ -82,14 +88,14 @@ def adjusted_revenue(weekly, receipts, zero_stock, window_start, last_week):
         actual = sum(float(v or 0) for k, v in rev.items() if window_start <= k <= last_week)
         if actual <= 0:
             continue
-        runs = detect_runs(weeks, rev, receipts.get(sku, ()), zero_stock.get(sku, ()), window_start)
+        runs = detect_runs(weeks, rev, receipts.get(sku, ()), zero_stock.get(sku, ()), window_start, max_open)
         imputed = sum(r["baseline"] * r["weeks"] for r in runs)
         out[sku] = {"revenue": actual, "adjusted": actual + imputed,
                     "stockout_weeks": sum(r["weeks"] for r in runs), "runs": runs}
     return out
 
 
-def pareto_revenue(conn, window_weeks, enabled=True):
+def pareto_revenue(conn, window_weeks, enabled=True, max_open=MAX_OPEN):
     """Load import sales, PO receipts and zero stock snapshots, and return (window_start, last_week, ranking)
     where ranking = adjusted_revenue(...) (or actual revenue only when `enabled` is False)."""
     from src.repositories import forecast as forecast_repo
@@ -109,4 +115,4 @@ def pareto_revenue(conn, window_weeks, enabled=True):
             rec.setdefault(sku, set()).add(wk)
         for sku, wk in forecast_repo.zero_stock_weeks(conn):
             zero.setdefault(sku, set()).add(wk)
-    return window_start, last_week, adjusted_revenue(weekly, rec, zero, window_start, last_week)
+    return window_start, last_week, adjusted_revenue(weekly, rec, zero, window_start, last_week, max_open)

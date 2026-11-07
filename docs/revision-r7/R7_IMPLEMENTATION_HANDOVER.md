@@ -113,3 +113,19 @@ test and the production-data check above, and must be looked at on the preview w
 
 Screenshots (synthetic test data): `img/overview.png`, `img/overview-dark.png`, `img/overview-mobile.png`,
 `img/replenishment.png`, `img/sku-forecast-vs-actual.png`, `img/po-tracking.png`.
+
+## 6. Regrouping (San, 7 Nov 2026)
+
+One purchasing group per inventory status; **Hold is removed**.
+
+| Group | Rule | Export |
+|---|---|---|
+| Order Now | Understocked | recommended > 0: always (Mandatory); recommended 0: shown with the reason (stock / PO sufficient or Forecast warning), manual only, with a quantity |
+| Covered / Monitor | Healthy | optional; recommended > 0 = System Recommended badge, never pre-selected |
+| No Action Needed | Overstocked | optional |
+| Not classified | no status | All tab only |
+
+Inside a group, mandatory rows come first, then the order-by priority as before. Priority SKUs on the Overview = Order Now.
+Production (5 Nov data, before the new scope): Order Now 22 (15 mandatory + 7 recommended 0, 5 of them forecast
+warning), Covered / Monitor 52 (13 System Recommended), No Action Needed 116. Frontend only.
+Tests: 51 passed; browser regression 109 checkpoints, 0 errors.

@@ -127,17 +127,18 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
     const check = await p.evaluate(async () => {
       const d = await (await fetch('/api/replenishment?product_type=import')).json();
       const R = d.results || [];
-      const g = r => r.status === 'understocked' ? ((r.reco_po || 0) > 0 ? 'order' : 'covered') : r.status === 'healthy' ? 'hold' : r.status === 'overstocked' ? 'none' : 'unclassified';
-      const exp = ['order', 'covered', 'hold', 'none'].map(k => R.filter(r => g(r) === k).length);
+      // groups (7 Nov 2026): Understocked → order, Healthy → covered, Overstocked → none
+      const g = r => r.status === 'understocked' ? 'order' : r.status === 'healthy' ? 'covered' : r.status === 'overstocked' ? 'none' : 'unclassified';
+      const exp = ['order', 'covered', 'none'].map(k => R.filter(r => g(r) === k).length);
       const num = t => parseInt(String(t).replace(/[^0-9]/g, ''), 10);
       const shown = [...document.querySelectorAll('#acBuckets .ac-b-v')].map(e => num(e.firstChild.textContent));
       const st = k => R.filter(r => (r.status || null) === k).length;
       const expK = [R.length, st('understocked'), st('healthy'), st('overstocked'), R.filter(r => r.out_of_stock).length];
       const shownK = ['total', 'under', 'healthy', 'over', 'oos'].map(k => num(document.querySelector(`#ovKpis [data-k="${k}"] .kc-v`).textContent));
-      const pri = (x, y) => { const ex = x.order_by_is_estimate ? 1 : 0, ey = y.order_by_is_estimate ? 1 : 0; if (ex !== ey) return ex - ey;
+      const pri = (x, y) => { const mx = (x.reco_po || 0) > 0 ? 0 : 1, my = (y.reco_po || 0) > 0 ? 0 : 1; if (mx !== my) return mx - my;
+        const ex = x.order_by_is_estimate ? 1 : 0, ey = y.order_by_is_estimate ? 1 : 0; if (ex !== ey) return ex - ey;
         const dx = x.order_by || '9999-12-31', dy = y.order_by || '9999-12-31'; if (dx !== dy) return dx < dy ? -1 : 1; return (y.l4w_revenue || 0) - (x.l4w_revenue || 0); };
-      const rk = { order: 0, covered: 1 };
-      const att = R.filter(r => g(r) in rk).sort((x, y) => g(x) === g(y) ? pri(x, y) : rk[g(x)] - rk[g(y)]).slice(0, 8);
+      const att = R.filter(r => g(r) === 'order').sort(pri).slice(0, 8);
       const expP = att.map(r => [r.sku, r.reco_po || 0]);
       const shownP = [...document.querySelectorAll('#prList tbody tr')].map(tr => [tr.children[0].textContent.trim(), num(tr.children[7].textContent)]);
       const hc = Chart.getChart('ovHealthChart'), cc = Chart.getChart('ovCovChart'), dc = Chart.getChart('ovDemChart'), mc = Chart.getChart('ovMonChart');
@@ -162,7 +163,7 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
     const firstMonth = await p.evaluate(() => { const o = [...document.querySelectorAll('#ovMonth option')]; return o.length ? o[o.length - 1].value : null });
     if (firstMonth) { await p.selectOption('#ovMonth', firstMonth); await settle(); await snap('11-overview-month', false); }
     // every purchasing card opens Replenishment on the same group
-    for (const [i, k] of [[1, 'order'], [2, 'covered'], [3, 'hold'], [4, 'none']]) {
+    for (const [i, k] of [[1, 'order'], [2, 'covered'], [3, 'none']]) {
       await click(`#acBuckets .ac-b:nth-child(${i})`, 300);
       const t = await p.evaluate(() => [document.querySelector('.nav-item.active').dataset.tab, (document.querySelector('#rpTabs button.active') || {}).dataset?.v]);
       if (t[0] !== 'replenishment' || t[1] !== k) errors.push(`${C.name}: action card ${k} opened ${t}`);
@@ -186,17 +187,18 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
       const R = replData.results, cnt = k => R.filter(r => r.bucket === k).length;
       const tabs = Object.fromEntries([...document.querySelectorAll('#rpTabs .cnt')].map(c => [c.dataset.c, parseInt(c.textContent.replace(/\D/g, ''), 10)]));
       const locked = [...document.querySelectorAll('#rpTableWrap tbody input.cb:disabled')].length;
-      return { tabs, exp: { all: R.length, order: cnt('order'), covered: cnt('covered'), hold: cnt('hold'), none: cnt('none') }, locked, shown: document.querySelectorAll('#rpTableWrap tbody tr').length,
+      const mand = R.filter(r => r.mandatory), badMand = mand.filter(r => r.status !== 'understocked' || !((r.reco_po || 0) > 0)).length
+        + R.filter(r => r.status === 'understocked' && (r.reco_po || 0) > 0 && !r.mandatory).length;
+      return { tabs, exp: { all: R.length, order: cnt('order'), covered: cnt('covered'), none: cnt('none') }, locked, mand: mand.length, badMand, shown: document.querySelectorAll('#rpTableWrap tbody tr').length,
         sys: R.filter(r => r.status === 'healthy' && (r.reco_po || 0) > 0).length, sysShown: parseInt(document.getElementById('rpSysCnt').textContent, 10),
         fz: R.filter(r => r.zero === 'forecast_zero').length };
     });
-    if (JSON.stringify(rc.tabs) !== JSON.stringify(rc.exp) || rc.locked !== Math.min(rc.shown, rc.exp.order) || rc.sys !== rc.sysShown) errors.push(`${C.name}: replenishment groups ${JSON.stringify(rc)}`);
+    if (JSON.stringify(rc.tabs) !== JSON.stringify(rc.exp) || rc.locked !== Math.min(rc.shown, rc.mand) || rc.badMand || rc.sys !== rc.sysShown) errors.push(`${C.name}: replenishment groups ${JSON.stringify(rc)}`);
     states.push({ id: `${C.name}__20-repl-values`, text: JSON.stringify(rc), calls: [], theme: '', activeNav: '', scrollWidth: 0, canvases: 0 });
     await click('#rpTabs button[data-v="all"]'); await snap('21-repl-all', false);
     await click('#rpTabs button[data-v="covered"]'); await snap('21-repl-covered', false);
-    await click('#rpTabs button[data-v="hold"]'); await snap('22-repl-hold', false);
     await click('#rpSysReco'); await snap('22-repl-sysreco', false); await click('#rpSysReco');
-    // tick one optional (Hold) row
+    // tick one optional (Covered / Monitor) row
     const opt = await p.$('#rpTableWrap tbody input.cb:not(:disabled)');
     let manualSku = null;
     if (opt) { manualSku = await opt.evaluate(e => e.closest('tr').querySelector('.p-sku').firstChild.textContent.trim()); await opt.evaluate(e => { e.checked = true; e.dispatchEvent(new Event('change', { bubbles: true })) }); await settle(300);

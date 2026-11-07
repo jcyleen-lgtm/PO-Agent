@@ -28,6 +28,14 @@ def test_zero_stock_snapshot_is_stockout_even_without_resume():
     assert len(runs) == 1 and runs[0]["evidence"] == "zero_stock" and runs[0]["weeks"] == 4
 
 
+def test_long_ongoing_run_is_no_longer_selling():
+    """No stock and no sales for longer than one lead time, never restocked: treated as not selling any more."""
+    weeks = [W0 + timedelta(weeks=i) for i in range(20)]
+    pattern = {w: 100 for w in weeks[:6]}               # 14 weeks of zero sales up to the latest week
+    assert stockout.detect_runs(weeks, pattern, zero_stock_weeks={weeks[18]}) == []
+    assert len(stockout.detect_runs(weeks, pattern, zero_stock_weeks={weeks[18]}, max_open=14)) == 1
+
+
 def test_no_evidence_stays_zero():
     assert stockout.detect_runs(WEEKS, rev(STEADY)) == []                       # gap, no receipt, no snapshot
     pattern = [100] * 12 + [0, 0, 0, 0]

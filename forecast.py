@@ -174,7 +174,8 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     win = int(cfg.get("pareto_window_weeks") or 26)
     last_week = df["week_start"].max()
     with engine.connect() as conn:
-        _, _, ranking = stockout.pareto_revenue(conn, win, cfg.get("pareto_stockout_adjust", True))
+        _, _, ranking = stockout.pareto_revenue(conn, win, cfg.get("pareto_stockout_adjust", True),
+                                              int(cfg.get("lead_time_weeks") or 8))
     actual_revenue = pd.Series({k: v["revenue"] for k, v in ranking.items()}, dtype=float)
     sku_revenue = pd.Series({k: v["adjusted"] for k, v in ranking.items()}, dtype=float).sort_index()
     sku_revenue = sku_revenue[sku_revenue > 0].sort_values(ascending=False, kind="mergesort")

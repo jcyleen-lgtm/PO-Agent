@@ -111,7 +111,8 @@ async def bestseller_scope():
         ensure_hero_table(conn)
         sales = sales_repo.import_revenue_ranking(conn, win)
         hero = hero_repo.list_with_names(conn)
-        _, _, ranking = stockout.pareto_revenue(conn, win, cfg.get("pareto_stockout_adjust", True))
+        _, _, ranking = stockout.pareto_revenue(conn, win, cfg.get("pareto_stockout_adjust", True),
+                                              int(cfg.get("lead_time_weeks") or 8))
     # Rank on the stockout-adjusted revenue (same rule as the forecast run); `revenue` stays the actual sales.
     adj = {sku: float((ranking.get(sku) or {}).get("adjusted", rev or 0)) for sku, _n, rev, *_ in sales}
     sales = sorted(sales, key=lambda r: (-adj[r[0]], r[0]))
