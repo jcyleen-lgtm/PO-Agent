@@ -3,7 +3,7 @@
 .sidebar-divider{width:26px;height:1px;background:var(--border);margin:12px 0}
 .nav-item{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:16px;cursor:pointer;color:var(--text3);transition:background 150ms,color 150ms,box-shadow 150ms;position:relative;border:none;background:none}
 .nav-item:hover{color:var(--text);background:var(--card)}
-.nav-item.active{background:var(--grad-vivid);color:#17191C}
+.nav-item.active{background:var(--grad-vivid);color:var(--wash-ink)}
 .nav-item:focus-visible{outline:2px solid var(--tint);outline-offset:2px}
 .nav-item svg{width:20px;height:20px}
 .nav-item .tip{position:absolute;left:76px;background:var(--surface);color:var(--text);font-size:13px;font-weight:500;padding:6px 10px;border-radius:var(--radius-xs);white-space:nowrap;opacity:0;pointer-events:none;transition:opacity 150ms;border:1px solid var(--border);box-shadow:var(--shadow-pop)}

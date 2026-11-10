@@ -144,7 +144,7 @@ button.op-r:hover{border-color:var(--border)}
 @media(max-width:1100px){.ov-row-2e{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:768px){.hl-wrap{grid-template-columns:minmax(0,1fr)}.os-grid{grid-template-columns:minmax(0,1fr)}.ac-strip-h .section-meta{margin:0;width:100%}}
 /* the page's accent surface — gradient on the critical action card */
-.ac-strip .ac-b.ac-crit{background:var(--grad);color:#3A1A0A}
+.ac-strip .ac-b.ac-crit{background:var(--grad);color:var(--wash-ink)}
 .ac-b.ac-crit .ac-b-l,.ac-b.ac-crit .ac-b-s,.ac-b.ac-crit .ac-b-v small,.ac-b.ac-crit .ico-t{color:#3A1A0A}
 .ac-b.ac-crit .ac-b-v{color:#3A1A0A}
 .kc-top .ico-t{display:none}

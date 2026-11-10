@@ -1,12 +1,12 @@
 /* Design tokens (light + dark) and base element styles.
-   Look: white paper canvas, flat grey cards, serif headings and figures, one warm peach accent.
+   Look: warm paper canvas, quiet neutral cards, serif headings and softly diffused pastel accents.
    Scales — type 11/12/13/14/16/18/20/24/28/36/40 · radius 8/16/24/pill · space 4/8/12/16/24/32. */
 :root{
-  --bg:#FFFFFF;--card:#F2F2F3;--card-hover:#EAEAEC;--surface:#FFFFFF;--surface2:#F2F2F3;--surface-hover:#FAFAFB;--row-hover:#FAFAFB;
+  --bg:#FDFCFA;--card:#F1F1F3;--card-hover:#EAEAF0;--surface:#FFFEFD;--surface2:#F1F1F3;--surface-hover:#F8F7FA;--row-hover:#F8F7FA;
   --here:var(--bg);--seg:rgba(23,25,28,.06);
   --text:#17191C;--text2:#454950;--text3:#666A73;
   --navy:#17191C;--blue:#17191C;--link:#17191C;--teal:#666A73;
-  --tint:#F3CDB6;--tint-soft:#FBE1D1;--accent-ink:#5D2A1A;
+  --tint:#DDC9DF;--tint-soft:#F1E6ED;--accent-ink:#443D50;--wash-ink:#302D3B;--wash-button-hover:rgba(48,45,59,.08);--wash-border:rgba(48,45,59,.23);
   --primary:#17191C;--primary-hover:#2E3136;--on-primary:#FFFFFF;
   --panel:#17191C;--on-panel:#FFFFFF;
   --border:rgba(23,25,28,.09);--border2:rgba(23,25,28,.16);
@@ -19,17 +19,20 @@
   --focus:0 0 0 3px var(--tint);
   --font:'Inter',system-ui,-apple-system,sans-serif;
   --serif:'Source Serif 4','Source Serif Pro',Georgia,'Times New Roman',serif;
-  --grad:linear-gradient(255deg,rgb(250,203,14),rgb(240,107,168) 30%,rgb(120,186,230) 65%,rgb(255,255,255));
-  --grad-vivid:linear-gradient(255deg,rgb(250,203,14),rgb(240,107,168) 30%,rgb(120,186,230) 65%,rgb(200,220,240));
+  /* Grain stays at a fixed pixel scale; the displaced blooms stretch with each surface. */
+  --grad:url('/static/img/paper-grain.png') 0 0 / 256px 256px repeat,
+    url('/static/img/pastel-wash-light.svg') center / 100% 100% no-repeat,#FFFDFB;
+  --grad-vivid:var(--grad);
 }
 :root[data-theme="dark"]{
-  --grad:linear-gradient(255deg,rgb(180,150,30),rgb(180,70,120) 30%,rgb(80,130,170) 65%,rgb(40,44,50));
-  --grad-vivid:linear-gradient(255deg,rgb(200,170,40),rgb(200,90,140) 30%,rgb(100,160,200) 65%,rgb(50,55,65));
+  --grad:url('/static/img/paper-grain.png') 0 0 / 256px 256px repeat,
+    url('/static/img/pastel-wash-dark.svg') center / 100% 100% no-repeat,#2C303A;
+  --grad-vivid:var(--grad);
   --bg:#17191C;--card:#1F2226;--card-hover:#262A2F;--surface:#262A2F;--surface2:#1F2226;--surface-hover:#2C3036;--row-hover:#2A2E34;
   --seg:rgba(255,255,255,.07);
   --text:#F2F2F3;--text2:#C5C8CE;--text3:#9A9EA8;
   --navy:#F2F2F3;--blue:#F2F2F3;--link:#F2F2F3;--teal:#9A9EA8;
-  --tint:#6B4A3A;--tint-soft:#3A2A22;--accent-ink:#FBE1D1;
+  --tint:#8C7D9B;--tint-soft:#393442;--accent-ink:#F7F1F8;--wash-ink:#FFF9FD;--wash-button-hover:rgba(255,249,253,.1);--wash-border:rgba(255,249,253,.28);
   --primary:#F2F2F3;--primary-hover:#FFFFFF;--on-primary:#17191C;
   --panel:#F2F2F3;--on-panel:#17191C;
   --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.16);
