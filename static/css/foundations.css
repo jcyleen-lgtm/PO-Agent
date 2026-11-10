@@ -17,7 +17,9 @@
   --border:rgba(95,103,114,.16);--border2:rgba(95,103,114,.34);
   --red:#B4304F;--amber:#8A5412;--green:#12705D;--slate:#5F6772;
   --red-bg:var(--p-pink-soft);--amber-bg:var(--p-peach-soft);--green-bg:var(--p-mint-soft);--slate-bg:#ECEFF3;--blue-bg:var(--p-blue-soft);
-  --chart-1:#3D8BF2;--chart-2:#8B74E8;--chart-3:#D5DCE5;--chart-4:#3FB8A3;--chart-act:#3D8BF2;--chart-fc:#8B74E8;--grid:rgba(95,103,114,.14);
+  --chart-1:#9EC3F3;--chart-2:#BFB1F2;--chart-3:#E1E6EC;--chart-4:#8EDCCB;--chart-act:#7FB2F0;--chart-fc:#B3A2F0;
+  /* chart fills for status series: pastel, separate from the darker text/status inks above */
+  --c-red:#F2A6C6;--c-green:#8EDCCB;--c-slate:#BFB1F2;--c-amber:#F4C596;--c-blue:#9EC3F3;--grid:rgba(95,103,114,.14);
   --input-bg:#FFFFFF;
   --shadow-card:inset 0 1px 0 rgba(255,255,255,.9),0 1px 2px rgba(22,24,29,.04),0 12px 32px -20px rgba(22,24,29,.14);
   --shadow-pop:0 0 0 1px rgba(22,24,29,.05),0 16px 48px -12px rgba(22,24,29,.18);
@@ -43,7 +45,8 @@
   --border:rgba(163,173,185,.18);--border2:rgba(163,173,185,.36);
   --red:#F59AB8;--amber:#F2C08A;--green:#8FE3D1;--slate:#A3ADB9;
   --slate-bg:rgba(255,255,255,.07);
-  --chart-1:#6AA8F7;--chart-2:#A996F2;--chart-3:#3A4350;--chart-4:#6FD3C0;--chart-act:#6AA8F7;--chart-fc:#A996F2;--grid:rgba(163,173,185,.16);
+  --chart-1:#AFCDF6;--chart-2:#C7B8F5;--chart-3:#3A4350;--chart-4:#A7EADC;--chart-act:#AFCDF6;--chart-fc:#C7B8F5;
+  --c-red:#F3B5D2;--c-green:#A7EADC;--c-slate:#C7B8F5;--c-amber:#F6D1AC;--c-blue:#AFCDF6;--grid:rgba(163,173,185,.16);
   --input-bg:#171B22;
   --shadow-card:inset 0 1px 0 rgba(255,255,255,.06),0 12px 32px -20px rgba(0,0,0,.6);
   --shadow-pop:0 0 0 1px rgba(255,255,255,.06),0 16px 48px -12px rgba(0,0,0,.6);

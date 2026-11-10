@@ -158,18 +158,18 @@ function covBins() {
   const U = st.understock_weeks ?? 8, O = st.overstock_weeks ?? 20;
   const half = Math.round(U / 2 * 10) / 10, mid = Math.round((U + O) / 2 * 10) / 10;
   return [
-    { l: '0', t: c => c === 0, z: 'red' },
-    { l: `0–${half}`, t: c => c > 0 && c <= half, z: 'red' },
-    { l: `${half}–${U}`, t: c => c > half && c <= U, z: 'red' },
-    { l: `${U}–${mid}`, t: c => c > U && c <= mid, z: 'green' },
-    { l: `${mid}–${O}`, t: c => c > mid && c <= O, z: 'green' },
-    { l: `> ${O}`, t: c => c > O, z: 'slate' },
+    { l: '0', t: c => c === 0, z: 'c-red' },
+    { l: `0–${half}`, t: c => c > 0 && c <= half, z: 'c-red' },
+    { l: `${half}–${U}`, t: c => c > half && c <= U, z: 'c-red' },
+    { l: `${U}–${mid}`, t: c => c > U && c <= mid, z: 'c-green' },
+    { l: `${mid}–${O}`, t: c => c > mid && c <= O, z: 'c-green' },
+    { l: `> ${O}`, t: c => c > O, z: 'c-slate' },
     { l: 'No sales', t: null, z: 'chart-3' },
   ];
 }
 function chartTip() { const ct = getCT(); return { backgroundColor: ct.tipBg, titleColor: ct.tipTitle, bodyColor: ct.tipBody, borderColor: ct.tipBorder, borderWidth: 1, padding: 10, cornerRadius: 8 } }
 function healthSeries(h) {
-  const hs = [['understocked', 'Understocked', '--red'], ['healthy', 'Healthy', '--green'], ['overstocked', 'Overstocked', '--slate']];
+  const hs = [['understocked', 'Understocked', '--c-red'], ['healthy', 'Healthy', '--c-green'], ['overstocked', 'Overstocked', '--c-slate']];
   if (h.unclassified) hs.push([null, 'Not classified', '--chart-3']);
   return hs;
 }

@@ -190,3 +190,61 @@ h1 .info{width:22px;height:22px;font-size:14px;vertical-align:8px}
 .main{transition:opacity .6s ease .2s,transform .8s cubic-bezier(.22,1,.36,1) .2s}
 .wait-screen.active~.main{opacity:0;transform:translateY(32px);transition:none}
 @media(prefers-reduced-motion:reduce){.wait-screen{transition:visibility 0s;transform:none}.wait-screen:not(.active){visibility:hidden}.main,.wait-screen:not(.active) .wait-text{transition:none}.wait-screen.active~.main{transform:none}}
+
+/* ── r8: wrap long names instead of truncating ── */
+.p-name,.trunc,.tl-n,.list-item .li-title,.mini-list .ml-t{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.35}
+.p-name{min-width:200px}
+.tl-n{max-width:68%}
+@media(max-width:768px){.p-name{min-width:140px}}
+
+/* ── r8: dropdowns. Closed control is restyled everywhere; the open list is restyled where the browser
+      supports customizable selects (Chrome / Edge 135+), otherwise the system list is used. ── */
+select:not([multiple]):not([size]){-webkit-appearance:none;appearance:none;height:40px;padding:0 40px 0 16px;border:1px solid var(--border2);border-radius:12px;
+ background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237A8492' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center/16px;
+ color:var(--text);font:500 15px var(--font);cursor:pointer;transition:border-color .15s,box-shadow .15s}
+select:not([multiple]):not([size]):hover{border-color:var(--text3)}
+select:not([multiple]):not([size]):focus-visible{outline:none;border-color:var(--blue);box-shadow:var(--focus)}
+@supports (appearance:base-select){
+ select:not([multiple]):not([size]),select:not([multiple]):not([size])::picker(select){appearance:base-select}
+ select:not([multiple]):not([size])::picker-icon{display:none}
+ select:not([multiple]):not([size]){display:inline-flex;align-items:center;line-height:1}
+ select:not([multiple]):not([size])::picker(select){margin-top:6px;padding:6px;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--text);box-shadow:var(--shadow-pop);
+  opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s,overlay .15s allow-discrete,display .15s allow-discrete}
+ select:not([multiple]):not([size])::picker(select):popover-open{opacity:1;transform:none}
+ @starting-style{select:not([multiple]):not([size])::picker(select):popover-open{opacity:0;transform:translateY(-4px)}}
+ select:not([multiple]):not([size]) option{padding:10px 12px;border-radius:10px;font:500 15px var(--font);color:var(--text2);cursor:pointer}
+ select:not([multiple]):not([size]) option::checkmark{display:none}
+ select:not([multiple]):not([size]) option:hover,select:not([multiple]):not([size]) option:focus-visible{background:var(--surface-hover);color:var(--text);outline:none}
+ select:not([multiple]):not([size]) option:checked{background:var(--tint-soft);color:var(--link);font-weight:600}
+}
+.date-in input{border-radius:12px;height:40px}
+
+/* ── r8: PO status guide collapsed into an (i) ── */
+.po-legend{align-items:center;gap:0;font-size:15px}
+
+/* ── r8: Data page — larger type, descriptions live in the (i) ── */
+.group-h{font-size:18px;font-weight:500;color:var(--text2);margin:40px 0 16px}
+.upload-grid{gap:24px;margin-bottom:24px}
+.upload-card{padding:40px 24px}
+.upload-card .icon-tile{width:64px;height:64px;margin-bottom:24px}
+.upload-card .icon-tile svg{width:26px;height:26px}
+.upload-card .u-title{font-size:24px;margin-bottom:24px;display:flex;align-items:center;justify-content:center}
+.upload-card .btn{font-size:17px;min-height:48px;padding:8px 24px}
+.upload-card .drop-hint{font-size:16px;margin-top:16px}
+.step-n{width:28px;height:28px;font-size:15px;margin-right:12px}
+.date-in{font-size:15px;max-width:320px;margin:0 auto 16px}
+.status-list .s-l{font-size:15px}.status-list .s-v{font-size:20px;font-weight:600}
+.btn-ghost:hover:not(:disabled){background:var(--primary);color:var(--on-primary);border-color:var(--primary)}
+
+/* ── r8: profile photo ── */
+.avatar.has-photo{background-size:cover;background-position:center;color:transparent}
+.avatar-pick{cursor:pointer;border:0;position:relative;font-family:var(--font)}
+.avatar-pick::after{content:'';position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,.38) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'/%3E%3Ccircle cx='12' cy='13' r='4'/%3E%3C/svg%3E") no-repeat center/24px;opacity:0;transition:opacity .15s}
+.avatar-pick:hover::after,.avatar-pick:focus-visible::after{opacity:1}
+.photo-actions{display:flex;gap:16px;margin-top:4px}
+.photo-actions .link-btn{font-size:15px}
+
+/* ── r8: log out in the top bar (desktop); mobile keeps it inside Account settings ── */
+.nav-logout:hover{color:var(--red)}
+@media(min-width:769px){.nav-actions .nav-item:last-child .tip{left:auto;right:0;transform:none}.nav-actions .nav-item:not(:last-child) .tip{left:50%;right:auto;transform:translateX(-50%)}}
+@media(max-width:768px){.nav-logout{display:none}}

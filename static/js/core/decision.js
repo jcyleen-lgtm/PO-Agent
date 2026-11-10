@@ -13,7 +13,7 @@
    Nothing here changes a calculation: it groups and explains the values the API already computed. */
 const BUCKETS = [
   { key: 'order', label: 'Order Now', tone: 'crit', hint: 'Understocked: SKUs with a recommended quantity are always in the order export; recommended 0 shows the reason, tick to add' },
-  { key: 'covered', label: 'Covered / Monitor', tone: 'warn', hint: 'Healthy: no order by default; System Recommended = the forecast still suggests a quantity, tick to add' },
+  { key: 'covered', label: 'Monitor', tone: 'warn', hint: 'Healthy: no order by default; System Recommended = the forecast still suggests a quantity, tick to add' },
   { key: 'none', label: 'No Action Needed', tone: 'ok', hint: 'Overstocked: no order by default, select manually if needed' },
 ];
 const UNCLASSIFIED = { key: 'unclassified', label: 'Not classified', tone: 'mute', hint: 'No sales in 4 weeks and no stock' };
@@ -98,7 +98,7 @@ function explainSku(r, settings) {
   else if (r.reco_po != null && r.lt_demand_8w != null && r.safety_stock != null && r.inventory_position != null) {
     if (r.reco_po > 0) {
       out.push(`Recommended ${fmt(r.reco_po)} units = lead-time demand ${ROUND(r.lt_demand_8w)} + safety stock ${ROUND(r.safety_stock)} − stock and confirmed incoming ${ROUND(r.inventory_position)}.`);
-      if (sysRecommended(r)) out.push('Healthy (Covered / Monitor), but the forecast-based recommendation is above 0 (System Recommended). Not selected for the order export unless you tick it.');
+      if (sysRecommended(r)) out.push('Healthy (Monitor), but the forecast-based recommendation is above 0 (System Recommended). Not selected for the order export unless you tick it.');
     } else {
       out.push(`Recommended 0: stock and confirmed incoming (${ROUND(r.inventory_position)}) already cover lead-time demand ${ROUND(r.lt_demand_8w)} + safety stock ${ROUND(r.safety_stock)}.`);
     }
