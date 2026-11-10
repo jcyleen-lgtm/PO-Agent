@@ -2,7 +2,7 @@
 <html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stockwise — Inventory &amp; Procurement Intelligence</title>
+<title>Preorder — Inventory &amp; Procurement Intelligence</title>
 <script>try{var st=JSON.parse(localStorage.getItem('po-settings-v4')||'{}'),t=st.theme||'light';if(t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,wght@1,400;1,500;1,600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -72,13 +72,13 @@
   <section class="ov-kpis" id="ovKpis" aria-label="Inventory health"></section>
 
   <section class="card ac-strip" aria-labelledby="acTitle">
-    <div class="ac-strip-h"><h2 class="section-label" id="acTitle">What Needs Your Attention?</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Each SKU is in exactly one group, from its inventory status:&#10;Order Now: Understocked. With a recommended quantity it is always in the order list; recommended 0 shows the reason.&#10;Monitor: Healthy (optional; System Recommended = the forecast still suggests a quantity).&#10;No Action Needed: Overstocked (optional).&#10;&#10;Stockwise recommends; purchasing decides. Orders are placed outside Stockwise.">i</span><span class="section-meta" id="acMeta"></span></div>
+    <div class="ac-strip-h"><h2 class="section-label" id="acTitle">What Needs Your Attention?</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Each SKU is in exactly one group, from its inventory status:&#10;Order Now: Understocked. With a recommended quantity it is always in the order list; recommended 0 shows the reason.&#10;Monitor: Healthy (optional; System Recommended = the forecast still suggests a quantity).&#10;No Action Needed: Overstocked (optional).&#10;&#10;Preorder recommends; purchasing decides. Orders are placed outside Preorder.">i</span><span class="section-meta" id="acMeta"></span></div>
     <div class="ac-buckets" id="acBuckets"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
   </section>
 
   <div class="ov-row ov-row-2">
     <section class="card ov-panel" aria-labelledby="dmTitle">
-      <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="dmTitle">Demand — Actual vs Forecast</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Weekly units, best-seller SKUs. Past weeks: actual sales next to the forecast for the same weeks from a model trained without them (holdout), so you see how close the forecast was. Then the forecast for the next 12 weeks. Stockwise keeps only the latest forecast run, so earlier forecasts are not available.">i</span></div><div class="section-meta" id="dmMeta">Weekly units sold vs Holt's DES forecast</div></div><div class="legend"><span><i style="border-color:var(--chart-act);border-top-width:3px"></i>Actual</span><span><i style="border-color:var(--chart-fc);border-top-width:3px"></i>Forecast</span></div></div>
+      <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="dmTitle">Demand — Actual vs Forecast</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Weekly units, best-seller SKUs. Past weeks: actual sales next to the forecast for the same weeks from a model trained without them (holdout), so you see how close the forecast was. Then the forecast for the next 12 weeks. Preorder keeps only the latest forecast run, so earlier forecasts are not available.">i</span></div><div class="section-meta" id="dmMeta">Weekly units sold vs Holt's DES forecast</div></div><div class="legend"><span><i style="border-color:var(--chart-act);border-top-width:3px"></i>Actual</span><span><i style="border-color:var(--chart-fc);border-top-width:3px"></i>Forecast</span></div></div>
       <div class="chart-wrap ov-chart-l" id="chDemWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
       <div class="dm-foot"><span id="dmStats" class="section-meta"></span><button class="link-btn" onclick="switchTab('analysis');setSub('forecast')">Demand plan →</button></div>
     </section>
@@ -133,7 +133,7 @@
     <div><div class="sb-v" id="sbCount">0 + 0</div><div class="sb-l" id="sbCountL">mandatory + manual SKUs</div></div>
     <div><div class="sb-v" id="sbUnits">0</div><div class="sb-l">units to order</div></div>
     <div><div class="sb-v" id="sbCost">Rp 0</div><div class="sb-l" id="sbCostL">estimated cost</div></div>
-    <div class="sb-note">Order Now SKUs are always included; tick other SKUs to add them. Stockwise does not place orders: export the list and order outside Stockwise.</div><button class="btn btn-ghost" onclick="exportReplenishment(true)" title="Excel file: every Order Now SKU plus your manual selections"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export order list (.xlsx)</button>
+    <div class="sb-note">Order Now SKUs are always included; tick other SKUs to add them. Preorder does not place orders: export the list and order outside Preorder.</div><button class="btn btn-ghost" onclick="exportReplenishment(true)" title="Excel file: every Order Now SKU plus your manual selections"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export order list (.xlsx)</button>
   </div>
 </div>
 

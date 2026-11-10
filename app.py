@@ -25,7 +25,7 @@ from src.routers import (forecast as forecast_router, inventory as inventory_rou
                          products as products_router, purchase_orders as po_router, purchasing as purchasing_router,
                          sales as sales_router)
 
-app = FastAPI(title="Stockwise", version="4.0")
+app = FastAPI(title="Preorder", version="4.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.middleware("http")(require_login)   # every /api/* route needs a login cookie (see auth.py)
 app.include_router(auth_router)         # /api/auth/login, /api/auth/logout, /api/auth/me
