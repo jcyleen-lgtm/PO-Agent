@@ -9,7 +9,7 @@
   .login-art{display:none}
 }
 @media(max-width:768px){
-  body{font-size:14px}
+  body{font-size:16px}
   .sidebar{left:12px;right:12px;top:auto;bottom:12px;width:auto;height:64px;flex-direction:row;justify-content:space-around;padding:0 8px;border-radius:999px;border:none;background:var(--surface);box-shadow:var(--shadow-pop)}
   .sidebar-divider{display:none}
   .nav-item .tip{display:none}
@@ -34,11 +34,11 @@
   .desk-only{display:none}
   .mob-only{display:block}
   .date-dropdown,.month-grid{right:auto;left:0}
-  .db-bar{display:block;font-size:13px}
+  .db-bar{display:block;font-size:15px}
   .db-bar .dot{display:inline-block;margin-right:6px;vertical-align:middle}
   .db-bar>span:last-child{display:block;margin-top:4px}
   .card-header .link-btn{white-space:nowrap}
-  .card{padding:16px;border-radius:16px}
+  .card{padding:16px;border-radius:var(--radius-sm)}
   .login-form h1{font-size:32px}.page-head{margin-bottom:24px}.cov{flex-direction:column;align-items:flex-start;gap:4px}
   .toasts{left:12px;right:12px;top:12px}
   .toast{max-width:none}
@@ -55,7 +55,7 @@
   .kc{padding:16px}.kc-top{top:16px;right:16px}.kc-v{font-size:28px;margin:8px 0 4px}
   .pr-grp{display:flex;margin:4px 0 0}
   .ov-panel .card-header{flex-wrap:wrap}
-  .sel-bar{border-radius:24px;padding:16px;gap:12px 24px;bottom:88px}
+  .sel-bar{border-radius:var(--radius);padding:16px;gap:12px 24px;bottom:88px}
   .tabs-count,.seg,.pill-bar{border-radius:20px}
   .os-grid{gap:16px}
 }

@@ -84,7 +84,7 @@ function renderOvKpis() {
   const pct = n => h.total ? Math.round(n / h.total * 100) + '%' : '0%';
   const card = o => {
     const inner = `<div class="kc-top">${ico(o.i, 'ico-' + o.tone)}${o.badge ? `<span class="kc-badge kb-${o.tone}">${o.badge}</span>` : ''}</div>
-      <div class="kc-l">${o.l}</div><div class="kc-v kv-${o.tone}">${o.v}</div><div class="kc-d">${o.d}</div>`;
+      <div class="kc-l">${o.l}${info(o.d)}</div><div class="kc-v kv-${o.tone}">${o.v}</div>`;
     return o.go ? `<button class="card kc" data-k="${o.k}" onclick="${o.go}" title="${o.t}">${inner}</button>` : `<div class="card kc" data-k="${o.k}">${inner}</div>`;
   };
   document.getElementById('ovKpis').innerHTML = [

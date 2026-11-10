@@ -4,7 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Stockwise — Inventory &amp; Procurement Intelligence</title>
 <script>try{var st=JSON.parse(localStorage.getItem('po-settings-v4')||'{}'),t=st.theme||'light';if(t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,wght@1,400;1,500;1,600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <!-- styles: load order = cascade order (foundations → layout → components → pages → responsive) -->
 <link rel="stylesheet" href="/static/css/foundations.css">
@@ -24,20 +24,18 @@
 <!-- LOGIN -->
 <div class="login-overlay" id="loginOverlay">
   <div class="login-art" aria-hidden="true">
-    <div class="stars"></div>
-    <svg class="dune" viewBox="0 0 400 120" preserveAspectRatio="none"><defs><linearGradient id="dg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2B416B"/><stop offset=".35" stop-color="#0E1A30"/><stop offset="1" stop-color="#04070D"/></linearGradient></defs><path d="M0,62 C70,28 150,30 225,56 C300,82 350,44 400,34 L400,120 L0,120 Z" fill="url(#dg)"/></svg>
-    <div class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>STOCKWISE</div>
-    <div class="copy"><h2>Know your stock. Predict your needs. Buy smarter.</h2><p>Inventory &amp; Procurement Intelligence — demand forecasting with Holt's Double Exponential Smoothing.</p></div>
+    <div class="brand"><span class="logo" role="img" aria-label="preorder"><span class="logo-a">pre</span><span class="logo-b">order</span><svg class="logo-star" viewBox="-50 -50 100 100" aria-hidden="true" fill="currentColor"><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(45)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(90)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(135)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(180)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(225)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(270)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(315)"/></svg></span></div>
+    <div class="copy"><h2>Know your <em class="hl">stock.</em> Predict your <em class="hl">needs.</em> Buy <em class="hl">smarter.</em></h2><p>Inventory &amp; Procurement Intelligence — demand forecasting with Holt's Double Exponential Smoothing.</p></div>
   </div>
   <div class="login-panel">
     <form class="login-form" onsubmit="event.preventDefault();doLogin()">
-      <h1>Welcome back!</h1>
+      <h1>Welcome <em class="hl">back!</em></h1>
       <p class="lead">Please enter your details to continue.</p>
       <div class="field"><label for="loginEmail">Username</label><input type="text" id="loginEmail" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Enter your username"></div>
       <div class="field"><label for="loginPass">Password</label><div class="pw-wrap"><input type="password" id="loginPass" autocomplete="current-password" placeholder="Enter your password"><button type="button" class="pw-eye" id="pwEye" onclick="togglePw()" aria-label="Show password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
-      <div class="login-row"><label><input type="checkbox" id="loginRemember"> Remember me</label><button type="button" class="link-btn" style="font-size:14px" onclick="forgotPw()">Forgot password?</button></div>
+      <div class="login-row"><label><input type="checkbox" id="loginRemember"> Remember me</label><button type="button" class="link-btn" style="font-size:16px" onclick="forgotPw()">Forgot password?</button></div>
       <button type="submit" class="btn btn-brand btn-login" id="loginBtn">Log In</button>
-      <div id="loginStatus" style="font-size:14px;color:var(--red);margin-top:12px;text-align:center"></div>
+      <div id="loginStatus" style="font-size:16px;color:var(--red);margin-top:12px;text-align:center"></div>
     </form>
   </div>
 </div>
@@ -47,14 +45,17 @@
 
 <!-- SIDEBAR -->
 <nav class="sidebar" aria-label="Main">
+  <div class="nav-brand"><span class="logo" role="img" aria-label="preorder"><span class="logo-a">pre</span><span class="logo-b">order</span><svg class="logo-star" viewBox="-50 -50 100 100" aria-hidden="true" fill="currentColor"><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(45)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(90)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(135)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(180)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(225)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(270)"/><path d="M0-3C-3-17-10.5-31-10.5-38a10.5 10.5 0 1 1 21 0C10.5-31 3-17 0-3Z" transform="rotate(315)"/></svg></span></div>
   <button class="nav-item active" data-tab="overview" onclick="switchTab('overview')" aria-label="Inventory Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span class="nav-l">Overview</span><span class="tip">Overview<kbd>1</kbd></span></button>
   <button class="nav-item" data-tab="replenishment" onclick="switchTab('replenishment')" aria-label="Replenishment Planning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="nav-l">Replenish</span><span class="tip">Replenishment<kbd>2</kbd></span></button>
   <button class="nav-item" data-tab="analysis" onclick="switchTab('analysis')" aria-label="Product Analysis"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg><span class="nav-l">Analysis</span><span class="tip">Product Analysis<kbd>3</kbd></span></button>
   <button class="nav-item" data-tab="po" onclick="switchTab('po')" aria-label="PO Tracking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><span class="nav-l">PO</span><span class="tip">PO Tracking<kbd>4</kbd></span></button>
   <button class="nav-item" data-tab="upload" onclick="switchTab('upload')" aria-label="Data"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span class="nav-l">Data</span><span class="tip">Data<kbd>5</kbd></span></button>
   <div class="sidebar-divider"></div>
+  <div class="nav-actions">
   <button class="nav-item" onclick="toggleTheme()" aria-label="Toggle light or dark mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><span class="tip">Light / Dark</span></button>
   <button class="nav-item" onclick="openSettings()" aria-label="Account settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="tip">Account settings</span></button>
+  </div>
 </nav>
 
 <div class="main">
@@ -62,7 +63,7 @@
 <!-- ═══ TAB 1: OVERVIEW ═══ -->
 <div id="tab-overview" class="tab-content active">
   <div class="page-head ov-head">
-    <div><div class="ov-greet" id="greeting">Good morning</div><h1>Inventory Overview</h1><div class="page-sub">Monitor inventory health and identify purchasing priorities.</div></div>
+    <div><div class="ov-greet" id="greeting">Good morning</div><h1>Inventory Overview<span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Monitor inventory health and identify purchasing priorities.">i</span></h1></div>
     <div class="head-right"><div class="ov-chips" id="ovAsOf"><span class="text-dim">Checking data status…</span></div><button class="avatar" id="headAvatar" onclick="openSettings()" title="Account settings" aria-label="Account settings">?</button></div>
   </div>
   <div class="fresh-line" id="ovFresh" hidden></div>
@@ -90,17 +91,17 @@
   <h2 class="group-h" id="insTitle">Inventory Insights</h2>
   <div class="ov-row ov-row-2e">
     <section class="card ov-panel" aria-labelledby="hlTitle">
-      <div class="card-header"><div><h2 class="section-label" id="hlTitle">Inventory Health Distribution</h2><div class="section-meta">SKUs per stock status</div></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks.&#10;Understocked: 8 weeks or less · Healthy: more than 8 up to 20 weeks · Overstocked: more than 20 weeks, or stock without sales.&#10;Not classified: no sales in 4 weeks and no stock.">i</span></div>
+      <div class="card-header"><div><h2 class="section-label" id="hlTitle">Inventory Health Distribution</h2></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="SKUs per stock status.&#10;Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks.&#10;Understocked: 8 weeks or less · Healthy: more than 8 up to 20 weeks · Overstocked: more than 20 weeks, or stock without sales.&#10;Not classified: no sales in 4 weeks and no stock.">i</span></div>
       <div class="hl-wrap"><div class="donut-wrap"><div class="donut-box" id="chHealthWrap"><canvas id="ovHealthChart" aria-label="Inventory health distribution chart" role="img"></canvas></div><div class="donut-center" id="donutCenter"></div></div>
       <div class="hl-legend" id="ovHealthLegend"></div></div>
     </section>
     <section class="card ov-panel" aria-labelledby="covTitle">
-      <div class="card-header"><div><h2 class="section-label" id="covTitle">Stock Coverage Distribution</h2><div class="section-meta">SKUs per coverage range, in weeks</div></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks. Bars are coloured by the status the range falls in. &quot;No sales&quot;: no sales in 4 weeks, so coverage cannot be calculated.">i</span></div>
+      <div class="card-header"><div><h2 class="section-label" id="covTitle">Stock Coverage Distribution</h2></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="SKUs per coverage range, in weeks.&#10;Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks. Bars are coloured by the status the range falls in. &quot;No sales&quot;: no sales in 4 weeks, so coverage cannot be calculated.">i</span></div>
       <div class="chart-wrap ov-chart" id="chCovWrap"><canvas id="ovCovChart" aria-label="Stock coverage distribution chart" role="img"></canvas></div>
     </section>
   </div>
   <section class="card" aria-labelledby="prTitle">
-    <div class="card-header"><div><h2 class="section-label" id="prTitle">Priority SKUs</h2><div class="section-meta" id="prMeta">Understocked SKUs, most urgent first.</div></div></div>
+    <div class="card-header"><div style="display:flex;align-items:center"><h2 class="section-label" id="prTitle">Priority SKUs</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Understocked SKUs, most urgent first.">i</span></div></div>
     <div id="prList"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
     <div class="pr-foot"><button class="btn btn-ghost btn-sm" onclick="openReplBucket('order')" id="prViewAll">View all in Replenishment <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span class="text-dim" id="prMore"></span></div>
   </section>
@@ -265,7 +266,7 @@
 
 <!-- ═══ TAB 5: UPLOAD DATA ═══ -->
 <div id="tab-upload" class="tab-content">
-  <div class="page-head"><div><h1>Data<span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Keep the data behind every recommendation current. Weekly: sales, stock (with its report date), then Refresh forecast. Lists and the PO master list only when they change. Sales uploads show a preview before anything is saved.">i</span></h1><div class="page-sub">Data status, uploads and forecast refresh</div></div></div>
+  <div class="page-head"><div><h1>Data<span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Data status, uploads and forecast refresh.&#10;Keep the data behind every recommendation current. Weekly: sales, stock (with its report date), then Refresh forecast. Lists and the PO master list only when they change. Sales uploads show a preview before anything is saved.">i</span></h1></div></div>
   <div class="card" style="margin-bottom:18px">
     <div style="display:flex;align-items:center;margin-bottom:14px"><div class="section-label">Data Status</div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="How current the data behind every recommendation is.">i</span></div>
     <div class="status-list" id="dataStatus"><div class="empty-state">Loading...</div></div>
@@ -286,7 +287,7 @@
   <div class="card" id="etlStatus" style="display:none"><div id="etlStatusContent"></div></div>
   <div class="card" id="etlPreview" style="display:none">
     <div class="card-header"><div class="section-label">Data Preview</div><button class="btn btn-brand" id="btnConfirm" onclick="confirmETL()">Confirm &amp; Import</button></div>
-    <div id="etlStats" style="font-size:13px;color:var(--text3);margin-bottom:12px"></div>
+    <div id="etlStats" style="font-size:15px;color:var(--text3);margin-bottom:12px"></div>
     <div class="tbl-wrap" id="etlPreviewTable"></div>
   </div>
 </div>

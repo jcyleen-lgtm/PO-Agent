@@ -1,55 +1,64 @@
 /* Design tokens (light + dark) and base element styles.
-   Look: warm paper canvas, quiet neutral cards, serif headings and softly diffused pastel accents.
-   Scales — type 11/12/13/14/16/18/20/24/28/36/40 · radius 8/16/24/pill · space 4/8/12/16/24/32. */
+   Look: Flowmapp-style solid white cards on a soft gray canvas, Inter throughout,
+   five-colour pastel family for status chips / tiles / ambient bloom, glass only on chrome (rail, sticky bar, modal).
+   Scales — type 12/13/14/16/18/20/24/28/36/48 · radius 6/12/20/pill · space 4/8/12/16/24/32/48. */
 :root{
-  --bg:#FDFCFA;--card:#F1F1F3;--card-hover:#EAEAF0;--surface:#FFFEFD;--surface2:#F1F1F3;--surface-hover:#F8F7FA;--row-hover:#F8F7FA;
-  --here:var(--bg);--seg:rgba(23,25,28,.06);
-  --text:#17191C;--text2:#454950;--text3:#666A73;
-  --navy:#17191C;--blue:#17191C;--link:#17191C;--teal:#666A73;
-  --tint:#DDC9DF;--tint-soft:#F1E6ED;--accent-ink:#443D50;--wash-ink:#302D3B;--wash-button-hover:rgba(48,45,59,.08);--wash-border:rgba(48,45,59,.23);
-  --primary:#17191C;--primary-hover:#2E3136;--on-primary:#FFFFFF;
-  --panel:#17191C;--on-panel:#FFFFFF;
-  --border:rgba(23,25,28,.09);--border2:rgba(23,25,28,.16);
-  --red:#B4412C;--amber:#8A5A14;--green:#3D6B4F;--slate:#666A73;
-  --red-bg:rgba(180,65,44,.10);--amber-bg:rgba(138,90,20,.11);--green-bg:rgba(61,107,79,.11);--slate-bg:rgba(23,25,28,.06);--blue-bg:rgba(23,25,28,.06);
-  --chart-1:#17191C;--chart-2:#C96A3B;--chart-3:#CFD0D4;--chart-4:#A3A6AF;--chart-act:#17191C;--chart-fc:#C96A3B;--grid:rgba(23,25,28,.07);
-  --input-bg:#F2F2F3;
-  --shadow-pop:0 0 0 1px rgba(4,23,43,.05),0 8px 40px rgba(0,0,0,.10);
-  --radius:24px;--radius-sm:16px;--radius-xs:8px;
-  --focus:0 0 0 3px var(--tint);
-  --font:'Inter',system-ui,-apple-system,sans-serif;
-  --serif:'Source Serif 4','Source Serif Pro',Georgia,'Times New Roman',serif;
-  /* Grain stays at a fixed pixel scale; the displaced blooms stretch with each surface. */
-  --grad:url('/static/img/paper-grain.png') 0 0 / 256px 256px repeat,
-    url('/static/img/pastel-wash-light.svg') center / 100% 100% no-repeat,#FFFDFB;
-  --grad-vivid:var(--grad);
+  /* Pastel family (brief): peach, pink, lavender, mint, powder blue. -soft = chip/tile fill, -ink = text on that fill. */
+  --p-peach:#F6D1AC;--p-pink:#F3B5D2;--p-lav:#C7B8F5;--p-mint:#A7EADC;--p-blue:#AFCDF6;
+  --p-peach-soft:#FCEEDD;--p-pink-soft:#FCE6EF;--p-lav-soft:#EEEAFC;--p-mint-soft:#DFF6F1;--p-blue-soft:#E8F1FD;
+  --p-peach-ink:#7A4A10;--p-pink-ink:#8F2A55;--p-lav-ink:#47389A;--p-mint-ink:#0F6453;--p-blue-ink:#1B4A80;
+  --bg:#F5F6F8;--card:#FFFFFF;--card-hover:#FAFBFC;--surface:#FFFFFF;--surface2:#F4F6F9;--inset:#F4F6F9;--surface-hover:#F1F4F8;--row-hover:#F4F7FB;
+  --here:var(--bg);--seg:#ECEFF3;
+  --text:#16181D;--text2:#30343B;--text3:#5F6772;
+  --navy:#16181D;--blue:#0A7CFF;--link:#0064CC;--teal:#5F6772;
+  --tint:#AFCDF6;--tint-soft:#E8F1FD;--accent-ink:#1B4A80;--wash-ink:#16181D;--wash-button-hover:rgba(22,24,29,.06);--wash-border:rgba(95,103,114,.45);
+  --primary:#16181D;--primary-hover:#2B2F36;--on-primary:#FFFFFF;
+  --panel:#16181D;--on-panel:#FFFFFF;
+  --border:rgba(95,103,114,.16);--border2:rgba(95,103,114,.34);
+  --red:#B4304F;--amber:#8A5412;--green:#12705D;--slate:#5F6772;
+  --red-bg:var(--p-pink-soft);--amber-bg:var(--p-peach-soft);--green-bg:var(--p-mint-soft);--slate-bg:#ECEFF3;--blue-bg:var(--p-blue-soft);
+  --chart-1:#3D8BF2;--chart-2:#8B74E8;--chart-3:#D5DCE5;--chart-4:#3FB8A3;--chart-act:#3D8BF2;--chart-fc:#8B74E8;--grid:rgba(95,103,114,.14);
+  --input-bg:#FFFFFF;
+  --shadow-card:inset 0 1px 0 rgba(255,255,255,.9),0 1px 2px rgba(22,24,29,.04),0 12px 32px -20px rgba(22,24,29,.14);
+  --shadow-pop:0 0 0 1px rgba(22,24,29,.05),0 16px 48px -12px rgba(22,24,29,.18);
+  --glass:rgba(255,255,255,.72);--glass-strong:rgba(255,255,255,.88);--glass-edge:rgba(255,255,255,.85);--glass-blur:blur(17px) saturate(1.4);
+  --bloom-a:.5;
+  --radius:20px;--radius-sm:12px;--radius-xs:6px;--radius-pill:999px;
+  --focus:0 0 0 3px rgba(10,124,255,.24);
+  --font:'Hanken Grotesk',ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --hl:'Newsreader',Georgia,'Times New Roman',serif; /* highlight face: always italic, see .hl */
+  --serif:var(--font); /* legacy alias: every former serif heading now resolves to Inter */
+  --grad:var(--p-blue-soft);--grad-vivid:var(--primary);
 }
 :root[data-theme="dark"]{
-  --grad:url('/static/img/paper-grain.png') 0 0 / 256px 256px repeat,
-    url('/static/img/pastel-wash-dark.svg') center / 100% 100% no-repeat,#2C303A;
-  --grad-vivid:var(--grad);
-  --bg:#17191C;--card:#1F2226;--card-hover:#262A2F;--surface:#262A2F;--surface2:#1F2226;--surface-hover:#2C3036;--row-hover:#2A2E34;
-  --seg:rgba(255,255,255,.07);
-  --text:#F2F2F3;--text2:#C5C8CE;--text3:#9A9EA8;
-  --navy:#F2F2F3;--blue:#F2F2F3;--link:#F2F2F3;--teal:#9A9EA8;
-  --tint:#8C7D9B;--tint-soft:#393442;--accent-ink:#F7F1F8;--wash-ink:#FFF9FD;--wash-button-hover:rgba(255,249,253,.1);--wash-border:rgba(255,249,253,.28);
-  --primary:#F2F2F3;--primary-hover:#FFFFFF;--on-primary:#17191C;
-  --panel:#F2F2F3;--on-panel:#17191C;
-  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.16);
-  --red:#E58A76;--amber:#D9A655;--green:#7FBF9A;--slate:#9A9EA8;
-  --red-bg:rgba(229,138,118,.14);--amber-bg:rgba(217,166,85,.14);--green-bg:rgba(127,191,154,.14);--slate-bg:rgba(255,255,255,.07);--blue-bg:rgba(255,255,255,.07);
-  --chart-1:#F2F2F3;--chart-2:#E9976B;--chart-3:#4A4E56;--chart-4:#7D818B;--chart-act:#F2F2F3;--chart-fc:#E9976B;--grid:rgba(255,255,255,.07);
-  --input-bg:#1F2226;
-  --shadow-pop:0 0 0 1px rgba(255,255,255,.06),0 8px 40px rgba(0,0,0,.5);
+  --p-peach-soft:rgba(246,209,172,.14);--p-pink-soft:rgba(243,181,210,.14);--p-lav-soft:rgba(199,184,245,.16);--p-mint-soft:rgba(167,234,220,.13);--p-blue-soft:rgba(175,205,246,.15);
+  --p-peach-ink:#F6D1AC;--p-pink-ink:#F6C1DA;--p-lav-ink:#D4C8F8;--p-mint-ink:#A7EADC;--p-blue-ink:#BFD8F8;
+  --bg:#101318;--card:#171B22;--card-hover:#1D222B;--surface:#1B2029;--surface2:#202631;--inset:#202631;--surface-hover:#252C38;--row-hover:#1F2630;
+  --seg:#222834;
+  --text:#F4F6F8;--text2:#D9DEE5;--text3:#A3ADB9;
+  --navy:#D9DEE5;--blue:#6AA8F7;--link:#84B9FA;--teal:#A3ADB9;
+  --tint:#2A4A72;--tint-soft:#1C2E45;--accent-ink:#C3DCFA;--wash-ink:#F4F6F8;--wash-button-hover:rgba(255,255,255,.08);--wash-border:rgba(163,173,185,.45);
+  --primary:#F4F6F8;--primary-hover:#DCE3EB;--on-primary:#101318;
+  --panel:#F4F6F8;--on-panel:#101318;
+  --border:rgba(163,173,185,.18);--border2:rgba(163,173,185,.36);
+  --red:#F59AB8;--amber:#F2C08A;--green:#8FE3D1;--slate:#A3ADB9;
+  --slate-bg:rgba(255,255,255,.07);
+  --chart-1:#6AA8F7;--chart-2:#A996F2;--chart-3:#3A4350;--chart-4:#6FD3C0;--chart-act:#6AA8F7;--chart-fc:#A996F2;--grid:rgba(163,173,185,.16);
+  --input-bg:#171B22;
+  --shadow-card:inset 0 1px 0 rgba(255,255,255,.06),0 12px 32px -20px rgba(0,0,0,.6);
+  --shadow-pop:0 0 0 1px rgba(255,255,255,.06),0 16px 48px -12px rgba(0,0,0,.6);
+  --glass:rgba(23,27,34,.68);--glass-strong:rgba(27,32,41,.88);--glass-edge:rgba(255,255,255,.10);
+  --bloom-a:.08;
+  --focus:0 0 0 3px rgba(106,168,247,.32);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
 b,strong{font-weight:500}
 .num,td{font-variant-numeric:tabular-nums}
 [hidden]{display:none!important}
 /* Flat card on the canvas. Inside a card, nested tiles and row hovers turn white. */
-.card{background:var(--card);position:relative;--here:var(--card);--surface2:var(--surface);--row-hover:var(--surface)}
-:root[data-theme="dark"] .card{--surface2:#2A2E34;--row-hover:#2A2E34}
+.card{background:var(--card);position:relative;--here:var(--card);--surface2:var(--inset);--row-hover:var(--surface-hover)}
+
 /* Elevated white surfaces (drawer, modal, popovers) reset the context */
-.drawer,.modal,.cdrop-menu,.date-dropdown,.month-grid,.why{--here:var(--surface);--surface2:var(--card);--row-hover:var(--card)}
+.drawer,.modal,.cdrop-menu,.date-dropdown,.month-grid,.why{--here:var(--surface);--surface2:var(--inset);--row-hover:var(--surface-hover)}
 :focus-visible{outline:none;box-shadow:var(--focus)}

@@ -1,6 +1,6 @@
 /* Replenishment Planning page: order table and selection bar. */
-.ro-table{width:100%;border-collapse:collapse;font-size:13px}
-.ro-table th{font-size:12px;font-weight:500;color:var(--text3);text-align:left;padding:8px 12px;border-bottom:1px solid var(--border2);white-space:nowrap;background:var(--here);position:sticky;top:0;z-index:1}
+.ro-table{width:100%;border-collapse:collapse;font-size:15px}
+.ro-table th{font-size:13px;font-weight:500;color:var(--text3);text-align:left;padding:8px 12px;border-bottom:1px solid var(--border2);white-space:nowrap;background:var(--here);position:sticky;top:0;z-index:1}
 .ro-table td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle;height:48px}
 .ro-table tbody tr{cursor:pointer;transition:background 120ms}
 .ro-table tbody tr:hover{background:var(--row-hover)}
@@ -8,7 +8,7 @@
 .ro-table .r{text-align:right}
 .sel-bar{display:flex;align-items:center;gap:24px;flex-wrap:wrap;padding:12px 12px 12px 24px;border-radius:999px;background:var(--panel);color:var(--on-panel);margin-top:12px;box-shadow:var(--shadow-pop);position:sticky;bottom:12px;z-index:50}
 .sel-bar .sb-v{font-size:20px;font-weight:400;font-family:var(--serif);letter-spacing:-.015em}
-.sel-bar .sb-l{font-size:12px;opacity:.75}
+.sel-bar .sb-l{font-size:13px;opacity:.75}
 .sel-bar .btn{margin-left:auto}
 
 /* R7: purchasing groups, reason badges, System Recommended filter */
@@ -17,11 +17,11 @@
 .tag-fw{background:var(--red-bg);color:var(--red);font-weight:500}
 .tag-cov{background:var(--amber-bg);color:var(--amber)}
 .tag-sys{background:var(--blue-bg);color:var(--text2);font-weight:500}
-.chip-f{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:999px;border:1px solid var(--border2);background:transparent;color:var(--text2);font:500 13px var(--font);cursor:pointer}
-.chip-f .cnt{font-size:12px;font-weight:500;padding:0 8px;border-radius:999px;background:var(--blue-bg);color:var(--text2)}
+.chip-f{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:999px;border:1px solid var(--border2);background:transparent;color:var(--text2);font:500 15px var(--font);cursor:pointer}
+.chip-f .cnt{font-size:13px;font-weight:500;padding:0 8px;border-radius:999px;background:var(--blue-bg);color:var(--text2)}
 .chip-f:hover{background:var(--card)}
 .chip-f.active{border-color:var(--text);background:var(--text);color:var(--bg)}
-.tab-note{font-size:13px;color:var(--text3);margin:0 0 12px}
+.tab-note{font-size:15px;color:var(--text3);margin:0 0 12px}
 .ro-table input.cb:disabled{opacity:1;accent-color:var(--red);cursor:not-allowed}
 .sel-bar .btn-brand{background:var(--on-panel);color:var(--panel)}
 .sel-bar .btn-ghost{border-color:currentColor;color:inherit}
