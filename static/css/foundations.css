@@ -19,8 +19,12 @@
   --focus:0 0 0 3px var(--tint);
   --font:'Inter',system-ui,-apple-system,sans-serif;
   --serif:'Source Serif 4','Source Serif Pro',Georgia,'Times New Roman',serif;
+  --grad:linear-gradient(255deg,rgb(250,203,14),rgb(240,107,168) 30%,rgb(120,186,230) 65%,rgb(255,255,255));
+  --grad-vivid:linear-gradient(255deg,rgb(250,203,14),rgb(240,107,168) 30%,rgb(120,186,230) 65%,rgb(200,220,240));
 }
 :root[data-theme="dark"]{
+  --grad:linear-gradient(255deg,rgb(180,150,30),rgb(180,70,120) 30%,rgb(80,130,170) 65%,rgb(40,44,50));
+  --grad-vivid:linear-gradient(255deg,rgb(200,170,40),rgb(200,90,140) 30%,rgb(100,160,200) 65%,rgb(50,55,65));
   --bg:#17191C;--card:#1F2226;--card-hover:#262A2F;--surface:#262A2F;--surface2:#1F2226;--surface-hover:#2C3036;--row-hover:#2A2E34;
   --seg:rgba(255,255,255,.07);
   --text:#F2F2F3;--text2:#C5C8CE;--text3:#9A9EA8;

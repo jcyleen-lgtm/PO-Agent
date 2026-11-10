@@ -143,9 +143,10 @@ button.op-r:hover{border-color:var(--border)}
 @media(max-width:760px){.ac-strip .ac-buckets{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:1100px){.ov-row-2e{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:768px){.hl-wrap{grid-template-columns:minmax(0,1fr)}.os-grid{grid-template-columns:minmax(0,1fr)}.ac-strip-h .section-meta{margin:0;width:100%}}
-/* the page's single accent surface */
-.ac-strip .ac-b.ac-crit{background:var(--tint-soft);color:var(--accent-ink)}
-.ac-b.ac-crit .ac-b-l,.ac-b.ac-crit .ac-b-s,.ac-b.ac-crit .ac-b-v small,.ac-b.ac-crit .ico-t{color:var(--accent-ink)}
+/* the page's accent surface — gradient on the critical action card */
+.ac-strip .ac-b.ac-crit{background:var(--grad);color:#3A1A0A}
+.ac-b.ac-crit .ac-b-l,.ac-b.ac-crit .ac-b-s,.ac-b.ac-crit .ac-b-v small,.ac-b.ac-crit .ico-t{color:#3A1A0A}
+.ac-b.ac-crit .ac-b-v{color:#3A1A0A}
 .kc-top .ico-t{display:none}
 #ovSales{margin-bottom:8px}
 .os-top.disc{border:none;border-top:1px solid var(--border);border-radius:0;padding:0}

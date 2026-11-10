@@ -1,7 +1,7 @@
 /* Login screen. */
 .login-overlay{position:fixed;inset:0;z-index:200;background:var(--bg);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0;padding:16px;transition:opacity .35s}
 .login-overlay.hidden{opacity:0;pointer-events:none}
-.login-art{position:relative;border-radius:var(--radius);overflow:hidden;color:var(--accent-ink);display:flex;flex-direction:column;justify-content:space-between;padding:40px;background:var(--tint-soft)}
+.login-art{position:relative;border-radius:var(--radius);overflow:hidden;color:var(--accent-ink);display:flex;flex-direction:column;justify-content:space-between;padding:40px;background:var(--grad)}
 .login-art .stars,.login-art .dune{display:none}
 .login-art .brand{position:relative;display:flex;align-items:center;gap:12px;font-weight:500;font-size:16px;letter-spacing:0}
 .login-art .brand svg{width:26px;height:26px}

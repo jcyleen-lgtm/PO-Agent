@@ -10,7 +10,7 @@
 .upload-card .u-title{font-size:20px;font-weight:400;margin-bottom:4px;font-family:var(--serif);letter-spacing:-.015em}
 .upload-card p{font-size:13px;color:var(--text3);margin-bottom:16px}
 .upload-card .drop-hint{font-size:13px;color:var(--text3);margin-top:12px}
-.upload-card.drag{border:none;transform:scale(1.01);box-shadow:0 0 0 2px var(--text)}
+.upload-card.drag{border:none;transform:scale(1.01);box-shadow:0 0 0 3px rgb(240,107,168)}
 .status-success{box-shadow:0 0 0 1.5px var(--green)}
 .status-error{box-shadow:0 0 0 1.5px var(--red)}
 .status-info{box-shadow:0 0 0 1.5px var(--text3)}
