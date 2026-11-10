@@ -1,57 +1,48 @@
-/* Design tokens (light + dark), base element styles and the glass surface. */
+/* Design tokens (light + dark) and base element styles.
+   Look: white paper canvas, flat grey cards, serif headings and figures, one warm peach accent.
+   Scales — type 11/12/13/14/16/18/20/24/28/36/40 · radius 8/16/24/pill · space 4/8/12/16/24/32. */
 :root{
-  --bg:#EEF2F7;--surface:#FFFFFF;--surface2:#F2F4F7;--surface-hover:#F1F6FC;--seg:rgba(38,63,96,.07);
-  --text:#1D232B;--text2:#454D57;--text3:#5E6670;
-  --navy:#263F60;--blue:#3F82C9;--link:#2C69AB;--teal:#59B3CF;--tint:#D8EAFD;--tint-soft:#EAF3FD;
-  --primary:#263F60;--primary-hover:#1D3250;--on-primary:#FFFFFF;
-  --panel:#263F60;--panel-card:rgba(255,255,255,.96);--on-panel:#FFFFFF;
-  --border:rgba(38,63,96,.10);--border2:rgba(38,63,96,.18);
-  --red:#C23838;--amber:#8F5C0E;--green:#1A7450;--slate:#5F6E82;
-  --red-bg:#FCECEC;--amber-bg:#FDF3E2;--green-bg:#E7F5EE;--slate-bg:#EEF1F5;--blue-bg:#E8F1FB;
-  --chart-1:#263F60;--chart-2:#3F82C9;--chart-3:#A3B0C2;--chart-4:#59B3CF;--chart-act:#263F60;--chart-fc:#E07B39;--grid:rgba(38,63,96,.08);
-  --glass-bg:rgba(255,255,255,.58);
-  --glass-border:rgba(255,255,255,.75);
-  --glass-hi:rgba(255,255,255,.9);
-  --glass-shadow:0 8px 32px rgba(38,63,96,.08),inset 0 1px 0 rgba(255,255,255,.6),inset 0 -1px 0 rgba(255,255,255,.12),inset 0 0 20px 8px rgba(255,255,255,.7);
-  --glass-solid:#F7F9FC;--row-hover:rgba(63,130,201,.06);
-  --nav-active:#FFFFFF;--nav-active-shadow:0 2px 8px rgba(38,63,96,.12);
-  --input-bg:#FFFFFF;
-  --shadow-pop:0 12px 32px rgba(38,63,96,.16);
-  --backdrop:radial-gradient(60% 50% at 10% 0%,rgba(63,130,201,.20),transparent 70%),radial-gradient(50% 45% at 95% 15%,rgba(89,179,207,.18),transparent 70%),radial-gradient(60% 50% at 60% 100%,rgba(38,63,96,.14),transparent 70%);
-  --radius:14px;--radius-sm:10px;--radius-xs:6px;
-  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;
-  --card-shadow:0 1px 2px rgba(16,24,40,.05);
-  --focus:0 0 0 3px rgba(63,130,201,.35);
+  --bg:#FFFFFF;--card:#F2F2F3;--card-hover:#EAEAEC;--surface:#FFFFFF;--surface2:#F2F2F3;--surface-hover:#FAFAFB;--row-hover:#FAFAFB;
+  --here:var(--bg);--seg:rgba(23,25,28,.06);
+  --text:#17191C;--text2:#454950;--text3:#666A73;
+  --navy:#17191C;--blue:#17191C;--link:#17191C;--teal:#666A73;
+  --tint:#F3CDB6;--tint-soft:#FBE1D1;--accent-ink:#5D2A1A;
+  --primary:#17191C;--primary-hover:#2E3136;--on-primary:#FFFFFF;
+  --panel:#17191C;--on-panel:#FFFFFF;
+  --border:rgba(23,25,28,.09);--border2:rgba(23,25,28,.16);
+  --red:#B4412C;--amber:#8A5A14;--green:#3D6B4F;--slate:#666A73;
+  --red-bg:rgba(180,65,44,.10);--amber-bg:rgba(138,90,20,.11);--green-bg:rgba(61,107,79,.11);--slate-bg:rgba(23,25,28,.06);--blue-bg:rgba(23,25,28,.06);
+  --chart-1:#17191C;--chart-2:#C96A3B;--chart-3:#CFD0D4;--chart-4:#A3A6AF;--chart-act:#17191C;--chart-fc:#C96A3B;--grid:rgba(23,25,28,.07);
+  --input-bg:#F2F2F3;
+  --shadow-pop:0 0 0 1px rgba(4,23,43,.05),0 8px 40px rgba(0,0,0,.10);
+  --radius:24px;--radius-sm:16px;--radius-xs:8px;
+  --focus:0 0 0 3px var(--tint);
   --font:'Inter',system-ui,-apple-system,sans-serif;
+  --serif:'Source Serif 4','Source Serif Pro',Georgia,'Times New Roman',serif;
 }
 :root[data-theme="dark"]{
-  --bg:#0B111B;--surface:#151F2C;--surface2:#1B2736;--surface-hover:#1A2533;--seg:rgba(255,255,255,.06);
-  --text:#EEF1F6;--text2:#BCC5D1;--text3:#97A2B1;
-  --navy:#9CC1EC;--blue:#5B9BE0;--link:#7DB0EA;--teal:#6CC3DD;--tint:#1F3550;--tint-soft:rgba(91,155,224,.10);
-  --primary:#3F6FB8;--primary-hover:#4E82CF;--on-primary:#FFFFFF;
-  --panel:#1B2B42;--panel-card:rgba(21,31,44,.85);--on-panel:#EEF1F6;
-  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
-  --red:#F07B7B;--amber:#EDBA55;--green:#55C893;--slate:#9AA6B6;
-  --red-bg:rgba(240,123,123,.13);--amber-bg:rgba(237,186,85,.13);--green-bg:rgba(85,200,147,.13);--slate-bg:rgba(154,166,182,.13);--blue-bg:rgba(91,155,224,.15);
-  --chart-1:#9CC1EC;--chart-2:#5B9BE0;--chart-3:#5C6B80;--chart-4:#6CC3DD;--chart-act:#7FB2EC;--chart-fc:#F4A261;--grid:rgba(255,255,255,.06);
-  --glass-bg:rgba(22,32,46,.55);
-  --glass-border:rgba(255,255,255,.09);
-  --glass-hi:rgba(255,255,255,.22);
-  --glass-shadow:0 8px 32px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.08),inset 0 -1px 0 rgba(255,255,255,.02),inset 0 0 20px 8px rgba(255,255,255,.025);
-  --glass-solid:#131C28;--row-hover:rgba(91,155,224,.07);
-  --nav-active:rgba(255,255,255,.10);--nav-active-shadow:none;
-  --input-bg:#F1F3F7;
-  --shadow-pop:0 12px 32px rgba(0,0,0,.5);
-  --card-shadow:0 1px 2px rgba(0,0,0,.35);
-  --backdrop:radial-gradient(60% 50% at 10% 0%,rgba(63,111,184,.22),transparent 70%),radial-gradient(50% 45% at 95% 15%,rgba(89,179,207,.10),transparent 70%),radial-gradient(60% 50% at 60% 100%,rgba(38,63,96,.35),transparent 70%);
+  --bg:#17191C;--card:#1F2226;--card-hover:#262A2F;--surface:#262A2F;--surface2:#1F2226;--surface-hover:#2C3036;--row-hover:#2A2E34;
+  --seg:rgba(255,255,255,.07);
+  --text:#F2F2F3;--text2:#C5C8CE;--text3:#9A9EA8;
+  --navy:#F2F2F3;--blue:#F2F2F3;--link:#F2F2F3;--teal:#9A9EA8;
+  --tint:#6B4A3A;--tint-soft:#3A2A22;--accent-ink:#FBE1D1;
+  --primary:#F2F2F3;--primary-hover:#FFFFFF;--on-primary:#17191C;
+  --panel:#F2F2F3;--on-panel:#17191C;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.16);
+  --red:#E58A76;--amber:#D9A655;--green:#7FBF9A;--slate:#9A9EA8;
+  --red-bg:rgba(229,138,118,.14);--amber-bg:rgba(217,166,85,.14);--green-bg:rgba(127,191,154,.14);--slate-bg:rgba(255,255,255,.07);--blue-bg:rgba(255,255,255,.07);
+  --chart-1:#F2F2F3;--chart-2:#E9976B;--chart-3:#4A4E56;--chart-4:#7D818B;--chart-act:#F2F2F3;--chart-fc:#E9976B;--grid:rgba(255,255,255,.07);
+  --input-bg:#1F2226;
+  --shadow-pop:0 0 0 1px rgba(255,255,255,.06),0 8px 40px rgba(0,0,0,.5);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
-body::before{content:'';position:fixed;inset:0;background:var(--backdrop);pointer-events:none;z-index:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:500}
 .num,td{font-variant-numeric:tabular-nums}
 [hidden]{display:none!important}
-.glass{background:var(--glass-bg);-webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);position:relative}
-.card{background:var(--surface);border:1px solid var(--border);box-shadow:var(--card-shadow);position:relative}
-.glass::before{content:'';position:absolute;top:0;left:20px;right:20px;height:1px;background:linear-gradient(90deg,transparent,var(--glass-hi),transparent);pointer-events:none}
-.glass::after{content:'';position:absolute;top:20px;bottom:20px;left:0;width:1px;background:linear-gradient(180deg,var(--glass-hi),transparent,rgba(255,255,255,.15));pointer-events:none}
+/* Flat card on the canvas. Inside a card, nested tiles and row hovers turn white. */
+.card{background:var(--card);position:relative;--here:var(--card);--surface2:var(--surface);--row-hover:var(--surface)}
+:root[data-theme="dark"] .card{--surface2:#2A2E34;--row-hover:#2A2E34}
+/* Elevated white surfaces (drawer, modal, popovers) reset the context */
+.drawer,.modal,.cdrop-menu,.date-dropdown,.month-grid,.why{--here:var(--surface);--surface2:var(--card);--row-hover:var(--card)}
 :focus-visible{outline:none;box-shadow:var(--focus)}
