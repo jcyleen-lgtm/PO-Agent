@@ -11,6 +11,8 @@ import re
 import os
 import hashlib
 
+from src.parsers.name_match import group_skus, norm_name
+
 
 def load_master_sku(filepath: str = None) -> dict:
     """Load master SKU mapping from Excel. Returns {description_lower: sku}."""
@@ -191,6 +193,12 @@ def clean_sales_data(filepath: str, master_sku: dict = None, db_product_lookup: 
     combined_lookup.update(master_sku)        # file-based (lower priority)
     combined_lookup.update(db_product_lookup)  # DB-based (higher priority)
     exact_lookup = getattr(db_product_lookup, "exact", {}) or {}
+    # Group / category codes (a code with codes under it, e.g. 299.052.02.011 "Tang") are never sold:
+    # keep them out of the lookup so no sales row can land on a category.
+    groups = group_skus(set(combined_lookup.values()) | set(exact_lookup.values()))
+    exact_lookup = {k: v for k, v in exact_lookup.items() if v not in groups}
+    norm_lookup = {norm_name(k): v for k, v in combined_lookup.items() if v not in groups}
+    stats["group_codes_excluded"] = len(groups)
 
     # Auto-generate stable SKUs for unmatched products
     # Uses hash of product name so re-uploads produce the same SKU
@@ -212,15 +220,12 @@ def clean_sales_data(filepath: str, master_sku: dict = None, db_product_lookup: 
         # Pattern 2a: same spelling incl. capitals (DB products)
         if s in exact_lookup:
             return exact_lookup[s], s
-        # Pattern 2b: exact match ignoring capitals in combined lookup (DB + master file)
-        lookup_key = s.lower()
-        if lookup_key in combined_lookup:
-            return combined_lookup[lookup_key], s
-        # Pattern 3: partial match (substring in either direction)
-        for desc_key, sku_val in combined_lookup.items():
-            if desc_key in lookup_key or lookup_key in desc_key:
-                return sku_val, s
-        # Pattern 4: auto-generate SKU for unmatched products
+        # Pattern 2b: same name ignoring capitals and repeated spaces (DB + master file).
+        # No substring fallback: it matched "Sarung tangan ..." to the category "Tang".
+        lookup_key = norm_name(s)
+        if lookup_key in norm_lookup:
+            return norm_lookup[lookup_key], s
+        # Pattern 3: unknown name -> stable AUTO- code, listed in stats["unmatched_names"]
         if lookup_key not in auto_sku_cache:
             auto_sku_cache[lookup_key] = _generate_sku(s)
         return auto_sku_cache[lookup_key], s
@@ -235,6 +240,7 @@ def clean_sales_data(filepath: str, master_sku: dict = None, db_product_lookup: 
     stats["sku_auto_generated"] = int(is_auto.sum())
     stats["sku_unmatched"] = int((df["SKU"] == "0").sum())
     stats["auto_sku_products"] = len(auto_sku_cache)
+    stats["unmatched_names"] = sorted(df.loc[is_auto & is_transaction, "product_name"].dropna().astype(str).unique().tolist())
 
     # ── Step 7: Hanya simpan baris transaksi ──────────────────
     before_rows = len(df)

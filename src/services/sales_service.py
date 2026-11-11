@@ -14,7 +14,9 @@ from src.core.database import get_engine
 from src.repositories import inventory as stock_repo, sales as sales_repo, sales_reports as reports
 from src.core.ddl import ensure_sales_excluded
 from src.core.state import forecast_cache, master_sku, processed_cache
+from src.parsers.name_match import group_skus
 from src.parsers.sku_lists import is_food
+from src.repositories import products as product_repo
 from src.repositories.products import load_food_rules
 from src.services.forecast_service import _run_auto_forecast
 
@@ -44,6 +46,13 @@ async def etl_upload(filename: str, content: bytes):
         "df": df, "filepath": save_path,
         "filename": filename, "created_at": datetime.now().isoformat(),
     }
+    # An upload replaces every sales row already stored for the file's date range (see etl_confirm),
+    # so the preview says how many stored rows that is before anything is written.
+    d1, d2 = _file_range(df)
+    if d1:
+        with get_engine().connect() as c:
+            result["stats"]["replace_from"], result["stats"]["replace_to"] = str(d1), str(d2)
+            result["stats"]["replace_existing_rows"] = sales_repo.rows_in_range(c, d1, d2)
     preview_rows = df.head(20).copy()
     for col in preview_rows.columns:
         if preview_rows[col].dtype == "datetime64[ns]":
@@ -54,6 +63,15 @@ async def etl_upload(filename: str, content: bytes):
         "stats": result["stats"], "preview": preview_rows,
         "columns": list(df.columns),
     }
+
+
+def _file_range(df):
+    """(first, last) invoice date in a cleaned sales file, or (None, None)."""
+    col = "invoice_date" if "invoice_date" in df.columns else ("date" if "date" in df.columns else None)
+    if not col:
+        return None, None
+    d = pd.to_datetime(df[col], errors="coerce").dropna()
+    return (d.min().date(), d.max().date()) if len(d) else (None, None)
 
 
 async def etl_confirm(file_id: str):
@@ -113,7 +131,8 @@ async def etl_confirm(file_id: str):
                 ptype = "food" if is_food(sku_, pname, food_codes, food_names) else "import"
                 food_tagged += ptype == "food"
             prod_rows.append((str(sku_), pname, ptype))
-        inserted, food_rows = sales_repo.import_sales(prod_rows, sales)
+        d1, d2 = _file_range(df)
+        inserted, food_rows, replaced = sales_repo.import_sales(prod_rows, sales, d1, d2)
         skipped = len(sales) - inserted - food_rows
         total = inserted
         engine = get_engine()
@@ -128,7 +147,9 @@ async def etl_confirm(file_id: str):
 
         return {
             "status": "success",
-            "message": f"{total:,} baris baru ditambahkan ({skipped:,} duplikat di-skip)"
+            "message": (f"{d1} s/d {d2}: {replaced:,} baris lama diganti, {total:,} baris dimuat" if d1
+                        else f"{total:,} baris dimuat")
+                       + (f" ({skipped:,} baris kembar dalam file digabung)" if skipped else "")
                        + (f" · {food_rows:,} baris penjualan food dikeluarkan ({food_tagged:,} produk food)" if food_rows else ""),
             "food_rows_excluded": food_rows,
             "food_products_tagged": food_tagged,
@@ -171,6 +192,14 @@ async def stock_upload(filename: str, content: bytes, report_date: str = None):
         raw[2] = raw[2].apply(parse_id_qty)
         df = raw[raw[0].apply(lambda s: len(s.replace("-",".").split(".")) >= 3)].copy()
         df = df.rename(columns={0:"sku", 1:"product", 2:"quantity"})
+        # Group / category rows (a code with codes under it) carry the total of their items: keeping
+        # them counts that stock twice. Groups are found in the file itself and in the products table.
+        with get_engine().connect() as c:
+            known = [r[0] for r in product_repo.all_names(c)]
+        groups = group_skus(set(df["sku"]) | set(known))
+        is_group = df["sku"].isin(groups)
+        group_rows = int(is_group.sum())
+        df = df[~is_group].copy()
         df["quantity"] = df["quantity"].astype(int)
         today = snap_day
         stock_skus = sorted(set(df["sku"].astype(str).str.strip()))
@@ -180,7 +209,8 @@ async def stock_upload(filename: str, content: bytes, report_date: str = None):
             [(str(s_), int(q_), today) for s_, q_ in zip(df["sku"], df["quantity"])])
         saved = len(df)
         os.remove(tmp)
-        return {"status":"success","message":f"{saved} SKU stock saved for {today}","date":str(today),"total_skus":saved}
+        msg = f"{saved} SKU stock saved for {today}" + (f" ({group_rows} category rows skipped)" if group_rows else "")
+        return {"status":"success","message":msg,"date":str(today),"total_skus":saved,"group_rows_skipped":group_rows}
     except Exception as e:
         if os.path.exists(tmp): os.remove(tmp)
         raise HTTPException(500, f"Gagal parse: {e}")

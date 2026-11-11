@@ -77,13 +77,24 @@ def weekly_for_sku(conn, sku, after):
         """), {"s": sku, "a": after}).fetchall()
 
 
-def import_sales(prod_rows, sales):
+def rows_in_range(conn, d1, d2):
+    """Stored sales rows (incl. archived food rows) dated d1..d2: what an upload of that range replaces."""
+    return int(conn.execute(text(
+        "SELECT (SELECT COUNT(*) FROM sales WHERE invoice_date BETWEEN :a AND :b)"
+        " + (SELECT COUNT(*) FROM sales_excluded WHERE reason = 'food' AND invoice_date BETWEEN :a AND :b)"),
+        {"a": d1, "b": d2}).scalar() or 0)
+
+
+def import_sales(prod_rows, sales, d1=None, d2=None):
     """Sales ETL write, one transaction:
     1. upsert products [(sku, name, product_type or None)] (type kept when None),
     2. COPY the cleaned rows into a temp staging table,
     3. food products' rows go to sales_excluded (reason 'food') and leave the stage,
-    4. insert the rest into sales, skipping rows that already exist (same sku + date + qty + amount).
-    `sales` is the DataFrame with the SALES_COLS columns. Returns (inserted rows, food rows archived)."""
+    4. when the file's date range d1..d2 is given, delete the stored rows of that range first (sales and
+       archived food rows), so an upload replaces its period instead of adding to it. Re-uploading a
+       corrected export therefore fixes rows that were matched to the wrong SKU before,
+    5. insert the rest into sales.
+    `sales` is the DataFrame with the SALES_COLS columns. Returns (inserted, food rows archived, rows replaced)."""
     conn = get_raw_conn()
     conn.autocommit = False
     cur = conn.cursor()
@@ -123,6 +134,12 @@ def import_sales(prod_rows, sales):
                                'cogs_accurate','gpao_accurate','gpao_pct_acc',
                                'week_label','month_label','quarter_label','year_val'))
         # Food products never enter the sales table: their rows go to the archive (reason 'food').
+        replaced = 0
+        if d1 and d2:
+            cur.execute("DELETE FROM sales WHERE invoice_date BETWEEN %s AND %s", (d1, d2))
+            replaced = cur.rowcount
+            cur.execute("DELETE FROM sales_excluded WHERE reason = 'food' AND invoice_date BETWEEN %s AND %s", (d1, d2))
+            replaced += cur.rowcount
         food_list = [p_[0] for p_ in prod_rows if p_[2] == "food"]
         food_rows = 0
         if food_list:
@@ -160,4 +177,4 @@ def import_sales(prod_rows, sales):
     finally:
         cur.close()
         conn.close()
-    return inserted, food_rows
+    return inserted, food_rows, replaced

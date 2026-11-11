@@ -11,6 +11,7 @@ from src.core.config import UPLOAD_DIR, get_settings
 from src.core.database import get_engine
 from src.core.ddl import ensure_po_columns
 from src.core.state import master_sku
+from src.parsers.name_match import group_skus, norm_name
 from src.parsers.po_master import _is_po_master, _parse_po_master, map_po_columns
 from src.repositories import products as product_repo, purchase_orders as po_repo
 from src.repositories.purchase_orders import _import_po_master
@@ -70,8 +71,12 @@ async def po_upload(filename: str, content: bytes):
         product_lookup = {}
         with engine.connect() as c:
             rows = product_repo.all_names(c)
-            for r in rows:
-                product_lookup[r[1].strip().lower()] = r[0]
+        # Exact name match only (capitals / repeated spaces ignored); group codes are never a PO line.
+        groups = group_skus([r[0] for r in rows] + list(master_sku.values()))
+        for r in rows:
+            if r[1] and r[0] not in groups:
+                product_lookup[norm_name(r[1])] = r[0]
+        master_lookup = {norm_name(k): v for k, v in master_sku.items() if v not in groups}
 
         if "sku" not in df.columns:
             df["sku"] = ""
@@ -85,22 +90,11 @@ async def po_upload(filename: str, content: bytes):
 
             # Try SKU first, then name lookup from products table
             if not sku or sku in ("", "nan", "0"):
-                sku = product_lookup.get(pname.lower(), "")
-                # Partial match fallback (products table)
-                if not sku:
-                    for db_name, db_sku in product_lookup.items():
-                        if db_name in pname.lower() or pname.lower() in db_name:
-                            sku = db_sku
-                            break
+                sku = product_lookup.get(norm_name(pname), "")
 
             # Fallback to master_sku if still no match
             if not sku and master_sku:
-                sku = master_sku.get(pname.lower(), "")
-                if not sku:
-                    for desc_key, sku_val in master_sku.items():
-                        if desc_key in pname.lower() or pname.lower() in desc_key:
-                            sku = sku_val
-                            break
+                sku = master_lookup.get(norm_name(pname), "")
                 if sku:
                     new_products.append({"sku": sku, "name": pname})
 
