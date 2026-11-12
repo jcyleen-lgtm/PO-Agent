@@ -68,30 +68,41 @@ def holts_des(series: list, alpha: float, beta: float, forecast_periods: int = 1
 
     mape = (sum(errors) / len(errors) * 100) if errors else 999
 
+    # MAE of the one-step fitted values (skip first period; zero weeks count too). This is the
+    # parameter-selection criterion: unlike MAPE it is not blown up by weeks with very small sales.
+    abs_err = [abs(series[t] - fitted[t]) for t in range(1, n)]
+    mae = sum(abs_err) / len(abs_err)
+
     return {
         "fitted": fitted,
         "forecasts": forecasts,
         "level": level,
         "trend": trend,
         "mape": round(mape, 4),
+        "mae": mae,
     }
+
+
+ALPHA_GRID = [a / 10 for a in range(1, 10)]   # 0.1 – 0.9
+BETA_GRID = [0.1]                             # fixed: the sales show no lasting trend (see analysis/)
 
 
 def grid_search_holts(series: list, forecast_periods: int = 12) -> dict:
     """
-    Grid search optimal α and β for Holt's DES.
-    α: 0.1–0.9, β: 0.1–0.9 (81 combinations).
+    Grid search for Holt's DES parameters.
+    α: 0.1–0.9 (9 values), β fixed at 0.1; the pair with the lowest in-sample MAE wins
+    (ties keep the smaller α). MAPE is still computed and reported, but no longer chooses α/β:
+    a rolling-origin test over 6 periods x 8 weeks showed min-MAPE selection with β up to 0.9
+    projects week-to-week noise as trend (pooled WMAPE 102.0% vs 86.1% for this rule).
     """
     best = None
-    best_mape = float("inf")
+    best_mae = float("inf")
 
-    for a in range(1, 10):
-        for b in range(1, 10):
-            alpha = a / 10
-            beta = b / 10
+    for alpha in ALPHA_GRID:
+        for beta in BETA_GRID:
             result = holts_des(series, alpha, beta, forecast_periods)
-            if result and result["mape"] < best_mape:
-                best_mape = result["mape"]
+            if result and result["mae"] < best_mae:
+                best_mae = result["mae"]
                 best = {"alpha": alpha, "beta": beta, **result}
 
     return best
@@ -104,7 +115,7 @@ MIN_TRAIN_WEEKS = 12
 def holdout_wmape(series: list, holdout: int = HOLDOUT_WEEKS, min_train: int = MIN_TRAIN_WEEKS) -> dict:
     """Out-of-sample accuracy without data leakage.
     1) Split chronologically: train = all weeks except the last `holdout`, test = the last `holdout`.
-    2) Choose alpha/beta with the same 81-combination grid search, on the TRAIN weeks only.
+    2) Choose alpha/beta with the same grid search (grid_search_holts), on the TRAIN weeks only.
     3) Forecast `holdout` weeks ahead from the end of train (no refit on test actuals).
     4) WMAPE = sum|actual - forecast| / sum(actual) x 100 (defined when test weeks have any sales).
     The in-sample MAPE stays the thesis metric; this one is reported next to it, never instead of it."""

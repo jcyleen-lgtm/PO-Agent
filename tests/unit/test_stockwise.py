@@ -240,3 +240,15 @@ def test_po_master_parse():
     assert lines[3]["order_date"] is None and any("0206" in w for w in warnings)   # year 0206 -> blank + warning
     assert lines[2]["expected_date"] is None                                        # #REF! ignored
     assert any("Over" in w for w in warnings)                                       # 12 received of 10
+
+# parameter selection: α on 0.1–0.9, β fixed 0.1, lowest in-sample MAE (not MAPE)
+def test_grid_search_uses_mae_and_fixed_beta():
+    from forecast import holts_des
+    series = [12, 0, 30, 5, 22, 1, 40, 8, 19, 2, 35, 6, 25, 3]   # erratic, with near-zero weeks
+    best = grid_search_holts(series, 8)
+    assert best["beta"] == 0.1
+    maes = {a / 10: holts_des(series, a / 10, 0.1, 8)["mae"] for a in range(1, 10)}
+    assert best["alpha"] == min(maes, key=lambda a: (maes[a], a))
+    assert best["mae"] == maes[best["alpha"]]
+    # MAPE is still reported for the thesis tables
+    assert best["mape"] == holts_des(series, best["alpha"], 0.1, 8)["mape"]
