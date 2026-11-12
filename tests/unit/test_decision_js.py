@@ -1,8 +1,9 @@
 """Purchasing groups and SKU explanations (static/js/core/decision.js), run in Node.
 
-Revision R7 rules (docs/revision-r7): Understocked + recommended > 0 → Order Now (mandatory in the export);
-Understocked + recommended 0 → Covered / Monitor with a reason (stock / PO sufficient, or the Holt forecast reaches 0
-within the lead time = forecast warning); Healthy → Hold; Overstocked → No Action Needed; no status → Not classified.
+Rules since 7 Nov 2026 (one group per status, no Hold group): Understocked → Order Now (recommended > 0 is
+mandatory in the export; recommended 0 stays in Order Now with a reason: stock / PO sufficient, or the Holt forecast
+reaches 0 within the lead time = forecast warning); Healthy → Monitor (bucket key "covered");
+Overstocked → No Action Needed; no status → Not classified.
 Healthy with a recommendation > 0 is flagged System Recommended and never pre-selected.
 Skipped when Node is not installed."""
 
@@ -25,19 +26,19 @@ ROWS = [
          stockout_week=1, lt_demand_8w=2034.8, safety_stock=203.5, inventory_position=0, coverage=0.0, fc=FC_COVER,
          expect="order"),
     dict(sku="B", status="understocked", reco_po=0, coverage=7.0, lt_demand_8w=1240, safety_stock=124,
-         inventory_position=1860, avg_l4w=264.8, fc=FC_COVER, expect="covered", zero="covered"),
+         inventory_position=1860, avg_l4w=264.8, fc=FC_COVER, expect="order", zero="sufficient"),
     dict(sku="C", status="understocked", reco_po=0, coverage=1.1, lt_demand_8w=30.5, safety_stock=3.1,
-         inventory_position=49, avg_l4w=43.8, fc=FC_ZERO, expect="covered", zero="forecast_zero"),
+         inventory_position=49, avg_l4w=43.8, fc=FC_ZERO, expect="order", zero="forecast_zero"),
     dict(sku="D", status="understocked", reco_po=0, coverage=7.8, lt_demand_8w=19.1, safety_stock=1.9,
-         inventory_position=35, avg_l4w=4.5, fc=FC_LATE_ZERO, expect="covered", zero="covered"),
+         inventory_position=35, avg_l4w=4.5, fc=FC_LATE_ZERO, expect="order", zero="sufficient"),
     dict(sku="E", status="healthy", reco_po=420, coverage=12.0, lt_demand_8w=900, safety_stock=90,
-         inventory_position=570, fc=FC_COVER, expect="hold", sys=True),
+         inventory_position=570, fc=FC_COVER, expect="covered", sys=True),
     dict(sku="F", status="healthy", reco_po=0, coverage=15.0, lt_demand_8w=100, safety_stock=10,
-         inventory_position=300, fc=FC_COVER, expect="hold", sys=False),
+         inventory_position=300, fc=FC_COVER, expect="covered", sys=False),
     dict(sku="G", status="overstocked", reco_po=0, coverage=26.0, fc=FC_COVER, expect="none"),
     dict(sku="H", status=None, reco_po=0, expect="unclassified"),
     dict(sku="I", status="understocked", reco_po=0, coverage=3.0, lt_demand_8w=0, safety_stock=0,
-         inventory_position=6, expect="covered", zero="unknown"),        # no weekly forecast loaded
+         inventory_position=6, expect="order", zero="unknown"),        # no weekly forecast loaded
     dict(sku="J", expect="unclassified"),                                # no data at all
 ]
 
@@ -76,7 +77,7 @@ def test_groups_follow_status_and_recommendation(result):
 
 
 def test_every_sku_in_exactly_one_group(result):
-    assert all(result[r["sku"]]["bucket"] in {"order", "covered", "hold", "none", "unclassified"} for r in ROWS)
+    assert all(result[r["sku"]]["bucket"] in {"order", "covered", "none", "unclassified"} for r in ROWS)
 
 
 def test_zero_reason_separates_cover_from_forecast_warning(result):
