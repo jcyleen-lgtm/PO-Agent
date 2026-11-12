@@ -248,3 +248,8 @@ select:not([multiple]):not([size]):focus-visible{outline:none;border-color:var(-
 .nav-logout:hover{color:var(--red)}
 @media(min-width:769px){.nav-actions .nav-item:last-child .tip{left:auto;right:0;transform:none}.nav-actions .nav-item:not(:last-child) .tip{left:50%;right:auto;transform:translateX(-50%)}}
 @media(max-width:768px){.nav-logout{display:none}}
+
+/* ── r11: product drawer accuracy row, forecast chip period ── */
+.fva-acc{margin:8px 0 12px}
+.fva-acc .d-l{display:flex;align-items:center}
+#ovAsOf .chip .text-dim{margin-left:6px;font-weight:400}

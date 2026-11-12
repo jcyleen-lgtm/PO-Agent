@@ -83,6 +83,16 @@ def get_forecast_light(engine):
     return light
 
 
+def _horizon(light):
+    """First and last forecast week (Monday) across SKUs, from the latest sales week onward."""
+    weeks = [r["forecast_data"]["weeks"] for r in light if r.get("forecast_data", {}).get("weeks")]
+    if not weeks:
+        return {"horizon_start": None, "horizon_end": None, "horizon_weeks": 0}
+    start = max(w[0] for w in weeks)
+    run = max((w for w in weeks if w[0] == start), key=len)
+    return {"horizon_start": start, "horizon_end": run[-1], "horizon_weeks": len(run)}
+
+
 def forecast_summary_fast(engine, product_type="all"):
     """Headline forecast numbers for the Overview, from the light forecast (one cached query)."""
     light = get_forecast_light(engine)
@@ -116,6 +126,8 @@ def forecast_summary_fast(engine, product_type="all"):
         "trending_down": len([r for r in light if r["trend_class"] == "decreasing"]),
         "trend_basis": "relative_8w_10pct",
         "calculated_at": calc,
+        # forecast period: weeks (Monday starts) after the latest week of sales data
+        **_horizon(light),
     }
 
 

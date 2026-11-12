@@ -65,12 +65,25 @@ async function loadOverview() {
 function renderOvAsOf() {
   const f = (replData && replData.freshness) || {};
   let h = `<button class="chip" onclick="switchTab('upload')" title="Stock report date · open the Data page">${ico('cal', 'ico-s')}Stock snapshot <b>${f.stock_date ? dfmt(f.stock_date) : 'none'}</b></button>`;
-  if (ovFc && ovFc.calculated_at) h += `<button class="chip" onclick="switchTab('upload')" title="Last forecast run · open the Data page">${ico('fc', 'ico-s')}Forecast <b>${fmtStamp(ovFc.calculated_at)}</b></button>`;
+  if (ovFc && ovFc.calculated_at) {
+    // the period being forecast (from the week after the latest sales data), then when it was calculated
+    const end = ovFc.horizon_end ? new Date(ovFc.horizon_end + 'T00:00:00') : null;
+    if (end) end.setDate(end.getDate() + 6);                       // last forecast week runs Monday to Sunday
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const period = ovFc.horizon_start && end ? `${dfmt(ovFc.horizon_start)} – ${dfmt(iso(end))}` : '';
+    const tip = `${ovFc.horizon_weeks || 12}-week forecast, from the week after the latest sales data. Updated ${fmtStamp(ovFc.calculated_at)} (runs after every sales upload). Open the Data page`;
+    h += `<button class="chip" onclick="switchTab('upload')" title="${esc(tip)}">${ico('fc', 'ico-s')}Forecast <b>${period || fmtStamp(ovFc.calculated_at)}</b>${period ? `<span class="text-dim">· updated ${fmtStamp(ovFc.calculated_at)}</span>` : ''}</button>`;
+  }
   document.getElementById('ovAsOf').innerHTML = h;
 }
 function fmtStamp(ts) {
-  const s = String(ts), d = s.slice(0, 10), t = s.length > 15 ? s.slice(11, 16) : '';
-  return dfmt(d) + (t ? ' ' + t : '');
+  // Timestamps come from the server in UTC ("2026-11-11T10:03:11+00:00"); show them in the viewer's local time.
+  const s = String(ts);
+  if (s.length <= 10) return dfmt(s);
+  const dt = new Date(s.replace(' ', 'T'));
+  if (isNaN(dt)) return dfmt(s.slice(0, 10)) + ' ' + s.slice(11, 16);
+  const p = n => String(n).padStart(2, '0');
+  return dfmt(`${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`) + ' ' + p(dt.getHours()) + ':' + p(dt.getMinutes());
 }
 
 /* B. KPIs. Out of stock is a subset of the statuses, never added to them. */
