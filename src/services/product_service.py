@@ -8,6 +8,7 @@ from fastapi import HTTPException
 import pandas as pd
 
 from src.core.database import get_engine
+from src.core.config import INCLUDE_HERO_SKUS
 from src.core.ddl import ensure_food_tables, ensure_hero_table
 from src.core.state import forecast_cache, master_sku
 from src.parsers.sku_lists import _hero_columns, _norm_name, is_food, read_sku_name_sheet
@@ -105,7 +106,7 @@ async def bestseller_scope():
     with engine.begin() as conn:
         ensure_hero_table(conn)
         sales = sales_repo.import_revenue_ranking(conn)
-        hero = hero_repo.list_with_names(conn)
+        hero = hero_repo.list_with_names(conn) if INCLUDE_HERO_SKUS else {}
     try:
         fc = {r["sku"]: r for r in get_forecast_light(engine)}
     except Exception:

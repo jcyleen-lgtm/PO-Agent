@@ -44,7 +44,23 @@ def test_po_master_import(seeded):
     assert c.get("/api/replenishment?product_type=all").status_code == 200
 
 
-def test_hero_scope(seeded):
+def test_hero_list_does_not_change_scope(seeded):
+    """Scope = Pareto 80% only (INCLUDE_HERO_SKUS off): an uploaded Hero list is stored but adds no SKU."""
+    c, E, S, skus = seeded["client"], seeded["engine"], seeded["S"], seeded["skus"]
+    base = {r[0] for r in q(E, "SELECT sku FROM forecast_results")}
+    j = c.post("/api/hero-sku/upload", files={"file": ("HERO.xlsx", S.hero_file(skus, base), "x")}).json()
+    assert j["skus_saved"] == 5
+    sm = c.post("/api/forecast/run").json()["summary"]
+    assert sm["hero_skus"] == 0
+    assert {r[0] for r in q(E, "SELECT sku FROM forecast_results")} == base
+    sc = c.get("/api/bestseller/scope").json()
+    assert sc["counts"]["hero_only"] == 0 and sc["forecast_stale"] is False
+    from sqlalchemy import text
+    with E.begin() as k:
+        k.execute(text("DELETE FROM hero_skus"))
+
+
+def _hero_scope_when_enabled(seeded):  # kept for reference: behaviour with INCLUDE_HERO_SKUS = True
     c, E, S, skus = seeded["client"], seeded["engine"], seeded["S"], seeded["skus"]
     base = {r[0] for r in q(E, "SELECT sku FROM forecast_results")}
     j = c.post("/api/hero-sku/upload", files={"file": ("HERO.xlsx", S.hero_file(skus, base), "x")}).json()

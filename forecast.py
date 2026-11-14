@@ -10,7 +10,10 @@ from datetime import datetime
 def load_hero_skus(engine) -> dict:
     """Company best-seller list (Hero SKU), uploaded on the Upload Data page.
     {sku: {"group", "status"}}; empty when the table does not exist yet."""
+    from src.core.config import INCLUDE_HERO_SKUS
     from src.repositories import hero as hero_repo
+    if not INCLUDE_HERO_SKUS:
+        return {}
     try:
         with engine.connect() as conn:
             rows = hero_repo.import_skus(conn)
