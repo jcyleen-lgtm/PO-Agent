@@ -90,6 +90,11 @@ def clean_sales_data(filepath: str, master_sku: dict = None, db_product_lookup: 
 
     stats["raw_rows"] = len(raw)
     stats["raw_cols"] = len(raw.columns)
+    # An .xls sheet holds at most 65,536 rows; Accurate silently drops the rest of a longer report
+    # (always the items at the end of the alphabet), so a file of exactly that size is refused.
+    if ext == ".xls" and len(raw) >= 65536:
+        return {"df": None, "stats": stats, "errors": [
+            "File terpotong: tepat 65.536 baris (batas format .xls). Export ulang dengan periode lebih pendek, misalnya per kuartal."]}
 
     df = raw.copy()
 
@@ -175,15 +180,20 @@ def clean_sales_data(filepath: str, master_sku: dict = None, db_product_lookup: 
     stats["junk_rows_removed"] = before_rows - len(df)
 
     # ── Step 5: Identifikasi & forward fill product name ─────
-    is_product_header = df[inv_col].notna() & df[qty_col].isna()
-    is_subtotal = df[inv_col].isna() & df[qty_col].notna()
+    # The product name sits in the report's first column. That is "Invoice Date" in the default export,
+    # but "Invoice No." when that column is switched on, so the name column is found from the header.
+    name_col = next((c for c in df.columns if str(header_row[c]).strip() == "Invoice No."), inv_col)
+    is_product_header = df[name_col].notna() & df[qty_col].isna()
+    if name_col != inv_col:
+        is_product_header &= df[inv_col].isna()
+    is_subtotal = df[name_col].isna() & df[inv_col].isna() & df[qty_col].notna()
     is_transaction = ~is_product_header & ~is_subtotal & df[inv_col].notna()
 
     stats["product_headers"] = int(is_product_header.sum())
     stats["subtotal_rows"] = int(is_subtotal.sum())
     stats["transaction_rows"] = int(is_transaction.sum())
 
-    df["product_raw"] = np.where(is_product_header, df[inv_col], np.nan)
+    df["product_raw"] = np.where(is_product_header, df[name_col], np.nan)
     df["product_raw"] = df["product_raw"].ffill()
 
     # ── Step 6: Extract SKU dari nama produk ──────────────────
