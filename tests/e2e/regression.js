@@ -123,56 +123,48 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
 
     // Overview
     await snap('10-overview');
-    // Overview values must equal an independent recomputation from /api/replenishment (R7 groups, KPIs, priority, charts)
+    // Overview values must equal an independent recomputation from /api/replenishment (R8: KPIs, stock status, priority, charts)
     const check = await p.evaluate(async () => {
       const d = await (await fetch('/api/replenishment?product_type=import')).json();
       const R = d.results || [];
-      const g = r => r.status === 'understocked' ? ((r.reco_po || 0) > 0 ? 'order' : 'covered') : r.status === 'healthy' ? 'hold' : r.status === 'overstocked' ? 'none' : 'unclassified';
-      const exp = ['order', 'covered', 'hold', 'none'].map(k => R.filter(r => g(r) === k).length);
       const num = t => parseInt(String(t).replace(/[^0-9]/g, ''), 10);
-      const shown = [...document.querySelectorAll('#acBuckets .ac-b-v')].map(e => num(e.firstChild.textContent));
       const st = k => R.filter(r => (r.status || null) === k).length;
-      const expK = [R.length, st('understocked'), st('healthy'), st('overstocked'), R.filter(r => r.out_of_stock).length];
-      const shownK = ['total', 'under', 'healthy', 'over', 'oos'].map(k => num(document.querySelector(`#ovKpis [data-k="${k}"] .kc-v`).textContent));
-      const pri = (x, y) => { const ex = x.order_by_is_estimate ? 1 : 0, ey = y.order_by_is_estimate ? 1 : 0; if (ex !== ey) return ex - ey;
-        const dx = x.order_by || '9999-12-31', dy = y.order_by || '9999-12-31'; if (dx !== dy) return dx < dy ? -1 : 1; return (y.l4w_revenue || 0) - (x.l4w_revenue || 0); };
-      const rk = { order: 0, covered: 1 };
-      const att = R.filter(r => g(r) in rk).sort((x, y) => g(x) === g(y) ? pri(x, y) : rk[g(x)] - rk[g(y)]).slice(0, 8);
-      const expP = att.map(r => [r.sku, r.reco_po || 0]);
-      const shownP = [...document.querySelectorAll('#prList tbody tr')].map(tr => [tr.children[0].textContent.trim(), num(tr.children[7].textContent)]);
-      const hc = Chart.getChart('ovHealthChart'), cc = Chart.getChart('ovCovChart'), dc = Chart.getChart('ovDemChart'), mc = Chart.getChart('ovMonChart');
-      const chartH = hc ? hc.data.datasets[0].data.slice(0, 3) : null;
-      const covSum = cc ? cc.data.datasets[0].data.reduce((x, y) => x + y, 0) : null;
-      // demand chart: past weeks = sum of holdout actual / forecast from /api/forecast/plan
+      const expK = [R.length, st('understocked')];
+      const shownK = ['total', 'order'].map(k => num(document.querySelector(`#ovKpis [data-k="${k}"] .kc-v`).textContent));
+      const expS = [st('understocked'), st('healthy'), st('overstocked')];
+      const shownS = [...document.querySelectorAll('#ovStatus .hl-item .hl-v')].slice(0, 3).map(e => num(e.textContent));
+      const oos = num((document.querySelector('#ovStatus .st-oos b') || {}).textContent);
+      const under = new Set(R.filter(r => r.status === 'understocked').map(r => r.sku));
+      const shownP = [...document.querySelectorAll('#prList tbody tr')].map(tr => tr.children[0].textContent.trim());
+      const dc = Chart.getChart('ovDemChart'), mc = Chart.getChart('ovMonChart'), pc = Chart.getChart('ovParChart');
       const pl = await (await fetch('/api/forecast/plan?product_type=import')).json();
       const act = {}; (pl.results || []).forEach(x => { const h = x.holdout || {}; if (Array.isArray(h.actual) && Array.isArray(h.forecast)) (h.weeks || []).forEach((w, i) => { const k = String(w).slice(0, 10); act[k] = (act[k] || 0) + (Number(h.actual[i]) || 0) }) });
       const expA = Object.keys(act).sort().map(k => Math.round(act[k]));
       const shownA = dc ? dc.data.datasets[0].data.filter(v => v != null) : null;
       const months = document.querySelectorAll('#ovMonth option').length;
-      const share = (document.querySelector('#ovSales .os-c:nth-child(2) .os-v') || {}).textContent || '';
       const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
-      const ok = same(exp, shown) && same(expK, shownK) && same(expP, shownP) && same(chartH, [st('understocked'), st('healthy'), st('overstocked')])
-        && covSum === R.length && exp.reduce((x, y) => x + y, 0) + R.filter(r => g(r) === 'unclassified').length === R.length
-        && same(expA, shownA) && !!mc && months > 0 && /%$/.test(share);
-      return { ok, exp, shown, expK, shownK, expP, shownP, chartH, covSum, expA, shownA, months, share, total: R.length };
+      const ok = same(expK, shownK) && same(expS, shownS) && oos === R.filter(r => r.out_of_stock).length
+        && shownP.length <= 5 && shownP.length === Math.min(5, under.size) && shownP.every(s => under.has(s))
+        && same(expA, shownA) && !!mc && !!pc && months > 0 && !document.getElementById('acBuckets');
+      return { ok, expK, shownK, expS, shownS, oos, shownP, expA, shownA, months, pareto: !!pc, total: R.length };
     });
     if (!check.ok) errors.push(`${C.name}: overview values differ from API ${JSON.stringify(check)}`);
     states.push({ id: `${C.name}__11-values`, text: JSON.stringify(check), calls: [], theme: '', activeNav: '', scrollWidth: 0, canvases: 0 });
     // month selector: pick the earliest month, the sales block must update
     const firstMonth = await p.evaluate(() => { const o = [...document.querySelectorAll('#ovMonth option')]; return o.length ? o[o.length - 1].value : null });
     if (firstMonth) { await p.selectOption('#ovMonth', firstMonth); await settle(); await snap('11-overview-month', false); }
-    // every purchasing card opens Replenishment on the same group
-    for (const [i, k] of [[1, 'order'], [2, 'covered'], [3, 'hold'], [4, 'none']]) {
-      await click(`#acBuckets .ac-b:nth-child(${i})`, 300);
-      const t = await p.evaluate(() => [document.querySelector('.nav-item.active').dataset.tab, (document.querySelector('#rpTabs button.active') || {}).dataset?.v]);
-      if (t[0] !== 'replenishment' || t[1] !== k) errors.push(`${C.name}: action card ${k} opened ${t}`);
-      if (i === 2) await snap('12-ac-to-repl', false);
+    // Order Now KPI opens the order list; each stock-status row opens Replenishment on that status
+    await click('#ovKpis button[data-k="order"]', 300);
+    const ko = await p.evaluate(() => [document.querySelector('.nav-item.active').dataset.tab, (document.querySelector('#rpTabs button.active') || {}).dataset?.v]);
+    if (ko[0] !== 'replenishment' || ko[1] !== 'order') errors.push(`${C.name}: Order Now KPI opened ${ko}`);
+    await snap('12-ac-to-repl', false);
+    await click('.nav-item[data-tab="overview"]', 200);
+    for (const [i, k] of [[1, 'understocked'], [2, 'healthy'], [3, 'overstocked']]) {
+      await click(`#ovStatus .hl-item:nth-child(${i})`, 300);
+      const ks = await p.evaluate(() => (document.querySelector('#rpStatus button.active') || {}).dataset?.v);
+      if (ks !== k) errors.push(`${C.name}: status row ${k} opened status ${ks}`);
       await click('.nav-item[data-tab="overview"]', 200);
     }
-    await click('#ovKpis button[data-k="under"]');
-    const ks = await p.evaluate(() => (document.querySelector('#rpStatus button.active') || {}).dataset?.v);
-    if (ks !== 'understocked') errors.push(`${C.name}: understocked KPI opened status ${ks}`);
-    await click('.nav-item[data-tab="overview"]', 200);
     const prRow = await p.$('#prList tbody tr');
     if (prRow) { await prRow.click(); await snap('13-priority-row-drawer'); await p.keyboard.press('Escape'); await settle(); }
     await click('.nav-item[data-tab="overview"]', 200);
@@ -186,7 +178,7 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
       const R = replData.results, cnt = k => R.filter(r => r.bucket === k).length;
       const tabs = Object.fromEntries([...document.querySelectorAll('#rpTabs .cnt')].map(c => [c.dataset.c, parseInt(c.textContent.replace(/\D/g, ''), 10)]));
       const locked = [...document.querySelectorAll('#rpTableWrap tbody input.cb:disabled')].length;
-      return { tabs, exp: { all: R.length, order: cnt('order'), covered: cnt('covered'), hold: cnt('hold'), none: cnt('none') }, locked, shown: document.querySelectorAll('#rpTableWrap tbody tr').length,
+      return { tabs, exp: { all: R.length, order: cnt('order'), covered: cnt('covered'), none: cnt('none') }, locked, shown: document.querySelectorAll('#rpTableWrap tbody tr').length,
         sys: R.filter(r => r.status === 'healthy' && (r.reco_po || 0) > 0).length, sysShown: parseInt(document.getElementById('rpSysCnt').textContent, 10),
         fz: R.filter(r => r.zero === 'forecast_zero').length };
     });
@@ -194,7 +186,6 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
     states.push({ id: `${C.name}__20-repl-values`, text: JSON.stringify(rc), calls: [], theme: '', activeNav: '', scrollWidth: 0, canvases: 0 });
     await click('#rpTabs button[data-v="all"]'); await snap('21-repl-all', false);
     await click('#rpTabs button[data-v="covered"]'); await snap('21-repl-covered', false);
-    await click('#rpTabs button[data-v="hold"]'); await snap('22-repl-hold', false);
     await click('#rpSysReco'); await snap('22-repl-sysreco', false); await click('#rpSysReco');
     // tick one optional (Hold) row
     const opt = await p.$('#rpTableWrap tbody input.cb:not(:disabled)');
@@ -281,10 +272,7 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
     // Upload
     await click('.nav-item[data-tab="upload"]'); await snap('50-upload');
     if (C.mutate) {
-      await p.setInputFiles('#heroFile', path.join(FX, 'bad.txt')); await settle();
-      await click('#btnHeroUpload'); await snap('51-upload-bad', false);
-      await p.setInputFiles('#heroFile', path.join(FX, 'HERO.xlsx')); await settle();
-      await click('#btnHeroUpload'); await snap('52-upload-hero', false);
+      // Hero SKU upload is hidden since scope = Pareto 80% only (INCLUDE_HERO_SKUS = False)
     }
 
     // Shared: settings modal, theme toggle, keyboard shortcuts, logout

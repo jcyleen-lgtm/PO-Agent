@@ -78,3 +78,17 @@ def _hero_scope_when_enabled(seeded):  # kept for reference: behaviour with INCL
     assert sum(1 for x in inv if x["scope_source"] in ("hero", "both")) == 5
     new = [x for x in inv if x["sku"] == "299.999.999.001"][0]
     assert new["fc_method"] == "naive" and new["fc_method_reason"] == "no_sales" and new["reco_po"] == 0
+
+
+def test_stale_instance_cache_is_dropped(seeded):
+    """Vercel runs several instances; one that cached an older forecast must reload once the DB is newer."""
+    from src.core.state import forecast_cache
+    c, E = seeded["client"], seeded["engine"]
+    c.post("/api/forecast/run")
+    n = len(c.get("/api/forecast/results?fields=light").json()["results"])
+    forecast_cache["light"] = forecast_cache["light"][:1]        # pretend this instance holds an old result
+    forecast_cache["stamp"] = "2000-01-01T00:00:00"
+    assert len(c.get("/api/forecast/results?fields=light").json()["results"]) == n
+    forecast_cache["light"] = forecast_cache["light"][:1]        # same stamp as DB -> cache is trusted
+    assert len(c.get("/api/forecast/results?fields=light").json()["results"]) == 1
+    forecast_cache.clear()

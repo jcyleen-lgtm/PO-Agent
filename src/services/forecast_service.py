@@ -17,14 +17,46 @@ import replenishment as rp
 log = get_logger("forecast")
 
 
+def _db_stamp(engine):
+    """Latest calculated_at in forecast_results (ISO string), or None if unreadable / empty."""
+    try:
+        with engine.connect() as conn:
+            calc = forecast_repo.max_calculated_at(conn)
+        return calc.isoformat() if calc else None
+    except Exception:
+        return None
+
+
+def _sync_cache(engine):
+    """Vercel runs several instances, each with its own memory cache. A refresh on one instance
+    cannot clear the others, so before every cached read compare the cache with the newest
+    forecast in the database (one tiny query) and drop it when the database is newer."""
+    stamp = _db_stamp(engine)
+    if stamp is None:
+        return
+    if forecast_cache.get("stamp") != stamp:
+        forecast_cache.clear()
+        forecast_cache["stamp"] = stamp
+        forecast_cache["light_calc_at"] = stamp
+
+
+def _after_save(engine, result):
+    """Cache the fresh result on this instance and tag it with the new database stamp."""
+    forecast_cache.clear()
+    forecast_cache["latest"] = result
+    stamp = _db_stamp(engine)
+    if stamp:
+        forecast_cache["stamp"] = stamp
+        forecast_cache["light_calc_at"] = stamp
+
+
 def _run_auto_forecast(engine):
     """Internal: run forecast + save to DB + cache. Called after ETL and on-demand."""
     try:
         result = run_forecast(engine, forecast_periods=12)
         if "error" not in result:
             saved = save_forecast_to_db(engine, result)
-            forecast_cache["latest"] = result
-            forecast_cache.pop("light", None); forecast_cache.pop("light_calc_at", None)
+            _after_save(engine, result)
             log.info(f"{result['summary']['total_skus_forecasted']} SKUs forecasted, saved={saved}")
         else:
             log.warning(f"skipped: {result['error']}")
@@ -60,6 +92,7 @@ def get_forecast_light(engine):
             "method": method or "holt", "method_reason": method_reason,
             "scope": scope or {"source": "pareto", "pareto": True, "hero": False},
         }
+    _sync_cache(engine)
     if "light" in forecast_cache:
         return forecast_cache["light"]
     with engine.connect() as conn:
@@ -135,6 +168,7 @@ def get_latest_forecast(engine, compute_if_missing=True):
     """Forecast lookup order: memory cache → forecast_results table → full recompute (slow).
     On Vercel every new instance starts with an empty cache, so the table read avoids
     re-running the grid search on almost every page load."""
+    _sync_cache(engine)
     if "latest" in forecast_cache:
         return forecast_cache["latest"]
     try:
@@ -164,8 +198,7 @@ async def forecast_run():
     if "error" in result:
         raise HTTPException(400, result["error"])
     saved = save_forecast_to_db(engine, result)
-    forecast_cache["latest"] = result
-    forecast_cache.pop("light", None); forecast_cache.pop("light_calc_at", None)
+    _after_save(engine, result)
     return {"status": "success", "summary": result["summary"], "saved_to_db": saved}
 
 
@@ -190,6 +223,7 @@ async def forecast_results(limit: int = 200, sort: str = "volume", fields: str =
 async def forecast_sku(sku: str):
     engine = get_engine()
     match = None
+    _sync_cache(engine)
     if "latest" in forecast_cache:
         match = next((r for r in forecast_cache["latest"].get("results", []) if r["sku"] == sku), None)
     else:

@@ -17,7 +17,7 @@
 .ico-t.ico-s svg{width:14px;height:14px}
 
 /* KPI cards */
-.ov-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.ov-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:16px}
 .kc{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:0;margin:0;padding:24px;text-align:left;font-family:var(--font);color:inherit;min-width:0;line-height:1.4;border:none}
 button.kc{cursor:pointer;transition:background 150ms}
 button.kc:hover{background:var(--card-hover)}
@@ -92,7 +92,7 @@ button.op-r:hover{border-color:var(--border)}
 .op-v{font-size:16px;font-weight:500;color:var(--text)}
 .op-d{font-size:13px;color:var(--text3);line-height:1.35}
 
-@media(max-width:1280px){.ov-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1280px){.ov-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1100px){
   .ov-row-3{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .ov-row-3>.ac{grid-column:1/-1;order:-1}
@@ -151,3 +151,23 @@ button.op-r:hover{border-color:var(--border)}
 #ovSales{margin-bottom:8px}
 .os-top.disc{border:none;border-top:1px solid var(--border);border-radius:0;padding:0}
 .op-r .ico-t{align-self:flex-start;margin-top:2px}
+
+/* R8: 4 KPIs, stock status bar, Pareto + operational summary row, data strip */
+.kc .kc-v small{font-size:15px;font-family:var(--font);color:var(--text3);letter-spacing:0}
+.kc .kc-d{margin-top:4px;white-space:normal}
+.ov-row-2b{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}
+.st-bar{display:flex;height:16px;border-radius:8px;overflow:hidden;background:var(--seg);margin:4px 0 16px}
+.st-bar span{display:block;height:100%}
+.st-bar span+span{border-left:2px solid var(--surface)}
+.st-oos{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:12px;border-top:1px solid var(--border);font-size:14px;color:var(--text2)}
+.st-oos b{color:var(--text);font-weight:600}
+#ovStatus{display:flex;flex-direction:column;flex:1}
+.ov-data{padding:12px 16px}
+.op-strip{display:flex;flex-wrap:wrap;gap:8px 24px;align-items:center}
+.op-s{display:inline-flex;align-items:center;gap:8px;background:none;border:none;padding:6px 4px;font:inherit;color:inherit;cursor:pointer;border-radius:8px;min-height:40px}
+.op-s:hover{background:var(--row-hover)}
+.op-s .op-l{font-size:13px}
+.op-s .op-v{font-size:14px;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+@media(max-width:1100px){.ov-row-2b{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:768px){.ov-kpis .kc[data-k="total"]{grid-column:auto}.op-strip{gap:4px 16px}}
+#ovStatus .hl-legend{margin-top:0}

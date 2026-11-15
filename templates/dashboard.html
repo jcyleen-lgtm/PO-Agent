@@ -71,41 +71,36 @@
 
   <section class="ov-kpis" id="ovKpis" aria-label="Inventory health"></section>
 
-  <section class="card ac-strip" aria-labelledby="acTitle">
-    <div class="ac-strip-h"><h2 class="section-label" id="acTitle">What Needs Your Attention?</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Each SKU is in exactly one group, from its inventory status:&#10;Order Now: Understocked. With a recommended quantity it is always in the order list; recommended 0 shows the reason.&#10;Monitor: Healthy (optional; System Recommended = the forecast still suggests a quantity).&#10;No Action Needed: Overstocked (optional).&#10;&#10;Preorder recommends; purchasing decides. Orders are placed outside Preorder.">i</span><span class="section-meta" id="acMeta"></span></div>
-    <div class="ac-buckets" id="acBuckets"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
-  </section>
-
   <div class="ov-row ov-row-2">
     <section class="card ov-panel" aria-labelledby="dmTitle">
       <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="dmTitle">Demand — Actual vs Forecast</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Weekly units, best-seller SKUs. Past weeks: actual sales next to the forecast for the same weeks from a model trained without them (holdout), so you see how close the forecast was. Then the forecast for the next 12 weeks. Preorder keeps only the latest forecast run, so earlier forecasts are not available.">i</span></div><div class="section-meta" id="dmMeta">Weekly units sold vs Holt's DES forecast</div></div><div class="legend"><span><i style="border-color:var(--chart-act);border-top-width:3px"></i>Actual</span><span><i style="border-color:var(--chart-fc);border-top-width:3px"></i>Forecast</span></div></div>
       <div class="chart-wrap ov-chart-l" id="chDemWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
       <div class="dm-foot"><span id="dmStats" class="section-meta"></span><button class="link-btn" onclick="switchTab('analysis');setSub('forecast')">Demand plan →</button></div>
     </section>
-    <section class="card ov-panel" aria-labelledby="opTitle">
-      <div class="card-header"><h2 class="section-label" id="opTitle">Operational Summary</h2><label class="op-month"><span class="sr-only">Month</span><select id="ovMonth" onchange="loadOvMonth(this.value)" aria-label="Month for sales figures"></select></label></div>
-      <div id="ovSales"><span class="text-dim">Loading…</span></div>
-      <div class="op-list" id="ovOps"><span class="text-dim">Loading…</span></div>
+    <section class="card ov-panel" aria-labelledby="stTitle">
+      <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="stTitle">Stock Status</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="SKUs per stock status, each counted once.&#10;Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks.&#10;Understocked: 8 weeks or less · Healthy: more than 8 up to 20 weeks · Overstocked: more than 20 weeks, or stock without sales.&#10;Out of stock (stock ≤ 0) is part of these statuses, shown on its own line.">i</span></div><div class="section-meta" id="stMeta">Weeks of coverage · each SKU counted once</div></div></div>
+      <div id="ovStatus"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
     </section>
   </div>
 
-  <h2 class="group-h" id="insTitle">Inventory Insights</h2>
-  <div class="ov-row ov-row-2e">
-    <section class="card ov-panel" aria-labelledby="hlTitle">
-      <div class="card-header"><div><h2 class="section-label" id="hlTitle">Inventory Health Distribution</h2></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="SKUs per stock status.&#10;Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks.&#10;Understocked: 8 weeks or less · Healthy: more than 8 up to 20 weeks · Overstocked: more than 20 weeks, or stock without sales.&#10;Not classified: no sales in 4 weeks and no stock.">i</span></div>
-      <div class="hl-wrap"><div class="donut-wrap"><div class="donut-box" id="chHealthWrap"><canvas id="ovHealthChart" aria-label="Inventory health distribution chart" role="img"></canvas></div><div class="donut-center" id="donutCenter"></div></div>
-      <div class="hl-legend" id="ovHealthLegend"></div></div>
+  <div class="ov-row ov-row-2b">
+    <section class="card ov-panel" aria-labelledby="paTitle">
+      <div class="card-header"><div><div style="display:flex;align-items:center"><h2 class="section-label" id="paTitle">Best-Seller Scope — Pareto Curve</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Import SKUs ranked by revenue, highest first. The line is the cumulative share of import revenue. SKUs inside the 80% line are the best sellers that Preorder forecasts (same rule as the forecast run).">i</span></div><div class="section-meta" id="paMeta">Cumulative share of import revenue by SKU rank</div></div></div>
+      <div class="chart-wrap ov-chart-l" id="chParWrap"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
     </section>
-    <section class="card ov-panel" aria-labelledby="covTitle">
-      <div class="card-header"><div><h2 class="section-label" id="covTitle">Stock Coverage Distribution</h2></div><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="SKUs per coverage range, in weeks.&#10;Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks. Bars are coloured by the status the range falls in. &quot;No sales&quot;: no sales in 4 weeks, so coverage cannot be calculated.">i</span></div>
-      <div class="chart-wrap ov-chart" id="chCovWrap"><canvas id="ovCovChart" aria-label="Stock coverage distribution chart" role="img"></canvas></div>
+    <section class="card ov-panel" aria-labelledby="opTitle">
+      <div class="card-header"><h2 class="section-label" id="opTitle">Operational Summary</h2><label class="op-month"><span class="sr-only">Month</span><select id="ovMonth" onchange="loadOvMonth(this.value)" aria-label="Month for sales figures"></select></label></div>
+      <div id="ovSales"><span class="text-dim">Loading…</span></div>
     </section>
   </div>
+
   <section class="card" aria-labelledby="prTitle">
-    <div class="card-header"><div style="display:flex;align-items:center"><h2 class="section-label" id="prTitle">Priority SKUs</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Understocked SKUs, most urgent first.">i</span></div></div>
+    <div class="card-header"><div style="display:flex;align-items:center"><h2 class="section-label" id="prTitle">Priority SKUs</h2><span class="info" tabindex="0" role="button" aria-label="More info" data-tip="Understocked SKUs, most urgent first. The full list is in Replenishment.">i</span></div></div>
     <div id="prList"><div class="loader-full"><span class="loading-spinner"></span> Loading…</div></div>
     <div class="pr-foot"><button class="btn btn-ghost btn-sm" onclick="openReplBucket('order')" id="prViewAll">View all in Replenishment <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span class="text-dim" id="prMore"></span></div>
   </section>
+
+  <section class="card ov-data" aria-label="Data status"><div class="op-strip" id="ovOps"><span class="text-dim">Loading…</span></div></section>
 
 </div>
 <!-- ═══ TAB 2: REPLENISHMENT PLANNING ═══ -->

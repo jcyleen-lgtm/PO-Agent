@@ -1,11 +1,11 @@
-/* Inventory Overview (revision R7): KPIs → purchasing groups → Demand: Actual vs Forecast and Operational Summary →
-   Priority SKUs → Inventory Insights.
+/* Inventory Overview (revision R8): 4 KPIs → Demand: Actual vs Forecast + Stock Status → Pareto curve +
+   Operational Summary → Priority SKUs → data status strip. Each number appears once on the page.
    Inventory numbers come from the same /api/replenishment rows (fetchRepl) as the Replenishment page, so they agree.
    Demand comes from /api/forecast/plan (core/demand.js); monthly sales and best sellers from /api/overview for the
    chosen month. Nothing here recalculates a business value. */
 let ovSeq = 0, ovRows = [], ovFc = null, ovDem = null, ovMonths = [], ovMonthSel = null, ovMonthSeq = 0;
-let ovHealthChartObj = null, ovCovChartObj = null, ovDemChartObj = null, ovMonChartObj = null, ovPo = null;
-const PRIORITY_LIMIT = 8;
+let ovDemChartObj = null, ovMonChartObj = null, ovParChartObj = null, ovPo = null, ovScope = null, ovPlan = null;
+const PRIORITY_LIMIT = 5;
 
 const OVI = {
   box: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
@@ -37,22 +37,20 @@ async function loadOverview() {
     renderFresh(d.freshness);
     renderOvAsOf();
     renderOvKpis();
-    renderActionCenter();
+    renderOvStatus();
     renderPriority();
-    renderOvCharts();
     loadOvMonths(seq);
   } catch (e) {
     if (seq !== ovSeq) return;
     ovRows = [];
     const err = `<div class="state state-error">${ICON.alert}<div><b>Could not load inventory data.</b><br>${esc(e.message)}</div><button class="btn btn-ghost" onclick="replData=null;loadOverview()">Retry</button></div>`;
-    document.getElementById('ovKpis').innerHTML = '';
-    document.getElementById('acBuckets').innerHTML = err;
+    document.getElementById('ovKpis').innerHTML = err;
     document.getElementById('prList').innerHTML = '';
-    document.getElementById('ovHealthLegend').innerHTML = '';
-    ['chHealthWrap', 'chCovWrap'].forEach(id => { document.getElementById(id).innerHTML = '<div class="state">Not available</div>' });
+    document.getElementById('ovStatus').innerHTML = '<div class="state">Not available</div>';
     document.getElementById('ovAsOf').innerHTML = '<span class="text-dim">Data status unknown</span>';
   }
   loadOvDemand(seq);
+  loadOvPareto(seq);
   const [ov, po] = await Promise.all([fcP, poP]);
   if (seq !== ovSeq) return;
   ovFc = ov && ov.forecast_summary;
@@ -86,51 +84,74 @@ function fmtStamp(ts) {
   return dfmt(`${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`) + ' ' + p(dt.getHours()) + ':' + p(dt.getMinutes());
 }
 
-/* B. KPIs. Out of stock is a subset of the statuses, never added to them. */
+/* B. KPIs: one number per question. Out of stock is a subset of the statuses, never added to them. */
 function healthCounts(rows) {
   const c = k => rows.filter(r => (r.status || null) === k).length;
   return { total: rows.length, understocked: c('understocked'), healthy: c('healthy'), overstocked: c('overstocked'), unclassified: c(null), oos: rows.filter(r => r.out_of_stock).length };
 }
+const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2 };
+/* Forecast error of all best sellers together on the holdout weeks: Σ|Σactual − Σforecast| ÷ Σactual (weekly totals),
+   next to the median per-SKU holdout WMAPE. Both come from the same holdout run as the demand chart. */
+function ovAccuracy() {
+  if (!ovDem) return null;
+  const ws = [...ovDem.past].sort();
+  let ae = 0, act = 0;
+  ws.forEach(w => { const a = ovDem.actual[w] || 0, f = ovDem.holdoutFc[w] || 0; ae += Math.abs(a - f); act += a });
+  const per = (ovPlan && ovPlan.results || []).map(p => p.holdout && p.holdout.wmape).filter(v => v != null);
+  return { all: act ? ae / act * 100 : null, perSku: median(per), n: per.length, weeks: ws.length };
+}
 function renderOvKpis() {
-  const h = healthCounts(ovRows), st = (replData && replData.settings) || {};
-  const U = st.understock_weeks ?? 8, O = st.overstock_weeks ?? 20;
-  const pct = n => h.total ? Math.round(n / h.total * 100) + '%' : '0%';
+  const el = document.getElementById('ovKpis');
+  if (!el) return;
+  const rows = ovRows, h = healthCounts(rows);
+  const order = rows.filter(r => r.bucket === 'order'), m = order.filter(r => r.mandatory);
+  const units = m.reduce((a, r) => a + (r.reco_po || 0), 0), cost = m.reduce((a, r) => a + (r.unit_cost != null ? (r.reco_po || 0) * r.unit_cost : 0), 0);
+  const withCost = rows.filter(r => r.unit_cost != null), val = withCost.reduce((a, r) => a + Math.max(r.current_stock || 0, 0) * r.unit_cost, 0);
+  const covMed = median(rows.map(r => r.coverage).filter(v => v != null));
+  const sc = ovScope && ovScope.pareto, acc = ovAccuracy();
+  const pct1 = v => v == null ? '--' : (Math.round(v * 10) / 10).toLocaleString('id-ID') + '%';
   const card = o => {
-    const inner = `<div class="kc-top">${ico(o.i, 'ico-' + o.tone)}${o.badge ? `<span class="kc-badge kb-${o.tone}">${o.badge}</span>` : ''}</div>
-      <div class="kc-l">${o.l}${info(o.d)}</div><div class="kc-v kv-${o.tone}">${o.v}</div>`;
-    return o.go ? `<button class="card kc" data-k="${o.k}" onclick="${o.go}" title="${o.t}">${inner}</button>` : `<div class="card kc" data-k="${o.k}">${inner}</div>`;
+    const inner = `<div class="kc-l">${o.l}${info(o.d)}</div><div class="kc-v kv-${o.tone}">${o.v}</div><div class="kc-d">${o.s}</div>`;
+    return o.go ? `<button class="card kc kc-${o.k}" data-k="${o.k}" onclick="${o.go}" title="${o.t}">${inner}</button>` : `<div class="card kc kc-${o.k}" data-k="${o.k}">${inner}</div>`;
   };
-  document.getElementById('ovKpis').innerHTML = [
-    { k: 'total', i: 'box', tone: 'navy', l: 'Total SKUs', v: fmt(h.total), d: `Best-seller SKUs with a forecast${h.unclassified ? ` · ${fmt(h.unclassified)} not classified` : ''}`, go: "openReplBucket('all')", t: 'Open all SKUs in Replenishment' },
-    { k: 'under', i: 'down', tone: 'red', l: 'Understocked', v: fmt(h.understocked), badge: pct(h.understocked), d: `Coverage ≤ ${U} weeks`, go: "openReplStatus('understocked')", t: 'Show Understocked SKUs in Replenishment' },
-    { k: 'healthy', i: 'ok', tone: 'green', l: 'Healthy', v: fmt(h.healthy), badge: pct(h.healthy), d: `Coverage > ${U} up to ${O} weeks`, go: "openReplStatus('healthy')", t: 'Show Healthy SKUs in Replenishment' },
-    { k: 'over', i: 'layers', tone: 'slate', l: 'Overstocked', v: fmt(h.overstocked), badge: pct(h.overstocked), d: `Coverage > ${O} weeks, or no sales`, go: "openReplStatus('overstocked')", t: 'Show Overstocked SKUs in Replenishment' },
-    { k: 'oos', i: 'empty', tone: 'amber', l: 'Out of Stock', v: fmt(h.oos), badge: pct(h.oos), d: 'Stock ≤ 0 · already counted in the statuses' },
+  el.innerHTML = [
+    { k: 'total', tone: 'navy', l: 'Best-seller SKUs', v: fmt(h.total),
+      s: sc ? `${fmt(sc.skus)} of ${fmt(ovScope.skus_sold)} import SKUs (${sc.share_of_skus_pct}%) · ${sc.revenue_pct}% of revenue` : 'Pareto 80% of import revenue',
+      d: 'SKUs that together make up 80% of import revenue (Pareto). Only these are forecasted.', go: "openReplBucket('all')", t: 'Open all best-seller SKUs in Replenishment' },
+    { k: 'order', tone: 'red', l: 'Order Now', v: `${fmt(order.length)} <small>SKUs</small>`,
+      s: order.length ? `${fmt(m.length)} to order · ${fmt(units)} units${cost ? ` · ≈ ${fmtRpS(cost)}` : ''}` : 'Nothing to order',
+      d: 'Understocked SKUs (coverage ≤ 8 weeks). The recommended quantity is in Replenishment.', go: "openReplBucket('order')", t: 'Open the order list in Replenishment' },
+    { k: 'value', tone: 'navy', l: 'Inventory Value', v: withCost.length ? fmtRpS(val) : '--',
+      s: `${covMed != null ? `median coverage ${covMed.toFixed(1)} wks` : 'coverage not available'}${withCost.length < rows.length ? ` · ${fmt(rows.length - withCost.length)} SKUs without cost` : ''}`,
+      d: 'Stock on hand × unit cost, best-seller SKUs. Coverage = (stock + open PO) ÷ average weekly sales of the last 4 weeks.' },
+    { k: 'acc', tone: 'blue', l: 'Forecast Error', v: acc && acc.all != null ? pct1(acc.all) : '--',
+      s: acc && acc.all != null ? `all SKUs combined, ${acc.weeks}-week holdout · per-SKU median ${pct1(acc.perSku)}` : 'Run Refresh forecast',
+      d: 'WMAPE on the holdout weeks (the model did not see them). All SKUs combined = error of the weekly total. Per-SKU median = the typical single SKU.',
+      go: "switchTab('analysis');setSub('forecast')", t: 'Open the demand plan' },
   ].map(card).join('');
 }
 
-/* Purchasing groups (core/decision.js): mutually exclusive, each opens its Replenishment tab. */
-const BUCKET_ICON = { order: 'cart', covered: 'eye', none: 'check' };
-function renderActionCenter() {
-  const rows = ovRows;
-  const unc = rows.filter(r => r.bucket === 'unclassified').length;
-  document.getElementById('acMeta').textContent = rows.length ? `${fmt(rows.length)} SKUs · each counted once${unc ? ` · ${fmt(unc)} not classified` : ''}` : 'No forecasted best sellers yet';
-  document.getElementById('acBuckets').innerHTML = BUCKETS.map(b => {
-    const rs = rows.filter(r => r.bucket === b.key);
-    let sub = '';
-    if (b.key === 'order') {
-      const m = rs.filter(r => r.mandatory), u = m.reduce((a, r) => a + (r.reco_po || 0), 0), c = m.reduce((a, r) => a + (r.unit_cost != null ? (r.reco_po || 0) * r.unit_cost : 0), 0);
-      const z = rs.length - m.length, fz = rs.filter(r => r.zero === 'forecast_zero').length;
-      sub = rs.length ? `${fmt(m.length)} to order · ${fmt(u)} units${c ? ` · ≈ ${fmtRpS(c)}` : ''}${z ? `<br>${fmt(z)} recommended 0${fz ? ` · <b class="t-red">${fmt(fz)} forecast warning</b>` : ''}` : ''}` : 'Nothing to order';
-    }
-    else if (b.key === 'covered') { const sr = rs.filter(r => r.sysReco).length; sub = sr ? `${fmt(sr)} System Recommended` : 'Optional'; }
-    else sub = 'Optional';
-    return `<button class="ac-b ac-${b.tone}" data-k="${b.key}" onclick="openReplBucket('${b.key}')" title="${esc(b.hint)} · open in Replenishment">
-      <span class="ac-b-l">${ico(BUCKET_ICON[b.key], 'ico-' + b.tone + ' ico-s')}${b.label}</span>
-      <span class="ac-b-v">${fmt(rs.length)}<small> SKUs</small></span>
-      <span class="ac-b-s">${sub}</span></button>`;
+/* C2. Stock status: one stacked bar and one clickable row per status (replaces the donut, coverage chart and groups). */
+function renderOvStatus() {
+  const el = document.getElementById('ovStatus');
+  if (!el) return;
+  if (!ovRows.length) { el.innerHTML = '<div class="state">No forecasted best sellers yet.</div>'; return }
+  const h = healthCounts(ovRows), st = (replData && replData.settings) || {};
+  const U = st.understock_weeks ?? 8, O = st.overstock_weeks ?? 20;
+  const items = [['understocked', 'Understocked', `≤ ${U} wks`, '--c-red'], ['healthy', 'Healthy', `${U}–${O} wks`, '--c-green'], ['overstocked', 'Overstocked', `> ${O} wks`, '--c-slate']];
+  if (h.unclassified) items.push([null, 'Not classified', 'no sales, no stock', '--chart-3']);
+  const pct = n => h.total ? n / h.total * 100 : 0;
+  const bar = items.map(([k, l, , c]) => { const n = h[k || 'unclassified']; return n ? `<span style="width:${pct(n).toFixed(2)}%;background:var(${c})" title="${l}: ${fmt(n)} SKUs"></span>` : '' }).join('');
+  const rows = items.map(([k, l, rule, c]) => {
+    const n = h[k || 'unclassified'];
+    const inner = `<span class="hl-l"><span class="sw" style="background:var(${c})"></span>${l} <span class="text-dim">${rule}</span></span><span class="hl-v">${fmt(n)}</span><span class="hl-p">${Math.round(pct(n))}%</span>`;
+    return k ? `<button class="hl-item" onclick="openReplStatus('${k}')" title="Show ${l.toLowerCase()} SKUs in Replenishment">${inner}</button>` : `<div class="hl-item">${inner}</div>`;
   }).join('');
+  el.innerHTML = `<div class="st-bar" role="img" aria-label="Share of SKUs per stock status">${bar}</div><div class="hl-legend">${rows}</div>
+    <div class="st-oos">${ico('empty', 'ico-amber ico-s')}<span><b>${fmt(h.oos)}</b> out of stock (stock ≤ 0) · already counted above</span></div>`;
 }
+/* Charts redraw on theme change (core/settings.js). */
+function renderOvCharts() { if (ovDem) renderOvDemandChart(); if (ovMonths.length) renderOvMonthChart(); if (ovScope) renderOvPareto() }
 
 /* E. Priority SKUs: Understocked (Order Now), recommended > 0 first, in the Replenishment priority order. */
 function priorityRows() {
@@ -165,69 +186,7 @@ function renderPriority() {
   el.innerHTML = h + '</tbody></table></div>';
 }
 
-/* F. Inventory Insights: health donut, coverage distribution (status and coverage from the API only). */
-function covBins() {
-  const st = (replData && replData.settings) || {};
-  const U = st.understock_weeks ?? 8, O = st.overstock_weeks ?? 20;
-  const half = Math.round(U / 2 * 10) / 10, mid = Math.round((U + O) / 2 * 10) / 10;
-  return [
-    { l: '0', t: c => c === 0, z: 'c-red' },
-    { l: `0–${half}`, t: c => c > 0 && c <= half, z: 'c-red' },
-    { l: `${half}–${U}`, t: c => c > half && c <= U, z: 'c-red' },
-    { l: `${U}–${mid}`, t: c => c > U && c <= mid, z: 'c-green' },
-    { l: `${mid}–${O}`, t: c => c > mid && c <= O, z: 'c-green' },
-    { l: `> ${O}`, t: c => c > O, z: 'c-slate' },
-    { l: 'No sales', t: null, z: 'chart-3' },
-  ];
-}
 function chartTip() { const ct = getCT(); return { backgroundColor: ct.tipBg, titleColor: ct.tipTitle, bodyColor: ct.tipBody, borderColor: ct.tipBorder, borderWidth: 1, padding: 10, cornerRadius: 8 } }
-function healthSeries(h) {
-  const hs = [['understocked', 'Understocked', '--c-red'], ['healthy', 'Healthy', '--c-green'], ['overstocked', 'Overstocked', '--c-slate']];
-  if (h.unclassified) hs.push([null, 'Not classified', '--chart-3']);
-  return hs;
-}
-function renderOvCharts() {
-  if (typeof Chart === 'undefined') return;
-  const h = healthCounts(ovRows);
-  const hw = document.getElementById('chHealthWrap'), cw = document.getElementById('chCovWrap');
-  if (!ovRows.length) { hw.innerHTML = cw.innerHTML = '<div class="state">No data yet.</div>'; document.getElementById('donutCenter').innerHTML = ''; return }
-  if (!document.getElementById('ovHealthChart')) hw.innerHTML = '<canvas id="ovHealthChart" aria-label="Inventory health distribution chart" role="img"></canvas>';
-  if (!document.getElementById('ovCovChart')) cw.innerHTML = '<canvas id="ovCovChart" aria-label="Stock coverage distribution chart" role="img"></canvas>';
-  const ct = getCT(), tip = chartTip();
-  const hs = healthSeries(h), surface = cv('--surface');
-  if (ovHealthChartObj) ovHealthChartObj.destroy();
-  ovHealthChartObj = new Chart(document.getElementById('ovHealthChart'), {
-    type: 'doughnut',
-    data: { labels: hs.map(x => x[1]), datasets: [{ data: hs.map(x => h[x[0] || 'unclassified']), backgroundColor: hs.map(x => cv(x[2])), borderColor: surface, borderWidth: 3, hoverOffset: 4 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false, cutout: '72%',
-      plugins: { legend: { display: false }, tooltip: { ...tip, callbacks: { label: c => ` ${c.label}: ${fmt(c.parsed)} SKUs (${h.total ? Math.round(c.parsed / h.total * 100) : 0}%)` } } },
-      onClick: (e, els) => { if (els.length) { const k = hs[els[0].index][0]; if (k) openReplStatus(k) } },
-      onHover: (e, els) => { e.native.target.style.cursor = els.length && hs[els[0].index][0] ? 'pointer' : 'default' },
-    },
-  });
-  document.getElementById('donutCenter').innerHTML = `<div class="dc-v">${fmt(h.total)}</div><div class="dc-l">SKUs</div>`;
-  document.getElementById('ovHealthLegend').innerHTML = hs.map(([k, l, c]) => {
-    const n = h[k || 'unclassified'], p = h.total ? Math.round(n / h.total * 100) : 0;
-    const inner = `<span class="hl-l"><span class="sw" style="background:var(${c})"></span>${l}</span><span class="hl-v">${fmt(n)}</span><span class="hl-p">${p}%</span>`;
-    return k ? `<button class="hl-item" onclick="openReplStatus('${k}')" title="Show ${l.toLowerCase()} SKUs in Replenishment">${inner}</button>` : `<div class="hl-item">${inner}</div>`;
-  }).join('');
-
-  const bins = covBins();
-  const counts = bins.map(b => ovRows.filter(r => b.t ? (r.coverage != null && b.t(r.coverage)) : r.coverage == null).length);
-  if (ovCovChartObj) ovCovChartObj.destroy();
-  ovCovChartObj = new Chart(document.getElementById('ovCovChart'), {
-    type: 'bar',
-    data: { labels: bins.map(b => b.l), datasets: [{ data: counts, backgroundColor: bins.map(b => cv('--' + b.z)), borderRadius: 5, maxBarThickness: 34 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { ...tip, callbacks: { title: c => c[0].label === 'No sales' ? 'No sales in 4 weeks' : `${c[0].label} weeks of coverage`, label: c => `${fmt(c.parsed.y)} SKUs` } } },
-      scales: { x: { grid: { display: false }, border: { color: ct.grid }, ticks: { color: ct.tick, font: { ...ct.font, size: 11 }, maxRotation: 0, autoSkip: false }, title: { display: true, text: 'Weeks of coverage', color: ct.tick, font: ct.font } }, y: { min: 0, grid: { color: ct.grid }, border: { display: false }, ticks: { color: ct.tick, font: ct.font, precision: 0 } } },
-    },
-  });
-  if (ovDem) renderOvDemandChart();
-  if (ovMonths.length) renderOvMonthChart();
-}
 
 /* C. Demand — Actual vs Forecast: weekly, holdout weeks (actual vs forecast for the same weeks) then the horizon. */
 async function loadOvDemand(seq) {
@@ -237,8 +196,9 @@ async function loadOvDemand(seq) {
     if (seq !== ovSeq) return;
     const s = demandSeries(p);
     if (!s.weeks.length) { ovDem = null; wrap.innerHTML = '<div class="state">No forecast yet. Run Refresh forecast on the Data page.</div>'; document.getElementById('dmStats').textContent = ''; return }
-    ovDem = s;
+    ovDem = s; ovPlan = p;
     renderOvDemandChart();
+    renderOvKpis();
   } catch (e) {
     if (seq !== ovSeq) return;
     ovDem = null;
@@ -279,6 +239,56 @@ function renderOvDemandChart() {
   const nf = s.weeks.filter(w => !s.past.has(w)).slice(0, 8), f8 = nf.length ? nf.reduce((a, w) => a + (s.forecast[w] || 0), 0) / nf.length : null;
   document.getElementById('dmMeta').textContent = `Weekly units · ${fmt(s.evaluated)} of ${fmt(s.skus)} best-seller SKUs have past forecast weeks${labels.some(l => l.endsWith('*')) ? ' · * partial week' : ''}`;
   document.getElementById('dmStats').innerHTML = [b.weeks ? `Past ${b.weeks} weeks: forecast <b>${fmt(Math.round(b.fsum))}</b> vs actual <b>${fmt(Math.round(b.asum))}</b> units${b.pct != null ? ` (${fmtPct(b.pct)})` : ''} · above actual in ${b.over} of ${b.weeks} weeks` : '', f8 != null ? `Next ${nf.length} weeks: <b>${fmt(Math.round(f8))}</b> units/week` : ''].filter(Boolean).join(' · ');
+}
+
+/* C3. Pareto curve: the best-seller scope (same rule as the forecast run), from /api/bestseller/scope. */
+async function loadOvPareto(seq) {
+  const wrap = document.getElementById('chParWrap');
+  try {
+    const r = await fetch('/api/bestseller/scope');
+    if (!r.ok) throw new Error('Scope request failed (' + r.status + ')');
+    const d = await r.json();
+    if (seq !== ovSeq) return;
+    ovScope = d;
+    renderOvPareto();
+    renderOvKpis();
+  } catch (e) {
+    if (seq !== ovSeq) return;
+    ovScope = null;
+    wrap.innerHTML = '<div class="state">Pareto curve not available.</div>';
+  }
+}
+function renderOvPareto() {
+  const d = ovScope, wrap = document.getElementById('chParWrap');
+  if (!d || !wrap || typeof Chart === 'undefined') return;
+  const pts = (d.curve || []).map(c => ({ x: c.rank, y: c.cum_pct }));
+  if (!pts.length) { wrap.innerHTML = '<div class="state">No import sales yet.</div>'; return }
+  if (!document.getElementById('ovParChart')) wrap.innerHTML = '<canvas id="ovParChart" aria-label="Pareto curve of import revenue" role="img"></canvas>';
+  const ct = getCT(), cf = cv('--chart-fc'), red = cv('--c-red'), cut = d.pareto.skus, n = d.skus_sold;
+  const p = d.period || {};
+  document.getElementById('paMeta').innerHTML = `<b>${fmt(cut)}</b> of ${fmt(n)} import SKUs (${d.pareto.share_of_skus_pct}%) give <b>${d.pareto.revenue_pct}%</b> of import revenue${p.start ? ` · ${dfmt(p.start)} – ${dfmt(p.end)}` : ''}`;
+  if (ovParChartObj) ovParChartObj.destroy();
+  ovParChartObj = new Chart(document.getElementById('ovParChart'), {
+    type: 'line',
+    data: { datasets: [{ data: [{ x: 0, y: 0 }, ...pts], borderColor: cf, backgroundColor: cf, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, tension: 0, fill: false }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', axis: 'x', intersect: false }, parsing: false,
+      plugins: { legend: { display: false }, tooltip: { ...chartTip(), callbacks: { title: c => `Top ${fmt(c[0].parsed.x)} SKUs`, label: c => `${c.parsed.y.toFixed(1)}% of import revenue` } } },
+      scales: {
+        x: { type: 'linear', min: 0, max: n, grid: { display: false }, border: { color: ct.grid }, ticks: { color: ct.tick, font: ct.font, callback: v => fmt(v) }, title: { display: true, text: 'SKU rank (highest revenue first)', color: ct.tick, font: ct.font } },
+        y: { min: 0, max: 100, grid: { color: ct.grid }, border: { display: false }, ticks: { color: ct.tick, font: ct.font, stepSize: 20, callback: v => v + '%' } },
+      },
+    },
+    plugins: [{ id: 'scope', beforeDatasetsDraw(ch) {
+      const x = ch.scales.x, y = ch.scales.y, { top, bottom, left, right } = ch.chartArea, g = ch.ctx, px = x.getPixelForValue(cut), py = y.getPixelForValue(80);
+      g.save();
+      g.fillStyle = hexA(cf, .08); g.fillRect(left, top, px - left, bottom - top);
+      g.strokeStyle = red; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(left, py); g.lineTo(right, py); g.stroke(); g.setLineDash([]);
+      g.font = '12px Inter'; g.fillStyle = red; g.textAlign = 'right'; g.fillText('80% of revenue', right - 4, py - 6);
+      g.fillStyle = cf; g.textAlign = 'left'; g.font = '600 12px Inter'; g.fillText(`← ${fmt(cut)} best-seller SKUs`, px + 8, bottom - 10);
+      g.restore();
+    } }],
+  });
 }
 
 /* D. Operational Summary: monthly sales (selected month), best sellers by revenue, PO and data status. */
@@ -346,19 +356,21 @@ function renderOvMonthChart() {
       onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default' } },
   });
 }
+/* Data status strip: PO, last sales, last stock snapshot, forecast run. */
 function renderOvOps() {
+  const el = document.getElementById('ovOps');
+  if (!el) return;
   const f = (replData && replData.freshness) || {}, po = ovPo;
   const ago = n => n == null ? '' : n === 0 ? 'today' : n === 1 ? '1 day ago' : `${n} days ago`;
   const lvl = f.stock_level;
   const stockState = !f.stock_date ? ['crit', 'No snapshot'] : lvl === 'fresh' ? ['ok', 'Up to date'] : lvl === 'stale' ? ['warn', 'Getting old'] : ['crit', 'Outdated'];
-  const row = (i, tone, l, v, d, pill, go) => `<${go ? `button class="op-r" onclick="${go}"` : 'div class="op-r"'}>${ico(i, 'ico-' + tone)}<div class="op-m"><div class="op-l">${l}</div><div class="op-v">${v}</div><div class="op-d">${d}</div></div>${pill || ''}</${go ? 'button' : 'div'}>`;
   const pill = (tone, t) => `<span class="pill pill-${tone}">${t}</span>`;
-  document.getElementById('ovOps').innerHTML = [
-    po ? row('truck', 'amber', 'Pending purchase orders', `${fmt(po.open_po_numbers || 0)} open POs`, `${fmt(po.outstanding_qty || 0)} units to arrive`, po.overdue ? pill('warn', `${fmt(po.overdue)} past ETA`) : pill('ok', 'On schedule'), "switchTab('po')")
-      : row('truck', 'amber', 'Pending purchase orders', '--', 'Not available'),
-    row('sales', 'navy', 'Last sales update', f.last_sale_date ? dfmt(f.last_sale_date) : '--', f.last_sale_date ? ago(f.sales_age_days) : 'No sales uploaded yet', '', "switchTab('upload')"),
-    row('box', 'blue', 'Last stock snapshot', f.stock_date ? dfmt(f.stock_date) : '--', f.stock_date ? ago(f.stock_age_days) : 'Upload a stock report', '', "switchTab('upload')"),
-    row('upload', 'slate', 'Data upload status', stockState[1], `${ovFc && ovFc.calculated_at ? `Forecast ${fmtStamp(ovFc.calculated_at)}` : 'Forecast not run yet'} · stock current for ${f.warn_days ?? 7} days`, pill(stockState[0], stockState[0] === 'ok' ? 'OK' : 'Action'), "switchTab('upload')"),
+  const it = (i, tone, l, v, go) => `<button class="op-s" onclick="${go}">${ico(i, 'ico-' + tone + ' ico-s')}<span class="op-l">${l}</span><span class="op-v">${v}</span></button>`;
+  el.innerHTML = [
+    it('truck', 'amber', 'Open POs', po ? `${fmt(po.open_po_numbers || 0)} · ${fmt(po.outstanding_qty || 0)} units ${po.overdue ? pill('warn', `${fmt(po.overdue)} past ETA`) : ''}` : '--', "switchTab('po')"),
+    it('sales', 'navy', 'Sales to', f.last_sale_date ? `${dfmt(f.last_sale_date)} <span class="text-dim">${ago(f.sales_age_days)}</span>` : 'none', "switchTab('upload')"),
+    it('box', 'blue', 'Stock snapshot', f.stock_date ? `${dfmt(f.stock_date)} ${pill(stockState[0], stockState[1])}` : pill('crit', 'Upload a stock report'), "switchTab('upload')"),
+    it('fc', 'slate', 'Forecast run', ovFc && ovFc.calculated_at ? fmtStamp(ovFc.calculated_at) : 'not run yet', "switchTab('upload')"),
   ].join('');
 }
 

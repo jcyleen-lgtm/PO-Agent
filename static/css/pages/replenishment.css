@@ -26,3 +26,8 @@
 .sel-bar .btn-brand{background:var(--on-panel);color:var(--panel)}
 .sel-bar .btn-ghost{border-color:currentColor;color:inherit}
 .chip-f.active .cnt{background:rgba(255,255,255,.18);color:inherit}
+
+/* R8: projected stock chart in the SKU drawer */
+.pj-box{margin:16px 0;padding:16px;border:1px solid var(--border);border-radius:var(--radius-sm)}
+.pj-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px 16px;flex-wrap:wrap;margin-bottom:8px}
+.legend i.pj-sw{width:12px;height:12px;border:none;border-radius:2px}
