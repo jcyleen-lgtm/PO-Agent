@@ -3,6 +3,7 @@ the inventory build. `type_filter` is the whitelisted fragment from repositories
 
 import csv
 import io
+from datetime import timedelta
 
 import pandas as pd
 from psycopg2.extras import execute_values
@@ -19,14 +20,27 @@ def last_sale_date(conn):
     return conn.execute(text("SELECT MAX(invoice_date) FROM sales")).scalar()
 
 
-def recent_sales_weeks(conn, type_filter, n):
-    """The last n sales weeks (Monday dates) that have sales of the product type, oldest first."""
+def last_complete_week(last_sale):
+    """Monday of the newest week whose sales are complete, or None without sales.
+    Invoices run Monday to Saturday, so a week is complete once sales reach its Saturday. A later,
+    partly uploaded week is left out of the forecast and of the 4-week average: counted as a full
+    week it reads as a sales drop and pulls the forecast and the coverage down."""
+    if last_sale is None:
+        return None
+    monday = last_sale - timedelta(days=last_sale.weekday())
+    return monday if last_sale.weekday() >= 5 else monday - timedelta(days=7)
+
+
+def recent_sales_weeks(conn, type_filter, n, through=None):
+    """The last n sales weeks (Monday dates) that have sales of the product type, oldest first;
+    with `through`, only weeks up to that Monday (see last_complete_week)."""
+    cut = "AND DATE_TRUNC('week', s.invoice_date)::date <= :through" if through else ""
     return sorted(r[0] for r in conn.execute(text(f"""
             SELECT DISTINCT DATE_TRUNC('week', s.invoice_date)::date AS w
             FROM sales s JOIN products p ON s.sku = p.sku
-            WHERE s.invoice_date IS NOT NULL {type_filter}
+            WHERE s.invoice_date IS NOT NULL {type_filter} {cut}
             ORDER BY w DESC LIMIT :n
-        """), {"n": n}).fetchall())
+        """), {"n": n, **({"through": through} if through else {})}).fetchall())
 
 
 def sold_skus(conn, type_filter):

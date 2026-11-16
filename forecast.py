@@ -4,7 +4,7 @@ Per-SKU demand forecast with grid search for optimal α/β.
 """
 
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def load_hero_skus(engine) -> dict:
@@ -156,13 +156,23 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
     from src.repositories import forecast as forecast_repo
     # Weekly sales per SKU — research scope is IMPORT products only (food is excluded),
     # so the Pareto 80/20 below is computed on import revenue.
+    from src.repositories import sales as sales_repo
     with engine.connect() as conn:
         df = forecast_repo.weekly_import_sales_df(conn)
+        last_sale = sales_repo.last_sale_date(conn)
 
     if df.empty:
         return {"error": "No sales data found", "results": []}
 
     df["week_start"] = pd.to_datetime(df["week_start"])
+    # Only complete weeks (Monday–Saturday) feed the model: a partly uploaded last week would read as a drop.
+    complete_through = sales_repo.last_complete_week(last_sale)
+    partial_week = None
+    if complete_through is not None and (df["week_start"] > pd.Timestamp(complete_through)).any():
+        partial_week = str(complete_through + timedelta(days=7))
+        df = df[df["week_start"] <= pd.Timestamp(complete_through)]
+        if df.empty:
+            return {"error": "No complete sales week yet", "results": []}
 
     # ── Best-seller scope = Pareto 80/20 ∪ company Hero SKU list ─────
     # Pareto: SKUs that together make up the top 80% of import revenue (rank by revenue).
@@ -398,6 +408,8 @@ def run_forecast(engine, forecast_periods: int = 12, min_weeks: int = 4) -> dict
             "start": df["week_start"].min().strftime("%Y-%m-%d"),
             "end": df["week_start"].max().strftime("%Y-%m-%d"),
         },
+        "last_sale_date": str(last_sale) if last_sale else None,
+        "partial_week_excluded": partial_week,
         "calculated_at": datetime.now().isoformat(),
     }
 

@@ -22,8 +22,8 @@ def build_inventory(engine, product_type="import", scope="all", today=None):
     tf = _type_filter(product_type)
     n_hist = max(12, cfg["movement_window_weeks"])
     with engine.connect() as conn:
-        weeks = sales_repo.recent_sales_weeks(conn, tf, n_hist)
         last_sale = sales_repo.last_sale_date(conn)
+        weeks = sales_repo.recent_sales_weeks(conn, tf, n_hist, through=sales_repo.last_complete_week(last_sale))
         snap_dates = stock_repo.snapshot_dates_desc(conn)
         snap_date = snap_dates[0] if snap_dates else None
         stk = stock_repo.stock_by_sku(conn, snap_date) if snap_date else {}
