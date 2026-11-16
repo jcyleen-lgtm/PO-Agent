@@ -70,3 +70,14 @@ th[aria-sort="ascending"] .th-sort,th[aria-sort="descending"] .th-sort{color:var
 @media(max-width:560px){.sd-calc{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .sdc .d-l,.sdc .d-s{font-size:12px;line-height:1.35}
 .sdc .d-l{font-weight:600;color:var(--text3)}
+/* R8: accuracy = chart with three numbers beside it */
+.sd-acc{display:flex;gap:16px;align-items:stretch;margin-top:4px}
+.sd-acc-ch{flex:1 1 auto;min-width:0;height:300px}
+.sd-acc-side{flex:0 0 250px;display:flex;flex-direction:column;gap:10px}
+.sda{border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;flex:1}
+.sda .d-l{font-size:12px;font-weight:600;color:var(--text3);display:flex;align-items:center}
+.sda-v{font-size:24px;font-weight:700;margin:2px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sda-v small{font-size:13px;font-weight:500;color:var(--text3)}
+.sda .d-s{font-size:12px}
+.sd-model{margin:8px 0 0}
+@media(max-width:900px){.sd-acc{flex-direction:column}.sd-acc-side{flex:none;flex-direction:row;flex-wrap:wrap}.sda{flex:1 1 180px}}

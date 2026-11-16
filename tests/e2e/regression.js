@@ -227,7 +227,8 @@ const mask = s => s.replace(/\b\d{1,2}:\d{2}(:\d{2})?\b/g, '<time>')
     if (C.mutate) await download('inv-export', 'button[onclick^="exportInventory"]');
     const invRow = await p.$('#invTableWrap tbody tr');
     if (invRow) { await invRow.click(); await settle(800); await snap('31-sku-drawer');
-      const fv = await p.evaluate(() => ({ main: !!Chart.getChart('sdChart'), dev: !!Chart.getChart('sdDev') || !!document.querySelector('#sdFva .section-meta') }));
+      await p.evaluate(() => { const e = document.getElementById('sdFva'); if (e) e.scrollIntoView({ block: 'center' }) }); await settle(300); await snap('31b-sku-accuracy');
+      const fv = await p.evaluate(() => ({ main: !!Chart.getChart('sdChart'), dev: document.querySelectorAll('#sdFva .sda').length === 3 || /Not a forecasted/.test((document.getElementById('sdModel') || {}).textContent || '') }));
       if (!fv.main || !fv.dev) errors.push(`${C.name}: SKU forecast vs actual ${JSON.stringify(fv)}`);
       await p.keyboard.press('Escape'); await settle(); }
     await click('#anSeg button[data-v="forecast"]'); await snap('32-demand-plan');
