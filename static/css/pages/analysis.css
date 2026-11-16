@@ -55,3 +55,18 @@ th[aria-sort="ascending"] .th-sort,th[aria-sort="descending"] .th-sort{color:var
 .fva-sum .d-v small{font-size:13px;font-weight:500;color:var(--text3)}
 @media(max-width:768px){.fva-sum{grid-template-columns:1fr 1fr}}
 .fva-acc .fva-miss{margin-top:6px}
+/* R8: SKU detail top block (replenishment calculation, projected stock, plain sentences) */
+.sd-calc{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.sdc{border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;background:var(--surface)}
+.sdc .d-v{font-size:22px;font-weight:600}
+.sdc-ss .d-v{color:var(--green)}.sdc-rop .d-v{color:var(--amber)}
+.sdc-reco{background:var(--blue-bg,var(--seg));border-color:transparent}.sdc-reco .d-v{color:var(--chart-fc)}
+.sd-formula{margin:8px 0 0}
+.sd-notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
+.sdn{border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;font-size:14px;line-height:1.45}
+.sdn-h{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+.sdn-now .sdn-h{color:var(--amber)}.sdn-risk .sdn-h{color:var(--red)}.sdn-arr .sdn-h{color:var(--chart-fc)}
+@media(max-width:900px){.sd-calc{grid-template-columns:repeat(3,minmax(0,1fr))}.sd-notes{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){.sd-calc{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.sdc .d-l,.sdc .d-s{font-size:12px;line-height:1.35}
+.sdc .d-l{font-weight:600;color:var(--text3)}
