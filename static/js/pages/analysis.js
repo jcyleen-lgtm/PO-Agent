@@ -134,8 +134,13 @@ return card(`Test error (WMAPE, 8 wks)${info(tip)}`,w!=null?f(w)+'%'+badge(lewis
 function chartTipBase(){const ct=getCT();return{backgroundColor:ct.tipBg,titleColor:ct.tipTitle,bodyColor:ct.tipBody,borderColor:ct.tipBorder,borderWidth:1,padding:10,cornerRadius:8}}
 function closeSkuDrawer(){document.getElementById('skuDrawer').hidden=true;if(sdChartObj){sdChartObj.destroy();sdChartObj=null}if(sdDevObj){sdDevObj.destroy();sdDevObj=null}lastSd=null}
 let sdSku=null;
+// The detail modal can be opened from Replenish before the Analysis table has loaded (invData empty), or for a SKU
+// outside the best-seller table. Fetch the same inventory rows the table uses (all SKUs) so status/coverage/stock
+// always match Replenish. Cached for 60 s; invData stays owned by loadInventory.
+let sdInvCache={at:0,pt:null,rows:[]};
+async function sdInvRow(sku){try{if(!(sdInvCache.pt===PT&&Date.now()-sdInvCache.at<60000)){const r=await fetch(`/api/inventory?sort=priority&product_type=${PT}&scope=all`);const d=await r.json();if(!r.ok)return null;sdInvCache={at:Date.now(),pt:PT,rows:d.results||[]}}return sdInvCache.rows.find(x=>x.sku===sku)||null}catch(e){return null}}
 async function openSkuDrawer(sku){sdSku=sku;const m=document.getElementById('skuDrawer');m.hidden=false;document.getElementById('sdTitle').textContent=sku;document.getElementById('sdSub').textContent='';document.getElementById('sdBody').innerHTML='<div class="loader-full"><span class="loading-spinner"></span> Loading...</div>';
-try{const r=await fetch(`/api/product/${encodeURIComponent(sku)}/history`);const d=await r.json();if(!r.ok)throw new Error(d.detail||'Not found');const inv=(invData||[]).find(x=>x.sku===sku)||{};const fc=fcDataMap[sku];
+try{const r=await fetch(`/api/product/${encodeURIComponent(sku)}/history`);const d=await r.json();if(!r.ok)throw new Error(d.detail||'Not found');const inv=(invData||[]).find(x=>x.sku===sku)||await sdInvRow(sku)||{};const fc=fcDataMap[sku];
 document.getElementById('sdTitle').textContent=d.product_name;document.getElementById('sdSub').innerHTML=`${esc(sku)} · ${statusBadge(inv.status)} ${inv.movement?moveBadge(inv.movement):''} ${fc?'· forecasted best seller':'· not forecasted'}`;
 const cell=(l,v,sub='')=>`<div><div class="d-l">${l}</div><div class="d-v">${v}</div>${sub?`<div class="d-s">${sub}</div>`:''}</div>`;
 const snaps=d.stock_snapshots||[];const pos=d.purchase_orders||[];
